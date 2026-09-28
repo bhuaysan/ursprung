@@ -1,0 +1,50 @@
+# --- Never commit copyrighted content or secrets ---
+.env
+.env.*
+!.env.example
+ROMS/
+BIOS/
+*.gba
+*.nes
+*.smc
+*.sfc
+*.z64
+*.n64
+*.v64
+*.gb
+*.gbc
+*.nds
+*.iso
+*.bin
+*.cue
+*.chd
+*.pbp
+
+# Generated secrets
+**/Secrets.generated.swift
+
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# Generated project (source of truth is project.yml)
+*.xcodeproj/
+
+# SwiftPM
+.build/
+.swiftpm/
+
+# Downloaded cores during development
+*.dylib
+
+# Tool output
+smoke.png

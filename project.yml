@@ -1,0 +1,121 @@
+name: Ursprung
+options:
+  bundleIdPrefix: io.github.bhuaysan
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: YES
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    CLANG_ENABLE_OBJC_ARC: YES
+    GCC_C_LANGUAGE_STANDARD: gnu17
+    CLANG_WARN_DOCUMENTATION_COMMENTS: NO
+    WARNING_CFLAGS: ["-Wno-documentation", "-Wno-documentation-deprecated-sync"]
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    DEAD_CODE_STRIPPING: YES
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  Ursprung:
+    type: application
+    platform: macOS
+    sources:
+      - path: Ursprung
+        excludes:
+          - "**/.DS_Store"
+      - path: Ursprung/Support/Secrets.generated.swift
+        optional: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.bhuaysan.Ursprung
+        PRODUCT_NAME: Ursprung
+        INFOPLIST_FILE: Ursprung/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Ursprung/Ursprung.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_OBJC_BRIDGING_HEADER: Ursprung/Bridge/Ursprung-Bridging-Header.h
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "GL_SILENCE_DEPRECATION=1"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lz"]
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+    dependencies:
+      - sdk: OpenGL.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: AVFoundation.framework
+      - sdk: GameController.framework
+    preBuildScripts:
+      - name: Generate ScreenScraper secrets
+        script: |
+          "${SRCROOT}/Scripts/generate-secrets.sh" "${SRCROOT}/.env" "${SRCROOT}/Ursprung/Support/Secrets.generated.swift"
+        inputFiles:
+          - $(SRCROOT)/Scripts/generate-secrets.sh
+        outputFiles:
+          - $(SRCROOT)/Ursprung/Support/Secrets.generated.swift
+        basedOnDependencyAnalysis: false
+
+  UrsprungTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: UrsprungTests
+    dependencies:
+      - target: Ursprung
+    settings:
+      base:
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Ursprung.app/Contents/MacOS/Ursprung
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.bhuaysan.UrsprungTests
+        GENERATE_INFOPLIST_FILE: YES
+
+  ursprung-smoke:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Tools/ursprung-smoke
+      - path: Ursprung/Bridge/URLibretroCore.m
+      - path: Ursprung/Bridge/URGLContext.m
+      - path: Ursprung/Bridge/URAudioRing.c
+    settings:
+      base:
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/Ursprung/Bridge"]
+        GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "GL_SILENCE_DEPRECATION=1"]
+        ENABLE_HARDENED_RUNTIME: NO
+    dependencies:
+      - sdk: OpenGL.framework
+      - sdk: ImageIO.framework
+
+schemes:
+  ursprung-smoke:
+    build:
+      targets:
+        ursprung-smoke: all
+  Ursprung:
+    build:
+      targets:
+        Ursprung: all
+        UrsprungTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - UrsprungTests
+    profile:
+      config: Release
+    archive:
+      config: Release
