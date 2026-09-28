@@ -18,9 +18,12 @@ struct PlayerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            GameMetalView(session: session, filter: filter, integerScaling: integerScaling)
-                .ignoresSafeArea()
-                .opacity(session.phase == .running ? 1 : 0)
+            // Created per game: SwiftUI reuses the player's views when the
+            // window reopens, and a reused MTKView never resumes drawing.
+            if session.phase == .running {
+                GameMetalView(session: session, filter: filter, integerScaling: integerScaling)
+                    .ignoresSafeArea()
+            }
 
             switch session.phase {
             case .idle:
@@ -68,9 +71,11 @@ struct PlayerView: View {
         .onDisappear {
             Task { await session.stop(context: context) }
         }
-        .onChange(of: session.phase) { _, phase in
-            // A core that shut itself down closes the player.
-            if phase == .idle { dismissWindow(id: WindowID.player) }
+        .onChange(of: session.coreTerminations) {
+            // A core that shut itself down closes the player. Not tied to
+            // phase == .idle: that also follows closing the window, and SwiftUI
+            // delivers it when the window reopens, closing it right away.
+            dismissWindow(id: WindowID.player)
         }
     }
 

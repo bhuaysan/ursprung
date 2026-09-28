@@ -43,6 +43,8 @@ final class EmulationSession {
     private(set) var diskCount = 0
     private(set) var currentDisk = 0
     private(set) var measuredFPS: Double = 0
+    /// Incremented whenever a core shuts itself down.
+    private(set) var coreTerminations = 0
     var isMenuVisible = false {
         didSet { if isMenuVisible != oldValue { applyPause() } }
     }
@@ -56,6 +58,10 @@ final class EmulationSession {
     private var appInactive = false
     private var fpsTimer: Timer?
     private var launchContext: ModelContext?
+    /// Bumped by every launch and stop so a launch that is still loading
+    /// notices it has been superseded.
+    private var generation = 0
+    private var shutdown: Task<Void, Never>?
 
     let input = InputRouter()
     let cores: CoreManager
@@ -87,8 +93,11 @@ final class EmulationSession {
     func launch(_ game: Game, context: ModelContext) async {
         // Switch straight to "preparing" so the player window stays open while
         // a previous game shuts down.
+        generation += 1
+        let generation = generation
         phase = .preparing(String(localized: "Loading \(game.title)…"))
-        if runner != nil { await shutDownRunner(context: context) }
+        await shutDownRunner(context: context)
+        guard generation == self.generation else { return }
         launchContext = context
         guard let system = game.system else {
             phase = .failed(String(localized: "Unknown system."))
@@ -109,6 +118,7 @@ final class EmulationSession {
         coreName = definition.name
 
         await bios.refresh()
+        guard generation == self.generation else { return }
         let missing = bios.missingRequired(for: system)
         if !missing.isEmpty {
             let names = missing.map(\.fileName).joined(separator: ", ")
@@ -121,10 +131,12 @@ final class EmulationSession {
                 ? String(localized: "Starting \(definition.name)…")
                 : String(localized: "Downloading \(definition.name)…"))
             let coreURL = try await cores.ensureInstalled(definition)
+            try checkCurrent(generation)
             let core = try LibretroCore(path: coreURL.path(percentEncoded: false))
 
             phase = .preparing(String(localized: "Loading \(game.title)…"))
             let contentURL = try await prepareContent(for: game, system: system, core: core)
+            try checkCurrent(generation)
 
             let saveDirectory = AppPaths.saves.appending(path: system.id, directoryHint: .isDirectory)
             try? FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
@@ -147,6 +159,11 @@ final class EmulationSession {
                 runner.start(withGamePath: path) { error in continuation.resume(returning: error) }
             }
             if let error { throw error }
+            guard generation == self.generation else {
+                // Stopped or replaced while the game was loading.
+                await withCheckedContinuation { continuation in runner.stop { continuation.resume() } }
+                return
+            }
 
             self.core = core
             self.runner = runner
@@ -172,8 +189,13 @@ final class EmulationSession {
             }
             #endif
         } catch {
+            guard generation == self.generation, !(error is CancellationError) else { return }
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    private func checkCurrent(_ generation: Int) throws {
+        if generation != self.generation { throw CancellationError() }
     }
 
     /// Resolves the file handed to the core, extracting zipped cartridges if
@@ -203,24 +225,36 @@ final class EmulationSession {
     // MARK: - Stop
 
     func stop(context: ModelContext?) async {
+        generation += 1
+        let generation = generation
         await shutDownRunner(context: context)
-        phase = .idle
+        // A game launched while this one was shutting down keeps the player.
+        if generation == self.generation { phase = .idle }
     }
 
+    /// Stops the running game. Concurrent callers share one shutdown, so the
+    /// runner is stopped once and a new game waits until the old one is gone.
     private func shutDownRunner(context: ModelContext?) async {
+        if let shutdown { return await shutdown.value }
         guard let runner else { return }
         fpsTimer?.invalidate()
-        await withCheckedContinuation { continuation in
-            runner.stop { continuation.resume() }
+        let task = Task {
+            await withCheckedContinuation { continuation in
+                runner.stop { continuation.resume() }
+            }
+            recordPlayTime(context: context)
+            cleanUp()
+            shutdown = nil
         }
-        recordPlayTime(context: context)
-        cleanUp()
+        shutdown = task
+        await task.value
     }
 
     private func handleUnexpectedTermination() {
         recordPlayTime(context: nil)
         cleanUp()
         phase = .idle
+        coreTerminations += 1
     }
 
     private func recordPlayTime(context: ModelContext?) {
