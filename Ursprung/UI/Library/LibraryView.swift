@@ -68,7 +68,9 @@ struct LibraryView: View {
                     }
                 }
         }
-        .onGeometryChange(for: Double.self) { $0.size.width } action: { width in columns.update { $0.resize(to: width) } }
+        .background {
+            WindowWidthReader { width in columns.update { $0.resize(to: width) } }
+        }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search Games")
         .toolbar { toolbar }
         .focusedSceneValue(\.modelContext, context)

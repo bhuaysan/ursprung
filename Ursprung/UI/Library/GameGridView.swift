@@ -18,6 +18,8 @@ struct GameGridView: View {
     @FocusState private var focused: Bool
     @State private var width = 0.0
     @State private var visibleIDs: [PersistentIdentifier] = []
+    /// Height of the toolbar the content scrolls under.
+    @State private var topInset = 0.0
     @State private var typeSelect = TypeSelect()
     /// Set when a click focuses the grid, so focus entry does not select a game.
     @State private var isFocusingByClick = false
@@ -43,7 +45,15 @@ struct GameGridView: View {
                         .padding(.bottom, AppSpacing.xxl)
                 }
                 .padding(.horizontal, padding)
+                .background(alignment: .top) {
+                    // Reaches up under the toolbar, so scrolling to it reaches the very top.
+                    Color.clear
+                        .id(ScrollAnchor.top)
+                        .frame(height: 1)
+                        .padding(.top, -topInset)
+                }
             }
+            .onScrollGeometryChange(for: Double.self) { $0.contentInsets.top } action: { topInset = $1 }
             .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
             .onScrollTargetVisibilityChange(idType: PersistentIdentifier.self) { visibleIDs = $0 }
             .focusable()
@@ -99,6 +109,14 @@ struct GameGridView: View {
                          selection: id == selectedGameID ? (isActive ? .focused : .unfocused) : nil,
                          actions: actions, select: { selectedGameID = id })
                     .id(id)
+                    .background {
+                        // The card plus room for the toolbar above and a margin below:
+                        // scrolling to it keeps the whole card and its ring in the clear.
+                        Color.clear
+                            .id(ScrollAnchor.card(id))
+                            .padding(.top, -(topInset + AppSpacing.m))
+                            .padding(.bottom, -AppSpacing.m)
+                    }
                     .onTapGesture(count: 2, perform: actions.play)
                     .simultaneousGesture(TapGesture().onEnded {
                         focusByClick()
@@ -153,8 +171,20 @@ struct GameGridView: View {
     private func select(_ index: Int, proxy: ScrollViewProxy) {
         let id = games[index].persistentModelID
         selectedGameID = id
-        proxy.scrollTo(id)
+        if index < columnCount {
+            // The first row also shows the header and top padding.
+            proxy.scrollTo(ScrollAnchor.top)
+        } else {
+            // A far-away card is only laid out once it has been scrolled to.
+            proxy.scrollTo(id)
+            Task { proxy.scrollTo(ScrollAnchor.card(id)) }
+        }
     }
+}
+
+private enum ScrollAnchor: Hashable {
+    case top
+    case card(PersistentIdentifier)
 }
 
 private extension GridMove {

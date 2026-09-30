@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
+import SwiftUI
 
 /// Which side columns the library window shows, so the grid keeps at least
 /// `AppMetrics.contentMinWidth`. See docs/DESIGN_SPEC.md, section M.
@@ -101,7 +102,12 @@ final class ColumnLayoutState {
 
     func update(_ change: (inout ColumnLayout) -> Void) {
         change(&layout)
-        if showsSidebar != layout.showsSidebar { showsSidebar = layout.showsSidebar }
-        if showsInspector != layout.showsInspector { showsInspector = layout.showsInspector }
+        guard showsSidebar != layout.showsSidebar || showsInspector != layout.showsInspector else { return }
+        // Without an animation AppKit widens the window to make room for a
+        // column that appears, instead of taking the room from the grid.
+        withAnimation {
+            showsSidebar = layout.showsSidebar
+            showsInspector = layout.showsInspector
+        }
     }
 }

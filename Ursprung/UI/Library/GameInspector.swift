@@ -37,13 +37,19 @@ struct GameInspector: View {
 
     private var hero: some View {
         ZStack(alignment: .bottomLeading) {
-            ArtworkImage(url: game.fanartURL ?? game.screenshotURL, maxPixel: 900, contentMode: .fill) {
-                LinearGradient(colors: [Color(hex: game.system?.accent ?? 0x444444).opacity(0.8), .clear],
-                               startPoint: .top, endPoint: .bottom)
-            }
-            .frame(height: 200)
-            .frame(maxWidth: .infinity)
-            .clipped()
+            // The image fills a slot that takes the column's width; on its own a
+            // filled image is as wide as its aspect ratio makes it (356 pt at
+            // 16:9) and keeps the inspector from getting narrower.
+            Color.clear
+                .frame(height: 200)
+                .frame(maxWidth: .infinity)
+                .overlay {
+                    ArtworkImage(url: game.fanartURL ?? game.screenshotURL, maxPixel: 900, contentMode: .fill) {
+                        LinearGradient(colors: [Color(hex: game.system?.accent ?? 0x444444).opacity(0.8), .clear],
+                                       startPoint: .top, endPoint: .bottom)
+                    }
+                }
+                .clipped()
             .overlay {
                 LinearGradient(stops: [.init(color: .clear, location: 0.35),
                                        .init(color: Color(nsColor: .windowBackgroundColor), location: 1)],
