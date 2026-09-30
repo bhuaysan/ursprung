@@ -7,6 +7,8 @@ struct GameGridView: View {
     let games: [Game]
     @Binding var selectedGameID: PersistentIdentifier?
     let cardWidth: Double
+    /// Shows the system's logo above the grid.
+    var system: GameSystem?
     let play: (Game) -> Void
 
     @Environment(\.modelContext) private var context
@@ -17,6 +19,11 @@ struct GameGridView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
+                if let system {
+                    SystemBanner(system: system)
+                        .padding(.horizontal, 28)
+                        .padding(.top, 24)
+                }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth * 1.35), spacing: 28, alignment: .top)],
                           alignment: .leading, spacing: 32) {
                     ForEach(games) { game in
@@ -83,6 +90,43 @@ struct GameGridView: View {
             if selectedGameID == game.persistentModelID { selectedGameID = nil }
             library.remove(game, context: context)
         }
+    }
+}
+
+/// Banner above a system's games: the official logo and a console photo on the
+/// system's accent colour.
+struct SystemBanner: View {
+    let system: GameSystem
+    @Environment(SystemMediaStore.self) private var systemMedia
+
+    var body: some View {
+        HStack(spacing: 24) {
+            VStack(alignment: .leading, spacing: 10) {
+                if let logo = systemMedia.logo(for: system) {
+                    ArtworkImage(url: logo, maxPixel: 600, isTemplate: true) { Color.clear }
+                        .frame(maxWidth: 300, maxHeight: 64, alignment: .leading)
+                } else {
+                    Text(system.name)
+                        .font(.largeTitle.weight(.bold))
+                }
+                Text(verbatim: "\(system.manufacturer) · \(system.year)")
+                    .font(.callout.weight(.medium))
+                    .opacity(0.75)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let photo = systemMedia.photo(for: system) {
+                ArtworkImage(url: photo, maxPixel: 800) { Color.clear }
+                    .frame(maxWidth: 280, maxHeight: 132)
+                    .shadow(color: .black.opacity(0.35), radius: 12, y: 8)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 28)
+        .frame(height: 172)
+        .background(LinearGradient.system(accent: system.accent), in: .rect(cornerRadius: 18, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(system.name)
     }
 }
 

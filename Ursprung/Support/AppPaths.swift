@@ -20,6 +20,12 @@ nonisolated enum AppPaths {
     static var states: URL { directory("States") }
     /// Artwork downloaded from ScreenScraper.
     static var media: URL { directory("Media") }
+    /// System logos and console photos downloaded from ScreenScraper.
+    static var systemMedia: URL {
+        let url = media.appending(path: "Systems", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
     /// Temporary extraction of zipped ROMs.
     static var extracted: URL {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]

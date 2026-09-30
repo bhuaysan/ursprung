@@ -50,14 +50,19 @@ struct ArtworkImage<Placeholder: View>: View {
     let url: URL?
     var maxPixel: Int = 640
     var contentMode: ContentMode = .fit
+    /// Renders only the alpha channel in the foreground style (for monochrome logos).
+    var isTemplate = false
     @ViewBuilder var placeholder: () -> Placeholder
 
     @State private var image: CGImage?
 
     var body: some View {
-        Group {
+        // A ZStack rather than a Group: with an EmptyView placeholder a Group
+        // produces no view, so the loading task below would never start.
+        ZStack {
             if let image {
                 Image(decorative: image, scale: 1)
+                    .renderingMode(isTemplate ? .template : .original)
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: contentMode)
@@ -77,9 +82,18 @@ struct ArtworkImage<Placeholder: View>: View {
 }
 
 extension Color {
-    init(hex: UInt32) {
+    nonisolated init(hex: UInt32) {
         self.init(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255,
                   blue: Double(hex & 0xFF) / 255)
+    }
+}
+
+extension LinearGradient {
+    /// Diagonal backdrop in a system's accent colour.
+    static func system(accent: UInt32) -> LinearGradient {
+        let color = Color(hex: accent)
+        return LinearGradient(colors: [color.mix(with: .white, by: 0.12), color.mix(with: .black, by: 0.45)],
+                              startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 }
 
@@ -87,23 +101,27 @@ extension Color {
 struct PlaceholderCover: View {
     let title: String
     let system: GameSystem?
+    @Environment(SystemMediaStore.self) private var systemMedia
 
     var body: some View {
-        let accent = Color(hex: system?.accent ?? 0x6E6E73)
+        let logo = systemMedia.logo(for: system)
         ZStack(alignment: .bottomLeading) {
-            LinearGradient(colors: [accent.mix(with: .white, by: 0.12), accent.mix(with: .black, by: 0.45)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-            Image(systemName: system?.symbol ?? "gamecontroller")
-                .font(.system(size: 64, weight: .ultraLight))
-                .foregroundStyle(.white.opacity(0.14))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(12)
+            LinearGradient.system(accent: system?.accent ?? 0x6E6E73)
+            if let logo {
+                ArtworkImage(url: logo, maxPixel: 600, isTemplate: true) { EmptyView() }
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(maxWidth: .infinity, maxHeight: 44, alignment: .leading)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
             VStack(alignment: .leading, spacing: 4) {
-                Text(system?.shortName ?? "")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.2)
-                    .textCase(.uppercase)
-                    .foregroundStyle(.white.opacity(0.7))
+                if logo == nil {
+                    Text(system?.shortName ?? "")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.2)
+                        .textCase(.uppercase)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
                 Text(title)
                     .font(.system(.headline, design: .rounded, weight: .semibold))
                     .foregroundStyle(.white)

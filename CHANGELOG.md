@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Sidebar: each system is marked with a dot in its colour.
+- System banner above each system's games with the official logo and a console
+  photo, and official logos on placeholder covers (downloaded from ScreenScraper
+  on first use, never bundled).
+
+### Fixed
+- Artwork with an empty placeholder (e.g. the game logo in the inspector) never
+  loaded.
+
 ## [0.1.0] - 2026-09-28
 
 First public development version.

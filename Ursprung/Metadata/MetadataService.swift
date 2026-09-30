@@ -46,7 +46,7 @@ final class MetadataService {
     }
 
     private func run(context: ModelContext) async {
-        let client = makeClient()
+        let client = ScreenScraperClient.configured
         while !queue.isEmpty, !Task.isCancelled {
             let id = queue.removeFirst()
             guard let game = context.model(for: id) as? Game else { completed += 1; continue }
@@ -73,15 +73,6 @@ final class MetadataService {
         currentTitle = nil
         completed = 0
         total = 0
-    }
-
-    private func makeClient() -> ScreenScraperClient {
-        var client = ScreenScraperClient()
-        client.username = Preferences.scraperUsername
-        client.password = Keychain.password(for: client.username) ?? ""
-        client.language = Preferences.scraperLanguage
-        client.region = Preferences.scraperRegion
-        return client
     }
 
     private func scrape(_ game: Game, client: ScreenScraperClient) async throws {

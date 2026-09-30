@@ -28,6 +28,7 @@ struct LibraryView: View {
     @Environment(LibraryStore.self) private var library
     @Environment(MetadataService.self) private var metadata
     @Environment(EmulationSession.self) private var session
+    @Environment(SystemMediaStore.self) private var systemMedia
 
     @Query(sort: \Game.title) private var games: [Game]
 
@@ -61,6 +62,9 @@ struct LibraryView: View {
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search Games")
         .toolbar { toolbar }
         .focusedSceneValue(\.modelContext, context)
+        .task(id: librarySystems.map(\.id)) {
+            if Preferences.autoScrape { await systemMedia.fetchMissing(for: librarySystems) }
+        }
         .task {
             if !library.folders.isEmpty { await library.rescan(context: context) }
             #if DEBUG
@@ -68,6 +72,9 @@ struct LibraryView: View {
             if let query = ProcessInfo.processInfo.environment["URSPRUNG_AUTOPLAY"],
                let game = games.first(where: { $0.title.localizedStandardContains(query) || $0.fileName.localizedStandardContains(query) }) {
                 play(game)
+            }
+            if let systemID = ProcessInfo.processInfo.environment["URSPRUNG_SYSTEM"] {
+                selection = .system(systemID)
             }
             if let query = ProcessInfo.processInfo.environment["URSPRUNG_SELECT"] {
                 selectedGameID = games.first { $0.title.localizedStandardContains(query) }?.persistentModelID
@@ -93,7 +100,8 @@ struct LibraryView: View {
                                        description: Text(emptyDescription))
             }
         } else {
-            GameGridView(games: filteredGames, selectedGameID: $selectedGameID, cardWidth: gridSize, play: play)
+            GameGridView(games: filteredGames, selectedGameID: $selectedGameID, cardWidth: gridSize,
+                         system: selectedSystem, play: play)
         }
     }
 
@@ -121,6 +129,16 @@ struct LibraryView: View {
         case .recentlyPlayed: return result.sorted { ($0.lastPlayed ?? .distantPast) > ($1.lastPlayed ?? .distantPast) }
         case .releaseYear: return result.sorted { ($0.releaseDate ?? "9999") < ($1.releaseDate ?? "9999") }
         }
+    }
+
+    private var selectedSystem: GameSystem? {
+        if case .system(let id) = selection { SystemCatalog.system(withID: id) } else { nil }
+    }
+
+    /// Systems with at least one game, in catalog order.
+    private var librarySystems: [GameSystem] {
+        let ids = Set(games.map(\.systemID))
+        return SystemCatalog.all.filter { ids.contains($0.id) }
     }
 
     private var selectedGame: Game? {
@@ -183,7 +201,10 @@ struct LibraryView: View {
                 Button("Rescan Library", systemImage: "arrow.clockwise") { Task { await library.rescan(context: context) } }
                     .disabled(library.isScanning)
                 Divider()
-                Button("Fetch Missing Metadata", systemImage: "sparkles") { metadata.enqueue(games, context: context) }
+                Button("Fetch Missing Metadata", systemImage: "sparkles") {
+                    metadata.enqueue(games, context: context)
+                    Task { await systemMedia.fetchMissing(for: librarySystems, retry: true) }
+                }
                 Button("Refetch All Metadata", systemImage: "arrow.triangle.2.circlepath") {
                     metadata.enqueue(games, force: true, context: context)
                 }

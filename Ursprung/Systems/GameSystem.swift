@@ -54,8 +54,6 @@ nonisolated struct GameSystem: Sendable, Hashable, Identifiable {
     /// True for systems whose games ship as .zip sets (arcade) — archives are
     /// passed to the core as-is instead of being extracted.
     var archivesAreNative: Bool = false
-    /// SF Symbol used in the sidebar.
-    var symbol: String = "gamecontroller"
     /// Accent used for generated placeholder artwork.
     var accent: UInt32 = 0x6E6E73
     /// Aspect ratio (width / height) of typical box art, used for grid cards.

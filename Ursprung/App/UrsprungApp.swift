@@ -18,6 +18,7 @@ struct UrsprungApp: App {
     @State private var cores = CoreManager()
     @State private var bios = BIOSManager()
     @State private var session: EmulationSession
+    @State private var systemMedia = SystemMediaStore()
 
     private let container: ModelContainer
 
@@ -61,6 +62,7 @@ struct UrsprungApp: App {
         .environment(cores)
         .environment(bios)
         .environment(session)
+        .environment(systemMedia)
         .modelContainer(container)
 
         Window(String(localized: "Player"), id: WindowID.player) {

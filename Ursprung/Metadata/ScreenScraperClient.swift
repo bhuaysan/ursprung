@@ -22,6 +22,14 @@ nonisolated struct ScrapedGame: Sendable {
     var fanart: URL?
 }
 
+/// Media of one system. The URLs embed API credentials — never persist or log them.
+nonisolated struct ScrapedSystemMedia: Sendable {
+    /// Monochrome logo (`logo-monochrome`).
+    var logo: URL?
+    /// Cut-out console photo (`photo`).
+    var photo: URL?
+}
+
 nonisolated struct ScrapeQuery: Sendable {
     var systemID: Int
     var fileName: String
@@ -78,6 +86,16 @@ nonisolated struct ScreenScraperClient: Sendable {
     private static let baseURL = URL(string: "https://api.screenscraper.fr/api2/")!
     private static let softwareName = "Ursprung"
 
+    /// A client with the account and language settings from Preferences.
+    static var configured: ScreenScraperClient {
+        var client = ScreenScraperClient()
+        client.username = Preferences.scraperUsername
+        client.password = Keychain.password(for: client.username) ?? ""
+        client.language = Preferences.scraperLanguage
+        client.region = Preferences.scraperRegion
+        return client
+    }
+
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 45
@@ -120,6 +138,26 @@ nonisolated struct ScreenScraperClient: Sendable {
             }
         }
         return nil
+    }
+
+    /// Logo and console photo download URLs by ScreenScraper system ID.
+    @concurrent
+    func systemMedia() async throws -> [Int: ScrapedSystemMedia] {
+        guard !devID.isEmpty, !devPassword.isEmpty else { throw ScreenScraperError.missingDeveloperCredentials }
+        guard let json = try await request("systemesListe.php", []) else { return [:] }
+        return parseSystemMedia(json)
+    }
+
+    func parseSystemMedia(_ json: [String: Any]) -> [Int: ScrapedSystemMedia] {
+        let systems = (json["response"] as? [String: Any])?["systemes"] as? [[String: Any]] ?? []
+        var result: [Int: ScrapedSystemMedia] = [:]
+        for system in systems {
+            guard let id = Self.string(system["id"]).flatMap({ Int($0) }) else { continue }
+            let medias = system["medias"] as? [[String: Any]] ?? []
+            result[id] = ScrapedSystemMedia(logo: pickMedia(medias, types: ["logo-monochrome"]),
+                                            photo: pickMedia(medias, types: ["photo"]))
+        }
+        return result
     }
 
     /// Downloads a media file into `destination`.

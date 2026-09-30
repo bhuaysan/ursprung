@@ -29,7 +29,7 @@ GPL-3.0-or-later. See `docs/ARCHITECTURE.md` for the full picture.
 
 ## Debugging without UI access
 
-Debug builds: `URSPRUNG_SNAPSHOT_DIR=<dir>` writes window snapshots plus `frame.png`/`session.txt` of the running game; `URSPRUNG_AUTOPLAY=<title>` starts a game, `URSPRUNG_SELECT=<title>` selects one, `URSPRUNG_CORE_LOG=1` mirrors core logs to stderr, `URSPRUNG_DEBUG_STATES=1` exercises save/load/quit. Liquid Glass and Metal layers do not appear in window snapshots.
+Debug builds: `URSPRUNG_SNAPSHOT_DIR=<dir>` writes window snapshots plus `frame.png`/`session.txt` of the running game; `URSPRUNG_AUTOPLAY=<title>` starts a game, `URSPRUNG_SELECT=<title>` selects one, `URSPRUNG_SYSTEM=<id>` shows one system, `URSPRUNG_CORE_LOG=1` mirrors core logs to stderr, `URSPRUNG_DEBUG_STATES=1` exercises save/load/quit. Liquid Glass and Metal layers do not appear in window snapshots.
 
 ## Known issues
 

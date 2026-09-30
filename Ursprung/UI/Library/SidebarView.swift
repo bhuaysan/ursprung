@@ -23,8 +23,10 @@ struct SidebarView: View {
                             Text(entry.system.name)
                                 .lineLimit(1)
                         } icon: {
-                            Image(systemName: entry.system.symbol)
-                                .foregroundStyle(Color(hex: entry.system.accent).mix(with: .primary, by: 0.35))
+                            // Mixed towards the text colour so near-black systems stay visible in dark mode.
+                            Circle()
+                                .fill(Color(hex: entry.system.accent).mix(with: .primary, by: 0.3).gradient)
+                                .frame(width: 10, height: 10)
                         }
                         .badge(entry.count)
                         .tag(LibrarySelection.system(entry.system.id))
