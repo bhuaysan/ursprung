@@ -16,90 +16,86 @@ struct GameGridView: View {
 
     @Environment(\.appearsActive) private var appearsActive
     @FocusState private var focused: Bool
-    @State private var width = 0.0
-    @State private var visibleIDs: [PersistentIdentifier] = []
+    @State private var visible = VisibleGames()
     /// Height of the toolbar the content scrolls under.
     @State private var topInset = 0.0
     @State private var typeSelect = TypeSelect()
     /// Set when a click focuses the grid, so focus entry does not select a game.
     @State private var isFocusingByClick = false
 
-    private var padding: CGFloat {
-        width < AppMetrics.compactContentWidth ? AppMetrics.compactGridPadding : AppMetrics.gridPadding
-    }
-
-    private var columnCount: Int {
-        GridLayout.columnCount(availableWidth: width - 2 * padding, coverStep: coverStep)
-    }
-
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if let system {
-                        SystemBanner(system: system)
-                            .padding(.top, 20)
+        // A GeometryReader rather than a measured @State width: writing the
+        // width into state on every layout pass keeps AppKit from narrowing
+        // the column when the inspector opens.
+        GeometryReader { geometry in
+            let metrics = GridMetrics(width: geometry.size.width, coverStep: coverStep)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if let system {
+                            SystemBanner(system: system)
+                                .padding(.top, 20)
+                        }
+                        grid(columns: metrics.columns)
+                            .padding(.top, system == nil ? 20 : AppSpacing.l)
+                            .padding(.bottom, AppSpacing.xxl)
                     }
-                    grid
-                        .padding(.top, system == nil ? 20 : AppSpacing.l)
-                        .padding(.bottom, AppSpacing.xxl)
+                    .padding(.horizontal, metrics.padding)
+                    .background(alignment: .top) {
+                        // Reaches up under the toolbar, so scrolling to it reaches the very top.
+                        Color.clear
+                            .id(ScrollAnchor.top)
+                            .frame(height: 1)
+                            .padding(.top, -topInset)
+                    }
                 }
-                .padding(.horizontal, padding)
-                .background(alignment: .top) {
-                    // Reaches up under the toolbar, so scrolling to it reaches the very top.
-                    Color.clear
-                        .id(ScrollAnchor.top)
-                        .frame(height: 1)
-                        .padding(.top, -topInset)
+                .onScrollGeometryChange(for: Double.self) { $0.contentInsets.top } action: { topInset = $1 }
+                .onScrollTargetVisibilityChange(idType: PersistentIdentifier.self) { visible.ids = $0 }
+                .focusable()
+                .focused($focused)
+                .focusEffectDisabled()
+                .onChange(of: focused) { _, isFocused in
+                    // Tabbing into the grid selects the first visible game.
+                    if isFocused, !isFocusingByClick, selectedGameID == nil, let index = firstVisibleIndex {
+                        select(index, columns: metrics.columns, proxy: proxy)
+                    }
+                    isFocusingByClick = false
                 }
-            }
-            .onScrollGeometryChange(for: Double.self) { $0.contentInsets.top } action: { topInset = $1 }
-            .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
-            .onScrollTargetVisibilityChange(idType: PersistentIdentifier.self) { visibleIDs = $0 }
-            .focusable()
-            .focused($focused)
-            .focusEffectDisabled()
-            .onChange(of: focused) { _, isFocused in
-                // Tabbing into the grid selects the first visible game.
-                if isFocused, !isFocusingByClick, selectedGameID == nil, let index = firstVisibleIndex {
-                    select(index, proxy: proxy)
+                .onKeyPress(.return) {
+                    guard let game = selectedGame else { return .ignored }
+                    actions(game).play()
+                    return .handled
                 }
-                isFocusingByClick = false
-            }
-            .onKeyPress(.return) {
-                guard let game = selectedGame else { return .ignored }
-                actions(game).play()
-                return .handled
-            }
-            .onKeyPress(.delete, phases: .down) { press in
-                // ⌘⌫ only in the grid: as a menu shortcut it would also fire
-                // while the search field is being edited.
-                guard press.modifiers.contains(.command), let game = selectedGame else { return .ignored }
-                actions(game).requestRemoval()
-                return .handled
-            }
-            .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .home, .end, .pageUp, .pageDown]) { press in
-                guard press.modifiers.isDisjoint(with: [.command, .option, .control]),
-                      let move = GridMove(press.key) else { return .ignored }
-                return perform(move, proxy: proxy)
-            }
-            .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters).union(.whitespaces), phases: .down) { press in
-                guard press.modifiers.isDisjoint(with: [.command, .option, .control]) else { return .ignored }
-                return handleTypeSelect(press.characters, proxy: proxy)
-            }
-            .background {
-                // Clicking empty space clears the selection.
-                Color.clear.contentShape(Rectangle()).onTapGesture {
-                    focusByClick()
-                    selectedGameID = nil
+                .onKeyPress(.delete, phases: .down) { press in
+                    // ⌘⌫ only in the grid: as a menu shortcut it would also fire
+                    // while the search field is being edited.
+                    guard press.modifiers.contains(.command), let game = selectedGame else { return .ignored }
+                    actions(game).requestRemoval()
+                    return .handled
+                }
+                .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .home, .end, .pageUp, .pageDown]) { press in
+                    guard press.modifiers.isDisjoint(with: [.command, .option, .control]),
+                          let move = GridMove(press.key) else { return .ignored }
+                    return perform(move, columns: metrics.columns, proxy: proxy)
+                }
+                .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters).union(.whitespaces), phases: .down) { press in
+                    guard press.modifiers.isDisjoint(with: [.command, .option, .control]) else { return .ignored }
+                    return handleTypeSelect(press.characters, columns: metrics.columns, proxy: proxy)
+                }
+                .background {
+                    // Clicking empty space clears the selection.
+                    Color.clear.contentShape(Rectangle()).onTapGesture {
+                        focusByClick()
+                        selectedGameID = nil
+                    }
                 }
             }
         }
     }
 
-    private var grid: some View {
+    private func grid(columns count: Int) -> some View {
         let columns = Array(repeating: GridItem(.flexible(), spacing: AppMetrics.gridColumnSpacing, alignment: .top),
-                            count: columnCount)
+                            count: count)
         let isActive = focused && appearsActive
         return LazyVGrid(columns: columns, alignment: .leading, spacing: AppMetrics.gridRowSpacing) {
             ForEach(games, id: \.persistentModelID) { game in
@@ -140,8 +136,8 @@ struct GameGridView: View {
     }
 
     private var firstVisibleIndex: Int? {
-        let visible = Set(visibleIDs)
-        return games.firstIndex { visible.contains($0.persistentModelID) } ?? (games.isEmpty ? nil : 0)
+        let ids = Set(visible.ids)
+        return games.firstIndex { ids.contains($0.persistentModelID) } ?? (games.isEmpty ? nil : 0)
     }
 
     private func focusByClick() {
@@ -150,28 +146,27 @@ struct GameGridView: View {
         focused = true
     }
 
-    private func perform(_ move: GridMove, proxy: ScrollViewProxy) -> KeyPress.Result {
-        let columns = columnCount
+    private func perform(_ move: GridMove, columns: Int, proxy: ScrollViewProxy) -> KeyPress.Result {
         guard let index = GridNavigation.target(of: move, from: selectedIndex, count: games.count, columns: columns,
-                                                pageRows: visibleIDs.count / columns,
+                                                pageRows: visible.ids.count / columns,
                                                 entry: firstVisibleIndex ?? 0) else { return .ignored }
-        select(index, proxy: proxy)
+        select(index, columns: columns, proxy: proxy)
         return .handled
     }
 
-    private func handleTypeSelect(_ characters: String, proxy: ScrollViewProxy) -> KeyPress.Result {
+    private func handleTypeSelect(_ characters: String, columns: Int, proxy: ScrollViewProxy) -> KeyPress.Result {
         guard let prefix = typeSelect.append(characters) else { return .ignored }
         if let index = TypeSelect.firstMatch(for: prefix, in: games.lazy.map(\.title)) {
-            select(index, proxy: proxy)
+            select(index, columns: columns, proxy: proxy)
         }
         return .handled
     }
 
     /// Selects a game and scrolls it into view without animation, so key repeat stays fluid.
-    private func select(_ index: Int, proxy: ScrollViewProxy) {
+    private func select(_ index: Int, columns: Int, proxy: ScrollViewProxy) {
         let id = games[index].persistentModelID
         selectedGameID = id
-        if index < columnCount {
+        if index < columns {
             // The first row also shows the header and top padding.
             proxy.scrollTo(ScrollAnchor.top)
         } else {
@@ -179,6 +174,24 @@ struct GameGridView: View {
             proxy.scrollTo(id)
             Task { proxy.scrollTo(ScrollAnchor.card(id)) }
         }
+    }
+}
+
+/// The games on screen, read only by key handlers. A plain reference rather
+/// than view state: updating state on every scroll or resize re-renders the
+/// grid and keeps AppKit from narrowing the column when the inspector opens.
+private final class VisibleGames {
+    var ids: [PersistentIdentifier] = []
+}
+
+/// Padding and column count for one content width.
+private struct GridMetrics {
+    let padding: CGFloat
+    let columns: Int
+
+    init(width: CGFloat, coverStep: Double) {
+        padding = width < AppMetrics.compactContentWidth ? AppMetrics.compactGridPadding : AppMetrics.gridPadding
+        columns = GridLayout.columnCount(availableWidth: width - 2 * padding, coverStep: coverStep)
     }
 }
 
