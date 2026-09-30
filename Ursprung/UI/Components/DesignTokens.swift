@@ -46,6 +46,12 @@ nonisolated enum AppMetrics {
     static let rowHighlightRadius: CGFloat = 8
 }
 
+extension ShapeStyle where Self == Color {
+    /// The favorite heart. The accent: a heart glyph and the selection ring
+    /// never need to be told apart by colour.
+    static var favorite: Color { .accentColor }
+}
+
 /// Restrained, bounce-free animations. Call sites go through `appAnimation`,
 /// `withAppAnimation` and `appFade` so Reduce Motion is handled in one place.
 nonisolated enum AppAnimation {

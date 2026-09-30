@@ -360,16 +360,6 @@
         }
       }
     },
-    "Cover Size": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Covergröße"
-          }
-        }
-      }
-    },
     "D-Pad": {
       "localizations": {
         "de": {
@@ -2432,6 +2422,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aus"
+          }
+        }
+      }
+    },
+    "Games": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele"
+          }
+        }
+      }
+    },
+    "Larger Covers": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größere Cover"
+          }
+        }
+      }
+    },
+    "Smaller Covers": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kleinere Cover"
+          }
+        }
+      }
+    },
+    "Default Size": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standardgröße"
           }
         }
       }

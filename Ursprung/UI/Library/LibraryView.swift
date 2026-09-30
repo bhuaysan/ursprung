@@ -38,7 +38,7 @@ struct LibraryView: View {
     @State private var showInspector = true
     @State private var gamePendingRemoval: Game?
     @AppStorage(PrefKey.librarySort) private var sort: LibrarySort = .title
-    @AppStorage(PrefKey.gridSize) private var gridSize = 180.0
+    @AppStorage(PrefKey.gridSize) private var gridSize = AppMetrics.defaultCoverStep
 
     var body: some View {
         NavigationSplitView {
@@ -112,7 +112,7 @@ struct LibraryView: View {
                                        description: Text(emptyDescription))
             }
         } else {
-            GameGridView(games: filteredGames, selectedGameID: $selectedGameID, cardWidth: gridSize,
+            GameGridView(games: filteredGames, selectedGameID: $selectedGameID, coverStep: CoverSize.snapped(gridSize),
                          system: selectedSystem, actions: actions(for:))
         }
     }
@@ -202,7 +202,7 @@ struct LibraryView: View {
                 }
                 .pickerStyle(.inline)
                 Divider()
-                Slider(value: $gridSize, in: 130...280) { Text("Cover Size") }
+                CoverSizeItems()
             } label: {
                 Label("View Options", systemImage: "line.3.horizontal.decrease")
             }

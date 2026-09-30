@@ -25,6 +25,12 @@ struct AppCommands: Commands {
             .disabled(modelContext == nil || library.isScanning)
         }
 
+        CommandGroup(after: .toolbar) {
+            Divider()
+            CoverSizeItems(showsShortcuts: true)
+                .disabled(modelContext == nil)
+        }
+
         CommandMenu("Game") {
             // The selected game in the library; disabled while another window is key.
             if let gameActions {

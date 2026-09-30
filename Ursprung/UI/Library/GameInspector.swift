@@ -101,7 +101,7 @@ struct GameInspector: View {
 
             Button(action: actions.toggleFavorite) {
                 Image(systemName: game.isFavorite ? "heart.fill" : "heart")
-                    .foregroundStyle(game.isFavorite ? .pink : .primary)
+                    .foregroundStyle(game.isFavorite ? .favorite : .primary)
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.glass)
