@@ -35,20 +35,24 @@ struct LibraryView: View {
     @State private var selection: LibrarySelection? = .all
     @State private var selectedGameID: PersistentIdentifier?
     @State private var searchText = ""
-    @State private var showInspector = true
+    @State private var columns = ColumnLayoutState()
     @State private var gamePendingRemoval: Game?
     @AppStorage(PrefKey.librarySort) private var sort: LibrarySort = .title
     @AppStorage(PrefKey.gridSize) private var gridSize = AppMetrics.defaultCoverStep
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: sidebarVisibility) {
             SidebarView(games: games, selection: $selection)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
+                .navigationSplitViewColumnWidth(min: AppMetrics.sidebarWidth.min, ideal: AppMetrics.sidebarWidth.ideal,
+                                                max: AppMetrics.sidebarWidth.max)
+                .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
+                    columns.update { $0.measure(sidebar: width) }
+                }
         } detail: {
             content
                 .navigationTitle(title)
                 .navigationSubtitle(subtitle)
-                .inspector(isPresented: $showInspector) {
+                .inspector(isPresented: inspectorPresented) {
                     Group {
                         if let game = selectedGame {
                             GameInspector(game: game, actions: actions(for: game))
@@ -57,9 +61,14 @@ struct LibraryView: View {
                                                    description: Text("Select a game to see its details."))
                         }
                     }
-                    .inspectorColumnWidth(min: 300, ideal: 340, max: 440)
+                    .inspectorColumnWidth(min: AppMetrics.inspectorWidth.min, ideal: AppMetrics.inspectorWidth.ideal,
+                                          max: AppMetrics.inspectorWidth.max)
+                    .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
+                        columns.update { $0.measure(inspector: width) }
+                    }
                 }
         }
+        .onGeometryChange(for: Double.self) { $0.size.width } action: { width in columns.update { $0.resize(to: width) } }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search Games")
         .toolbar { toolbar }
         .focusedSceneValue(\.modelContext, context)
@@ -92,6 +101,26 @@ struct LibraryView: View {
                 selectedGameID = games.first { $0.title.localizedStandardContains(query) }?.persistentModelID
             }
             #endif
+        }
+    }
+
+    // MARK: Columns
+
+    /// The user's sidebar toggle; automatic changes do not go through the binding.
+    private var sidebarVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding {
+            columns.showsSidebar ? .all : .detailOnly
+        } set: { visibility in
+            let visible = visibility != .detailOnly
+            if visible != columns.showsSidebar { columns.update { $0.setSidebar(visible) } }
+        }
+    }
+
+    private var inspectorPresented: Binding<Bool> {
+        Binding {
+            columns.showsInspector
+        } set: { visible in
+            if visible != columns.showsInspector { columns.update { $0.setInspector(visible) } }
         }
     }
 
@@ -226,7 +255,8 @@ struct LibraryView: View {
             .menuIndicator(.hidden)
 
             Button {
-                showInspector.toggle()
+                let visible = !columns.showsInspector
+                columns.update { $0.setInspector(visible) }
             } label: {
                 Label("Info", systemImage: "info.circle")
             }
