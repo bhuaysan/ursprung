@@ -118,10 +118,10 @@ Everything lives in `~/Library/Application Support/Ursprung/`:
 
 | Folder | Contents |
 |---|---|
-| `Library.store` | The library database |
+| `Library.store` | The library database. If it cannot be opened, Ursprung asks before moving it to `Library.store-backup-<date>/`; it is never deleted automatically |
 | `Cores/` | Downloaded libretro cores |
 | `System/` | BIOS files and core assets (the libretro system directory) |
-| `Saves/<system>/` | Battery saves (`.srm`) and memory cards |
+| `Saves/<system>/<game-id>/` | Battery saves (`.srm`), one folder per game. Memory cards and other core saves live in `Saves/<system>/` |
 | `States/<game>/` | Save states and their thumbnails |
 | `Media/<game>/` | Artwork from ScreenScraper |
 

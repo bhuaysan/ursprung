@@ -37,11 +37,15 @@ struct UrsprungApp: App {
 
         let storeURL = AppPaths.root.appending(path: "Library.store")
         do {
-            container = try ModelContainer(for: Game.self, configurations: ModelConfiguration(url: storeURL))
+            container = try LibraryDatabase.open(
+                at: storeURL,
+                make: { try ModelContainer(for: Game.self, configurations: ModelConfiguration(url: $0)) },
+                recover: LibraryDatabase.askUser)
         } catch {
-            // A damaged or incompatible store must not brick the app — start fresh.
-            try? FileManager.default.removeItem(at: storeURL)
-            container = try! ModelContainer(for: Game.self, configurations: ModelConfiguration(url: storeURL))
+            // The library is never deleted here: without a usable store the app
+            // quits and leaves the files for the user (or a later version) to recover.
+            LibraryDatabase.reportFailure(error)
+            exit(EXIT_FAILURE)
         }
     }
 

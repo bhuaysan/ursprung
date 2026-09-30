@@ -54,27 +54,52 @@ nonisolated struct ZipArchive: Sendable {
     func extract(_ entry: Entry, to destination: URL) throws {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
+        let fileSize = try handle.seekToEnd()
 
+        guard let compressedSize = Int(exactly: entry.compressedSize),
+              let uncompressedSize = Int(exactly: entry.uncompressedSize),
+              entry.localHeaderOffset <= fileSize, fileSize - entry.localHeaderOffset >= 30 else { throw ZipError.corrupt }
         try handle.seek(toOffset: entry.localHeaderOffset)
         guard let header = try handle.read(upToCount: 30), header.count == 30,
               header.uint32(at: 0) == 0x04034B50 else { throw ZipError.corrupt }
-        let nameLength = UInt64(header.uint16(at: 26))
-        let extraLength = UInt64(header.uint16(at: 28))
-        try handle.seek(toOffset: entry.localHeaderOffset + 30 + nameLength + extraLength)
-        guard let compressed = try handle.read(upToCount: Int(entry.compressedSize)),
-              compressed.count == Int(entry.compressedSize) else { throw ZipError.corrupt }
+        let dataOffset = entry.localHeaderOffset + 30 + UInt64(header.uint16(at: 26)) + UInt64(header.uint16(at: 28))
+        guard dataOffset <= fileSize, fileSize - dataOffset >= entry.compressedSize else { throw ZipError.corrupt }
+        try handle.seek(toOffset: dataOffset)
+        guard let compressed = try handle.read(upToCount: compressedSize), compressed.count == compressedSize else { throw ZipError.corrupt }
 
         let output: Data
         switch entry.method {
         case 0:
             output = compressed
         case 8:
-            output = try Self.inflate(compressed, expectedSize: Int(entry.uncompressedSize))
+            // Deflate cannot expand by more than ~1032:1; anything beyond is corrupt (or a bomb).
+            let (limit, overflow) = entry.compressedSize.multipliedReportingOverflow(by: 1032)
+            guard overflow || entry.uncompressedSize <= limit else { throw ZipError.corrupt }
+            output = try Self.inflate(compressed, expectedSize: uncompressedSize)
         default:
             throw ZipError.unsupportedMethod(entry.method)
         }
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         try output.write(to: destination, options: .atomic)
+    }
+
+    /// Extracts `entry` into `directory` unless an earlier extraction of the
+    /// very same archive entry is still there. The cache is keyed by the
+    /// entry's path, size and CRC32, so a replaced archive is never served
+    /// from stale data, and an interrupted extraction leaves no marker.
+    static func extractCached(_ entry: Entry, from archiveURL: URL, into directory: URL) throws -> URL {
+        let destination = directory.appending(path: entry.fileName)
+        let marker = directory.appending(path: ".identity")
+        let identity = "\(entry.path)|\(entry.uncompressedSize)|\(entry.crc32)"
+        let attributes = try? FileManager.default.attributesOfItem(atPath: destination.path(percentEncoded: false))
+        if (attributes?[.size] as? UInt64) == entry.uncompressedSize,
+           (try? String(contentsOf: marker, encoding: .utf8)) == identity {
+            return destination
+        }
+        try? FileManager.default.removeItem(at: directory)
+        try ZipArchive(url: archiveURL).extract(entry, to: destination)
+        try identity.write(to: marker, atomically: true, encoding: .utf8)
+        return destination
     }
 
     /// Extracts all files below `directory`, preserving relative paths.
@@ -120,8 +145,14 @@ nonisolated struct ZipArchive: Sendable {
             }
         }
 
+        // Every central directory record takes at least 46 bytes, so the
+        // declared sizes must fit both the file and the record count.
+        guard directoryOffset <= fileSize, directorySize <= fileSize - directoryOffset,
+              let directoryLength = Int(exactly: directorySize),
+              entryCount <= UInt64(directoryLength / 46) else { throw ZipError.corrupt }
+
         try handle.seek(toOffset: directoryOffset)
-        guard let directory = try handle.read(upToCount: Int(directorySize)) else { throw ZipError.corrupt }
+        guard let directory = try handle.read(upToCount: directoryLength), directory.count == directoryLength else { throw ZipError.corrupt }
 
         var entries: [Entry] = []
         entries.reserveCapacity(Int(entryCount))
@@ -145,19 +176,28 @@ nonisolated struct ZipArchive: Sendable {
                 ? String(decoding: nameData, as: UTF8.self)
                 : (String(data: nameData, encoding: .isoLatin1) ?? String(decoding: nameData, as: UTF8.self))
 
-            // ZIP64 extended information extra field.
+            // ZIP64 extended information extra field: it only carries the
+            // values whose 32-bit counterpart is the 0xFFFFFFFF sentinel.
             var extra = nameStart + nameLength
             let extraEnd = extra + extraLength
             while extra + 4 <= extraEnd {
                 let tag = directory.uint16(at: extra)
                 let size = Int(directory.uint16(at: extra + 2))
+                let fieldStart = extra + 4
+                let fieldEnd = fieldStart + size
+                guard fieldEnd <= extraEnd else { throw ZipError.corrupt }
                 if tag == 0x0001 {
-                    var cursor = extra + 4
-                    if uncompressed == 0xFFFF_FFFF { uncompressed = directory.uint64(at: cursor); cursor += 8 }
-                    if compressed == 0xFFFF_FFFF { compressed = directory.uint64(at: cursor); cursor += 8 }
-                    if localOffset == 0xFFFF_FFFF { localOffset = directory.uint64(at: cursor) }
+                    var cursor = fieldStart
+                    func next() throws -> UInt64 {
+                        guard cursor + 8 <= fieldEnd else { throw ZipError.corrupt }
+                        defer { cursor += 8 }
+                        return directory.uint64(at: cursor)
+                    }
+                    if uncompressed == 0xFFFF_FFFF { uncompressed = try next() }
+                    if compressed == 0xFFFF_FFFF { compressed = try next() }
+                    if localOffset == 0xFFFF_FFFF { localOffset = try next() }
                 }
-                extra += 4 + size
+                extra = fieldEnd
             }
 
             entries.append(Entry(path: name, crc32: crc, compressedSize: compressed, uncompressedSize: uncompressed,

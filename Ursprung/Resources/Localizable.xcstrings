@@ -2155,6 +2155,86 @@
     },
     "·": {
       "shouldTranslate": false
+    },
+    "The library could not be backed up: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bibliothek konnte nicht gesichert werden: %@"
+          }
+        }
+      }
+    },
+    "A new library could not be created: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine neue Bibliothek konnte nicht angelegt werden: %@"
+          }
+        }
+      }
+    },
+    "The library could not be opened": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bibliothek konnte nicht geöffnet werden"
+          }
+        }
+      }
+    },
+    "Your games, favorites and play times have not been changed. You can quit and try again, for example after updating Ursprung, or move the library aside as a backup and start with an empty one.\n\n%@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Spiele, Favoriten und Spielzeiten wurden nicht verändert. Du kannst das Programm beenden und es später erneut versuchen, zum Beispiel nach einem Update von Ursprung, oder die Bibliothek als Sicherung beiseitelegen und mit einer leeren Bibliothek beginnen.\n\n%@"
+          }
+        }
+      }
+    },
+    "Quit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beenden"
+          }
+        }
+      }
+    },
+    "Back Up and Start Fresh": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern und neu beginnen"
+          }
+        }
+      }
+    },
+    "Ursprung cannot start": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprung kann nicht gestartet werden"
+          }
+        }
+      }
+    },
+    "%@ Files that could not be restored are in “%@”.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ Dateien, die nicht wiederhergestellt werden konnten, liegen in „%2$@“."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

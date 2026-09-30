@@ -20,6 +20,7 @@ typedef struct {
     NSMutableArray<void (^)(URLibretroCore *)> *_commands;
     _Atomic bool _stopRequested;
     void (^_stopCompletion)(void);
+    BOOL _threadFinished; // guarded by @synchronized(self)
 
     AVAudioEngine *_engine;
     AVAudioSourceNode *_sourceNode;
@@ -71,17 +72,28 @@ typedef struct {
 }
 
 - (void)stopWithCompletion:(nullable void (^)(void))completion {
-    if (!self.running) {
-        if (completion) dispatch_async(dispatch_get_main_queue(), completion);
-        return;
+    // The thread counts as alive from start until it has unloaded the game,
+    // including while the game is still loading (`running` is not yet set
+    // then). Checking and registering the completion under one lock means the
+    // thread either sees the request or has already finished.
+    BOOL alive;
+    @synchronized(self) {
+        alive = _thread != nil && !_threadFinished;
+        if (alive) {
+            _stopCompletion = [completion copy];
+            atomic_store(&_stopRequested, true);
+        }
     }
-    @synchronized(self) { _stopCompletion = [completion copy]; }
-    atomic_store(&_stopRequested, true);
+    if (!alive && completion) dispatch_async(dispatch_get_main_queue(), completion);
 }
 
 - (void)stopAndWait {
-    if (!self.running) return;
-    atomic_store(&_stopRequested, true);
+    BOOL alive;
+    @synchronized(self) {
+        alive = _thread != nil && !_threadFinished;
+        if (alive) atomic_store(&_stopRequested, true);
+    }
+    if (!alive) return;
     dispatch_semaphore_wait(_finished, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
 }
 
@@ -110,6 +122,7 @@ typedef struct {
     }
     if (!loaded) {
         dispatch_async(dispatch_get_main_queue(), ^{ completion(error); });
+        [self finishThreadAfterRunningGame:NO];
         return;
     }
 
@@ -185,16 +198,27 @@ typedef struct {
         [self drainCommands];
         [core unloadGame];
     }
-    _running = NO;
+    [self finishThreadAfterRunningGame:YES];
+}
+
+/// Marks the thread as finished and reports it. Runs as the last step of every
+/// thread exit, whether or not the game ever loaded.
+- (void)finishThreadAfterRunningGame:(BOOL)ranGame {
+    void (^stopCompletion)(void);
+    BOOL wasRequested;
+    @synchronized(self) {
+        _running = NO;
+        _threadFinished = YES;
+        stopCompletion = _stopCompletion;
+        _stopCompletion = nil;
+        wasRequested = atomic_load(&_stopRequested);
+    }
     dispatch_semaphore_signal(_finished);
 
-    void (^stopCompletion)(void);
-    @synchronized(self) { stopCompletion = _stopCompletion; _stopCompletion = nil; }
-    BOOL wasRequested = atomic_load(&_stopRequested);
     void (^termination)(void) = self.terminationHandler;
     dispatch_async(dispatch_get_main_queue(), ^{
         if (stopCompletion) stopCompletion();
-        if (!wasRequested && termination) termination();
+        if (ranGame && !wasRequested && termination) termination();
     });
 }
 

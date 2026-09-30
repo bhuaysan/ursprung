@@ -142,7 +142,7 @@ final class EmulationSession {
             try? FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
             core.systemDirectory = AppPaths.system.path(percentEncoded: false)
             core.saveDirectory = saveDirectory.path(percentEncoded: false)
-            core.saveRAMPath = saveDirectory.appending(path: game.saveBaseName + ".srm").path(percentEncoded: false)
+            core.saveRAMPath = batterySaveURL(for: game, systemID: system.id, context: context).path(percentEncoded: false)
             core.optionOverrides = definition.optionDefaults.merging(Preferences.coreOptions(for: definition.id)) { $1 }
             core.languageCode = Locale.current.language.languageCode?.identifier ?? "en"
             core.messageHandler = { [weak self] message, duration in
@@ -154,19 +154,22 @@ final class EmulationSession {
             runner.terminationHandler = { [weak self] in
                 MainActor.assumeIsolated { self?.handleUnexpectedTermination() }
             }
+            // Register the runner before the (slow, blocking) game load starts,
+            // so a launch or stop that arrives meanwhile waits for it to finish.
+            self.runner = runner
             let path = contentURL.path(percentEncoded: false)
             let error: Error? = await withCheckedContinuation { continuation in
                 runner.start(withGamePath: path) { error in continuation.resume(returning: error) }
             }
-            if let error { throw error }
-            guard generation == self.generation else {
-                // Stopped or replaced while the game was loading.
-                await withCheckedContinuation { continuation in runner.stop { continuation.resume() } }
-                return
+            // Stopped or replaced while the game was loading: whoever
+            // superseded this launch is shutting the runner down.
+            guard generation == self.generation else { return }
+            if let error {
+                self.runner = nil
+                throw error
             }
 
             self.core = core
-            self.runner = runner
             input.core = core
             input.reloadMapping()
             startedAt = .now
@@ -194,6 +197,20 @@ final class EmulationSession {
         }
     }
 
+    /// Battery saves are kept per game. A save that older versions stored under
+    /// the ROM's file name moves over when that name is unique in the library.
+    private func batterySaveURL(for game: Game, systemID: String, context: ModelContext) -> URL {
+        let saves = AppPaths.saves
+        let baseName = game.saveBaseName
+        let url = BatterySave.url(in: saves, systemID: systemID, gameID: game.id, baseName: baseName)
+        let siblings = ((try? context.fetch(FetchDescriptor<Game>(predicate: #Predicate { $0.systemID == systemID }))) ?? [])
+            .filter { $0.saveBaseName == baseName }
+        BatterySave.migrateLegacy(to: url,
+                                  legacy: BatterySave.legacyURL(in: saves, systemID: systemID, baseName: baseName),
+                                  isUnambiguous: siblings.count == 1)
+        return url
+    }
+
     private func checkCurrent(_ generation: Int) throws {
         if generation != self.generation { throw CancellationError() }
     }
@@ -213,13 +230,7 @@ final class EmulationSession {
     @concurrent
     private static func extract(zip: URL, system: GameSystem, into directory: URL) async throws -> URL {
         guard let entry = LibraryScanner.primaryEntry(inZip: zip, system: system) else { throw ZipArchive.ZipError.corrupt }
-        let destination = directory.appending(path: entry.fileName)
-        let attributes = try? FileManager.default.attributesOfItem(atPath: destination.path(percentEncoded: false))
-        if (attributes?[.size] as? UInt64) != entry.uncompressedSize {
-            try? FileManager.default.removeItem(at: directory)
-            try ZipArchive(url: zip).extract(entry, to: destination)
-        }
-        return destination
+        return try ZipArchive.extractCached(entry, from: zip, into: directory)
     }
 
     // MARK: - Stop
