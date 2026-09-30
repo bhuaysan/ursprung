@@ -80,6 +80,23 @@ frame. The Metal shaders (compiled at runtime, so no Metal toolchain download
 is needed) implement sharp bilinear, nearest, bilinear and scanline filtering,
 aspect-correct fitting, integer scaling and core-requested rotation.
 
+## Input
+
+`InputRouter` merges the keyboard (player 1), GameController pads, XInput pads
+and generic HID gamepads into per-port RetroPad bitmasks and analog values.
+
+`XInputGamepadManager` opens USB interfaces speaking the Xbox 360 protocol
+(class 0xFF, subclass 0x5D, protocol 0x01), which macOS has no driver for, with
+IOUSBHost from user space, reads the 20-byte input reports on a private queue
+and lights the player LED. Pads the
+GameController framework rejects (for example 8BitDo pads in D-input mode) are
+read by `HIDGamepadManager` through `IOHIDManager`; pads from Nintendo, Sony
+and Microsoft, or whose name matches a GameController pad, are skipped so input
+is not doubled. `HIDGamepadMapping` guesses a layout from the reported elements
+(Android/8BitDo layout for 15+ buttons, DirectInput layout otherwise) and stores
+user changes per vendor/product ID. Ports go to GameController pads first,
+then XInput pads, then HID pads.
+
 ## libretro environment
 
 `URCoreEnvironment` implements the commands real-world cores rely on, among

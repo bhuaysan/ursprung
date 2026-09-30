@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
+import simd
 
 /// A logical RetroPad input that can be bound to a key.
 nonisolated enum RetroInput: String, CaseIterable, Codable, Identifiable, Sendable {
@@ -88,6 +89,26 @@ nonisolated enum RetroInput: String, CaseIterable, Codable, Identifiable, Sendab
         case .leftStickUp, .leftStickDown, .leftStickLeft, .leftStickRight: .leftStick
         case .rightStickUp, .rightStickDown, .rightStickLeft, .rightStickRight: .rightStick
         }
+    }
+}
+
+/// RetroPad state produced by one controller.
+nonisolated struct PadState: Equatable, Sendable {
+    var buttonMask: UInt32 = 0
+    var leftStick: SIMD2<Float> = .zero
+    var rightStick: SIMD2<Float> = .zero
+
+    static let stickDeadZone: Float = 0.15
+
+    mutating func set(_ button: RetroButton, _ pressed: Bool) {
+        if pressed { buttonMask |= 1 << UInt32(button.rawValue) }
+    }
+
+    /// Removes stick noise around the centre and rescales the rest to 0…1.
+    static func applyDeadZone(_ value: Float) -> Float {
+        let magnitude = abs(value)
+        guard magnitude > stickDeadZone else { return 0 }
+        return copysign(min((magnitude - stickDeadZone) / (1 - stickDeadZone), 1), value)
     }
 }
 

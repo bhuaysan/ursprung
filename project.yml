@@ -58,6 +58,8 @@ targets:
       - sdk: MetalKit.framework
       - sdk: AVFoundation.framework
       - sdk: GameController.framework
+      - sdk: IOKit.framework
+      - sdk: IOUSBHost.framework
     preBuildScripts:
       - name: Generate ScreenScraper secrets
         script: |

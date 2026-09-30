@@ -9,24 +9,53 @@ struct ControlsSettingsView: View {
     @State private var mapping = KeyboardMapping.current
     @State private var listening: RetroInput?
     @State private var monitor: Any?
+    @State private var configuring: HIDGamepad?
 
     var body: some View {
         Form {
             Section("Game Controllers") {
-                if session.input.connectedControllers.isEmpty {
-                    Text("No controller connected. Pair an Xbox, PlayStation, Switch Pro or MFi controller in System Settings → Bluetooth.")
+                let controllers = session.input.connectedControllers
+                let xinputPads = session.input.xinput.gamepads
+                let gamepads = session.input.hidGamepads
+                if controllers.isEmpty && xinputPads.isEmpty && gamepads.isEmpty {
+                    Text("No controller connected. Pair a controller in System Settings → Bluetooth or connect it via USB.")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(Array(session.input.connectedControllers.enumerated()), id: \.offset) { index, controller in
+                    ForEach(Array(controllers.enumerated()), id: \.offset) { index, controller in
                         LabeledContent(controller.vendorName ?? String(localized: "Controller")) {
                             Text("Player \(index + 1)")
                                 .foregroundStyle(.secondary)
+                        }
+                    }
+                    ForEach(Array(xinputPads.enumerated()), id: \.element.id) { index, gamepad in
+                        LabeledContent(gamepad.name) {
+                            Text("Player \(controllers.count + index + 1)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    ForEach(Array(gamepads.enumerated()), id: \.element.id) { index, gamepad in
+                        LabeledContent {
+                            HStack {
+                                Text("Player \(controllers.count + xinputPads.count + index + 1)")
+                                    .foregroundStyle(.secondary)
+                                Button("Configure…") { configuring = gamepad }
+                            }
+                        } label: {
+                            Text(gamepad.name)
+                            if let level = gamepad.batteryLevel {
+                                Text("Battery \(level) %")
+                            }
                         }
                     }
                 }
                 Text("Controllers are mapped by button position: the bottom face button is B, the right one is A — like on a Super Nintendo pad. The Home button opens the game menu.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if !gamepads.isEmpty {
+                    Text("Some controllers are not supported by macOS directly. Ursprung reads them itself and guesses their layout — if a button is wrong, change it with Configure….")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             ForEach(RetroInput.Group.allCases) { group in
@@ -60,6 +89,9 @@ struct ControlsSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(item: $configuring) { gamepad in
+            HIDGamepadMappingView(gamepad: gamepad)
+        }
         .onDisappear(perform: stopListening)
     }
 

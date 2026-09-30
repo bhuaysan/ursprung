@@ -36,8 +36,11 @@
 - **Save states with thumbnails**, quick save/load, battery saves, fast forward,
   multi-disc games, per-core options.
 - **Controllers and keyboard.** Xbox, PlayStation, Switch Pro and MFi
-  controllers via the GameController framework (up to four players), freely
-  remappable keyboard, mouse as touch screen / pointer (Nintendo DS).
+  controllers via the GameController framework, Xbox 360 protocol (XInput)
+  pads and receivers over USB (e.g. 8BitDo 2.4 GHz dongles) and other
+  USB/Bluetooth gamepads with remappable buttons via IOKit (up to four
+  players), freely remappable keyboard, mouse as touch screen / pointer
+  (Nintendo DS).
 - **BIOS management.** Drop BIOS files in and Ursprung recognises them by
   checksum and names them the way each core expects.
 - **English and German** user interface.

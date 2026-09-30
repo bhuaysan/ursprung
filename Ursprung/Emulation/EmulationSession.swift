@@ -345,7 +345,8 @@ final class EmulationSession {
         guard let path = ProcessInfo.processInfo.environment["URSPRUNG_SNAPSHOT_DIR"], let core else { return }
         let directory = URL(filePath: path, directoryHint: .isDirectory)
         if let image = core.copyFrameImage() { Self.writePNG(image, to: directory.appending(path: "frame.png")) }
-        let state = "phase=\(phase) paused=\(isPaused) fps=\(measuredFPS) core=\(coreName) size=\(core.baseWidth)x\(core.baseHeight) aspect=\(core.aspectRatio) hw=\(core.usesHardwareRendering)\n"
+        let state = "phase=\(phase) paused=\(isPaused) fps=\(measuredFPS) core=\(coreName) size=\(core.baseWidth)x\(core.baseHeight) aspect=\(core.aspectRatio) hw=\(core.usesHardwareRendering)"
+            + " controllers=\(input.controllerNames)\n"
         try? state.write(to: directory.appending(path: "session.txt"), atomically: true, encoding: .utf8)
     }
     #endif

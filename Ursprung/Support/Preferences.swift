@@ -20,6 +20,7 @@ nonisolated enum PrefKey {
     static let librarySort = "librarySort"
     static func coreChoice(_ systemID: String) -> String { "coreChoice.\(systemID)" }
     static func coreOptions(_ coreID: String) -> String { "coreOptions.\(coreID)" }
+    static func hidGamepadMapping(_ deviceKey: String) -> String { "hidGamepadMapping.\(deviceKey)" }
 }
 
 /// Display filter applied when scaling the emulator image.

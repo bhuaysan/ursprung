@@ -164,8 +164,38 @@
         }
       }
     },
+    "Axis %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Achse %@"
+          }
+        }
+      }
+    },
+    "Axis %@%@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Achse %1$@%2$@"
+          }
+        }
+      }
+    },
     "BIOS": {
       "shouldTranslate": false
+    },
+    "Battery %lld %%": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Akku %lld %%"
+          }
+        }
+      }
     },
     "Battery Saves": {
       "localizations": {
@@ -183,6 +213,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Verhalten"
+          }
+        }
+      }
+    },
+    "Button %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taste %lld"
           }
         }
       }
@@ -210,12 +250,32 @@
         }
       }
     },
+    "Click an input, then press the button or move the stick on the controller.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicke auf eine Eingabe und drücke dann die Taste oder bewege den Stick am Controller."
+          }
+        }
+      }
+    },
     "Close": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Schließen"
+          }
+        }
+      }
+    },
+    "Configure…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konfigurieren …"
           }
         }
       }
@@ -440,6 +500,16 @@
         }
       }
     },
+    "Done": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fertig"
+          }
+        }
+      }
+    },
     "Download": {
       "localizations": {
         "de": {
@@ -660,6 +730,16 @@
         }
       }
     },
+    "Gamepad": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gamepad"
+          }
+        }
+      }
+    },
     "Games you play will show up here.": {
       "localizations": {
         "de": {
@@ -686,6 +766,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Genre"
+          }
+        }
+      }
+    },
+    "Hat %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steuerkreuz %@"
           }
         }
       }
@@ -1010,12 +1100,12 @@
         }
       }
     },
-    "No controller connected. Pair an Xbox, PlayStation, Switch Pro or MFi controller in System Settings → Bluetooth.": {
+    "No controller connected. Pair a controller in System Settings → Bluetooth or connect it via USB.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kein Controller verbunden. Kopple einen Xbox-, PlayStation-, Switch-Pro- oder MFi-Controller unter Systemeinstellungen → Bluetooth."
+            "value": "Kein Controller verbunden. Kopple einen Controller unter Systemeinstellungen → Bluetooth oder schließe ihn per USB an."
           }
         }
       }
@@ -1270,6 +1360,16 @@
         }
       }
     },
+    "Press a button…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taste drücken …"
+          }
+        }
+      }
+    },
     "Press a key…": {
       "localizations": {
         "de": {
@@ -1506,6 +1606,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Standardtasten wiederherstellen"
+          }
+        }
+      }
+    },
+    "Restore Defaults": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard wiederherstellen"
           }
         }
       }
@@ -1776,6 +1886,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Weich"
+          }
+        }
+      }
+    },
+    "Some controllers are not supported by macOS directly. Ursprung reads them itself and guesses their layout — if a button is wrong, change it with Configure….": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manche Controller unterstützt macOS nicht direkt. Ursprung liest sie selbst aus und schätzt ihre Belegung – stimmt eine Taste nicht, ändere sie über „Konfigurieren …“."
           }
         }
       }
