@@ -36,6 +36,7 @@ struct LibraryView: View {
     @State private var selectedGameID: PersistentIdentifier?
     @State private var searchText = ""
     @State private var showInspector = true
+    @State private var gamePendingRemoval: Game?
     @AppStorage(PrefKey.librarySort) private var sort: LibrarySort = .title
     @AppStorage(PrefKey.gridSize) private var gridSize = 180.0
 
@@ -50,7 +51,7 @@ struct LibraryView: View {
                 .inspector(isPresented: $showInspector) {
                     Group {
                         if let game = selectedGame {
-                            GameInspector(game: game, play: { play(game) })
+                            GameInspector(game: game, actions: actions(for: game))
                         } else {
                             ContentUnavailableView("No Game Selected", systemImage: "square.stack",
                                                    description: Text("Select a game to see its details."))
@@ -62,6 +63,17 @@ struct LibraryView: View {
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search Games")
         .toolbar { toolbar }
         .focusedSceneValue(\.modelContext, context)
+        .focusedSceneValue(\.gameActions, selectedGame.map(actions(for:)))
+        .confirmationDialog(Text("Remove “\(gamePendingRemoval?.title ?? "")” from the library?"),
+                            isPresented: Binding(get: { gamePendingRemoval != nil },
+                                                 set: { if !$0 { gamePendingRemoval = nil } }),
+                            presenting: gamePendingRemoval) { game in
+            Button("Remove", role: .destructive) { remove(game) }
+            Button("Cancel", role: .cancel) {}
+                .keyboardShortcut(.defaultAction)
+        } message: { _ in
+            Text("The file stays on disk. Play time and favorite status are lost, and the next rescan adds the game again.")
+        }
         .task(id: librarySystems.map(\.id)) {
             if Preferences.autoScrape { await systemMedia.fetchMissing(for: librarySystems) }
         }
@@ -101,7 +113,7 @@ struct LibraryView: View {
             }
         } else {
             GameGridView(games: filteredGames, selectedGameID: $selectedGameID, cardWidth: gridSize,
-                         system: selectedSystem, play: play)
+                         system: selectedSystem, actions: actions(for:))
         }
     }
 
@@ -227,6 +239,29 @@ struct LibraryView: View {
         selectedGameID = game.persistentModelID
         openWindow(id: WindowID.player)
         Task { await session.launch(game, context: context) }
+    }
+
+    private func actions(for game: Game) -> GameActions {
+        GameActions(
+            game: game,
+            play: { play(game) },
+            toggleFavorite: {
+                game.isFavorite.toggle()
+                try? context.save()
+            },
+            refetchMetadata: { metadata.enqueue([game], force: true, context: context) },
+            showInFinder: { NSWorkspace.shared.activateFileViewerSelecting([game.fileURL]) },
+            setCore: { coreID in
+                game.coreID = coreID
+                try? context.save()
+            },
+            requestRemoval: { gamePendingRemoval = game }
+        )
+    }
+
+    private func remove(_ game: Game) {
+        if selectedGameID == game.persistentModelID { selectedGameID = nil }
+        library.remove(game, context: context)
     }
 }
 

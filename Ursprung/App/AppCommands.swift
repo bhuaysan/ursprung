@@ -8,6 +8,7 @@ struct AppCommands: Commands {
     let library: LibraryStore
 
     @FocusedValue(\.modelContext) private var modelContext
+    @FocusedValue(\.gameActions) private var gameActions
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -25,6 +26,20 @@ struct AppCommands: Commands {
         }
 
         CommandMenu("Game") {
+            // The selected game in the library; disabled while another window is key.
+            if let gameActions {
+                GameActionItems(actions: gameActions, placement: .menuBar)
+            } else {
+                Button("Play") {}.disabled(true)
+                Button("Add to Favorites") {}.keyboardShortcut("d").disabled(true)
+                Divider()
+                Button("Refetch Metadata") {}.disabled(true)
+                Button("Show in Finder") {}.keyboardShortcut("r").disabled(true)
+                Divider()
+                Button("Remove from Library…") {}.disabled(true)
+            }
+            Divider()
+
             let running = session.phase == .running
             Button(session.isPaused ? "Resume" : "Pause") { session.togglePause() }
                 .keyboardShortcut("p")

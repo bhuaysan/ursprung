@@ -9,11 +9,8 @@ struct GameGridView: View {
     let cardWidth: Double
     /// Shows the system's logo above the grid.
     var system: GameSystem?
-    let play: (Game) -> Void
+    let actions: (Game) -> GameActions
 
-    @Environment(\.modelContext) private var context
-    @Environment(LibraryStore.self) private var library
-    @Environment(MetadataService.self) private var metadata
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -27,14 +24,15 @@ struct GameGridView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth * 1.35), spacing: 28, alignment: .top)],
                           alignment: .leading, spacing: 32) {
                     ForEach(games) { game in
-                        GameCard(game: game, isSelected: game.persistentModelID == selectedGameID, play: { play(game) })
+                        let actions = actions(game)
+                        GameCard(game: game, isSelected: game.persistentModelID == selectedGameID, actions: actions)
                             .id(game.persistentModelID)
-                            .onTapGesture(count: 2) { play(game) }
+                            .onTapGesture(count: 2, perform: actions.play)
                             .simultaneousGesture(TapGesture().onEnded {
                                 selectedGameID = game.persistentModelID
                                 focused = true
                             })
-                            .contextMenu { contextMenu(for: game) }
+                            .contextMenu { GameActionItems(actions: actions, placement: .contextMenu) }
                     }
                 }
                 .padding(.horizontal, 28)
@@ -45,7 +43,14 @@ struct GameGridView: View {
             .focusEffectDisabled()
             .onKeyPress(.return) {
                 guard let game = selectedGame else { return .ignored }
-                play(game)
+                actions(game).play()
+                return .handled
+            }
+            .onKeyPress(.delete, phases: .down) { press in
+                // ⌘⌫ only in the grid: as a menu shortcut it would also fire
+                // while the search field is being edited.
+                guard press.modifiers.contains(.command), let game = selectedGame else { return .ignored }
+                actions(game).requestRemoval()
                 return .handled
             }
             .onKeyPress(.leftArrow) { move(by: -1, proxy: proxy) }
@@ -70,27 +75,6 @@ struct GameGridView: View {
         return .handled
     }
 
-    @ViewBuilder
-    private func contextMenu(for game: Game) -> some View {
-        Button("Play", systemImage: "play.fill") { play(game) }
-        Button(game.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-               systemImage: game.isFavorite ? "heart.slash" : "heart") {
-            game.isFavorite.toggle()
-            try? context.save()
-        }
-        Divider()
-        Button("Refetch Metadata", systemImage: "arrow.triangle.2.circlepath") {
-            metadata.enqueue([game], force: true, context: context)
-        }
-        Button("Show in Finder", systemImage: "folder") {
-            NSWorkspace.shared.activateFileViewerSelecting([game.fileURL])
-        }
-        Divider()
-        Button("Remove from Library", systemImage: "trash", role: .destructive) {
-            if selectedGameID == game.persistentModelID { selectedGameID = nil }
-            library.remove(game, context: context)
-        }
-    }
 }
 
 /// Banner above a system's games: the official logo and a console photo on the
@@ -133,7 +117,7 @@ struct SystemBanner: View {
 struct GameCard: View {
     let game: Game
     let isSelected: Bool
-    let play: () -> Void
+    let actions: GameActions
 
     @State private var isHovering = false
 
@@ -168,8 +152,8 @@ struct GameCard: View {
             withAnimation(.smooth(duration: 0.18)) { isHovering = hovering }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: "Play", play)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .gameAccessibilityActions(actions)
     }
 
     /// Box art sits on a common baseline inside a square slot, so rows stay
@@ -189,7 +173,7 @@ struct GameCard: View {
                 }
                 .overlay(alignment: .center) {
                     if isHovering {
-                        Button(action: play) {
+                        Button(action: actions.play) {
                             Image(systemName: "play.fill")
                                 .font(.title2)
                                 .frame(width: 52, height: 52)

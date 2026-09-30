@@ -4,11 +4,9 @@ import SwiftData
 import SwiftUI
 
 struct GameInspector: View {
-    @Bindable var game: Game
-    let play: () -> Void
+    let game: Game
+    let actions: GameActions
 
-    @Environment(\.modelContext) private var context
-    @Environment(MetadataService.self) private var metadata
     @Environment(EmulationSession.self) private var session
     @State private var expandedOverview = false
 
@@ -18,7 +16,7 @@ struct GameInspector: View {
                 hero
                 VStack(alignment: .leading, spacing: 22) {
                     header
-                    actions
+                    actionRow
                     if let overview = game.overview, !overview.isEmpty {
                         overviewSection(overview)
                     }
@@ -90,9 +88,9 @@ struct GameInspector: View {
         }
     }
 
-    private var actions: some View {
+    private var actionRow: some View {
         HStack(spacing: 10) {
-            Button(action: play) {
+            Button(action: actions.play) {
                 Label("Play", systemImage: "play.fill")
                     .frame(maxWidth: .infinity)
             }
@@ -101,31 +99,28 @@ struct GameInspector: View {
             .keyboardShortcut(.defaultAction)
             .disabled(isStarting)
 
-            Button {
-                game.isFavorite.toggle()
-                try? context.save()
-            } label: {
+            Button(action: actions.toggleFavorite) {
                 Image(systemName: game.isFavorite ? "heart.fill" : "heart")
                     .foregroundStyle(game.isFavorite ? .pink : .primary)
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.glass)
             .controlSize(.large)
-            .help(game.isFavorite ? "Remove from Favorites" : "Add to Favorites")
+            .help(actions.favoriteTitle)
+            .accessibilityLabel("Favorite")
+            .accessibilityValue(game.isFavorite ? Text("On") : Text("Off"))
+            .accessibilityAddTraits(.isToggle)
 
             Menu {
-                Button("Refetch Metadata", systemImage: "arrow.triangle.2.circlepath") {
-                    metadata.enqueue([game], force: true, context: context)
-                }
-                Button("Show in Finder", systemImage: "folder") {
-                    NSWorkspace.shared.activateFileViewerSelecting([game.fileURL])
-                }
+                GameActionItems(actions: actions, placement: .inspectorMenu)
             } label: {
                 Image(systemName: "ellipsis")
             }
             .menuIndicator(.hidden)
             .buttonStyle(.glass)
             .controlSize(.large)
+            .help("More Actions")
+            .accessibilityLabel("More Actions")
         }
     }
 
@@ -177,17 +172,8 @@ struct GameInspector: View {
     private var settingsSection: some View {
         if let system = game.system, system.cores.count > 1 {
             InfoSection("Emulation") {
-                Picker("Core", selection: Binding(
-                    get: { game.coreID ?? "" },
-                    set: { game.coreID = $0.isEmpty ? nil : $0; try? context.save() }
-                )) {
-                    Text("System Default (\(system.core(withID: Preferences.coreChoice(for: system.id)).name))").tag("")
-                    Divider()
-                    ForEach(system.cores) { core in
-                        Text(core.name).tag(core.id)
-                    }
-                }
-                .pickerStyle(.menu)
+                GameCorePicker(actions: actions)
+                    .pickerStyle(.menu)
             }
         }
     }
