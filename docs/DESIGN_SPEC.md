@@ -130,8 +130,8 @@ The grid becomes a shelf of box art on the plain window background, with an expl
 | 5 | 260 pt | Showcase |
 
 - The stored `gridSize` becomes one of these five steps, changed with ⌘+ / ⌘− / ⌘0 (section D). Existing stored values snap to the nearest step. RECOMMENDED
-- Columns are computed, not `.adaptive`: `columns = max(2, round((available + spacing) / (step + spacing)))`, each column `.flexible()`, so slot widths stay within about ±20 % of the chosen step instead of growing up to 2 ×. ESSENTIAL (up/down navigation needs the count)
-- If the chosen step fits fewer than 2 columns, the effective width drops toward 120 pt until 2 columns fit. Only below 2 columns at 120 pt does the grid show 1 column. ESSENTIAL
+- Columns are computed, not `.adaptive`: `columns = max(2, floor((available + spacing) / (step + spacing)))`. Each slot is exactly the chosen step wide; the remaining width goes into the column spacing (at least 20 pt), so both grid edges stay aligned, as in Finder icon view. ⌘+ / ⌘− therefore always change the cover size visibly, at the cost of wider gaps just before another column fits (question 13). ESSENTIAL (up/down navigation needs the count)
+- If the chosen step fits fewer than 2 columns, the slot width drops toward 120 pt until 2 columns fit. Only below 2 columns at 120 pt does the grid show 1 column. ESSENTIAL
 
 **Spacing**
 
@@ -464,21 +464,21 @@ The content column is protected at ≥ 440 pt by letting the inspector yield on 
 | Inspector | Hidden by default; opens at 280 pt, sidebar collapses | Visible at 300 pt if preferred | Visible at 320 pt if preferred |
 | Content column | 540–780 pt | 480–780 pt | ≥ 760 pt |
 | Grid padding | 20 pt | 20 pt below 560 pt content, else 24 pt | 24 pt |
-| Columns at step 180 | 3 (≈ 150–175 pt slots) | 2–4 | 4–6+ |
+| Columns at step 180 | 2–3 (180 pt slots) | 2–3 | 3–6+ |
 | System header | 72 pt, no console photo | 72–88 pt, photo from 560 pt content | 88 pt with photo |
 | Toolbar | Activity button appears when the sidebar is collapsed | Full set | Full set |
 
 ```text
 Default column widths per window band (grid keeps >= 440 pt; the inspector yields first)
 
-820–999 pt     | Sidebar 220 | Grid 600 · 3 columns           |
-               Opening the inspector collapses the sidebar: grid 540 + inspector 280, still 3 columns.
+820–999 pt     | Sidebar 220 | Grid 600 · 2 columns           |
+               Opening the inspector collapses the sidebar: grid 540 + inspector 280, still 2 columns.
 
 1000–1299 pt   | Sidebar 220 | Grid 480 · 2 columns  | Inspector 300 |
                Narrowing the window hides the inspector before the grid drops below 440 pt.
 
-1300 pt +      | Sidebar 220–260 | Grid 760+ · 4+ columns          | Inspector 320 |
-               Extra width goes to the grid; covers stay near the chosen 180 pt step.
+1300 pt +      | Sidebar 220–260 | Grid 760+ · 3+ columns          | Inspector 320 |
+               Extra width goes to the grid; covers stay at the chosen 180 pt step, gaps absorb the rest.
 ```
 
 The grid column (accented) is the only one that never yields; sidebar and inspector give way depending on whether the user resized or opened a panel.
@@ -706,7 +706,7 @@ Ten steps, each a separate commit that builds, keeps all workflows working and c
 
 Each question has a recommended answer that the spec above already assumes; a different decision changes only the named section.
 
-Decided on 30 September 2026: questions 1, 2, 3, 6 and 10 follow the recommendation. The others stay open until the steps that need them (mostly steps 9 and 10).
+Decided on 30 September 2026: questions 1–12 follow the recommendation; question 13 was added after testing step 3 and is decided as shown. Question 11: `LibraryStore` checks folder reachability on every scan (`LibraryStore.swift:90`) but does not keep the result yet; step 8 adds that property and keeps the row.
 
 | # | Question | Recommendation | Affects |
 | --- | --- | --- | --- |
@@ -722,3 +722,4 @@ Decided on 30 September 2026: questions 1, 2, 3, 6 and 10 follow the recommendat
 | 10 | Base-language spelling: “recognises”, “Behaviour” (British) or American? | Pick one before step 8 writes new copy; American matches macOS system strings. | H, K |
 | 11 | Does `LibraryStore` know which folders are unreachable? The “folder unreachable” state needs it. | If not, drop that row from step 8 and track it with M7. | H |
 | 12 | Settings window: allow vertical resizing? | Yes, 440 pt min; tabs like Controls and BIOS are long. | K |
+| 13 | Cover steps: flexible slots (±20 % around the step) or fixed slot width? With rounding, two steps often give the same column count, so ⌘+ changes almost nothing. | Decided: fixed slot width, the remainder goes into the gaps (section E). | E, M |
