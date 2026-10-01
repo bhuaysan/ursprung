@@ -940,16 +940,6 @@
         }
       }
     },
-    "Loading %@…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ wird geladen …"
-          }
-        }
-      }
-    },
     "Matched": {
       "localizations": {
         "de": {
@@ -1510,16 +1500,6 @@
         }
       }
     },
-    "Reset to Defaults": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auf Standard zurücksetzen"
-          }
-        }
-      }
-    },
     "Restore Default Keys": {
       "localizations": {
         "de": {
@@ -1790,16 +1770,6 @@
         }
       }
     },
-    "Some options take effect after a reset.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manche Optionen wirken erst nach einem Neustart."
-          }
-        }
-      }
-    },
     "Sort By": {
       "localizations": {
         "de": {
@@ -1956,16 +1926,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Die Datei ist kein gültiges ZIP-Archiv."
-          }
-        }
-      }
-    },
-    "The game could not be started": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Das Spiel konnte nicht gestartet werden"
           }
         }
       }
@@ -2842,6 +2802,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unerwartete Antwort von ScreenScraper"
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück"
+          }
+        }
+      }
+    },
+    "Clear": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löschen"
+          }
+        }
+      }
+    },
+    "Current": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktuell"
+          }
+        }
+      }
+    },
+    "Delete the save state in slot %lld?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielstand in Slot %lld löschen?"
+          }
+        }
+      }
+    },
+    "Delete…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löschen …"
+          }
+        }
+      }
+    },
+    "Loading game…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiel wird geladen …"
+          }
+        }
+      }
+    },
+    "No options match “%@”.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Option passt zu „%@“."
+          }
+        }
+      }
+    },
+    "Reset Game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiel neu starten"
+          }
+        }
+      }
+    },
+    "Save to Slot %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Slot %lld sichern"
+          }
+        }
+      }
+    },
+    "Some options apply after a reset.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manche Optionen wirken erst nach einem Neustart."
+          }
+        }
+      }
+    },
+    "The game couldn't be started": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Spiel konnte nicht gestartet werden"
+          }
+        }
+      }
+    },
+    "This can't be undone.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dies kann nicht widerrufen werden."
+          }
+        }
+      }
+    },
+    "This core has no options.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Core hat keine Optionen."
           }
         }
       }

@@ -9,6 +9,7 @@ struct AppCommands: Commands {
     @FocusedValue(\.isShowingRecentlyPlayed) private var isShowingRecentlyPlayed
     @FocusedValue(\.gameActions) private var gameActions
     @FocusedValue(\.inspectorToggle) private var inspectorToggle
+    @FocusedValue(\.saveStateSlot) private var saveStateSlot
 
     var body: some Commands {
         // Every toolbar command is also here (docs/DESIGN_SPEC.md, section D);
@@ -54,9 +55,15 @@ struct AppCommands: Commands {
             Button("Show Menu") { session.toggleMenu() }
                 .disabled(!running)
             Divider()
-            Button("Quick Save") { session.saveState(slot: 0) }
-                .keyboardShortcut("s")
-                .disabled(!running)
+            if let saveStateSlot {
+                // The pause menu's Save States page: ⌘S saves into the focused slot.
+                Button("Save to Slot \(saveStateSlot)") { session.saveState(slot: saveStateSlot) }
+                    .keyboardShortcut("s")
+            } else {
+                Button("Quick Save") { session.saveState(slot: 0) }
+                    .keyboardShortcut("s")
+                    .disabled(!running)
+            }
             Button("Quick Load") { session.loadState(slot: 0) }
                 .keyboardShortcut("l")
                 .disabled(!running)

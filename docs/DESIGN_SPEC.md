@@ -384,6 +384,8 @@ The pause menu becomes one glass panel with menu-like rows inside it: one glass 
 - Rows: title `.body`, description `.subheadline` secondary max 2 lines, picker trailing at max 200 pt; row spacing 10 pt, hairline dividers at 20 % white. ESSENTIAL
 - Footer: “Some options apply after a reset.” `.subheadline` secondary, then “Reset Game” and “Restore Defaults” plain buttons trailing. RECOMMENDED
 
+Implemented in step 9 with these choices: Change Disc opens a small Discs page (340 pt, one row per disc, checkmark on the current one) instead of a submenu, so keyboard and controller reach it; Resume shows focus as a 3 pt white ring around the prominent button; Return or the confirm button on an empty slot saves into it; each slot also has a small Delete… button; on the Save States page the Game menu's ⌘S item becomes “Save to Slot n”. The Delete key arrives as the `delete:` action (`onDeleteCommand`), not as a key press.
+
 ## K. Settings specification
 
 The native Settings scene with toolbar tabs and grouped forms stays; the redesign is a set of rules that every tab follows, so help text, status and actions look the same everywhere.

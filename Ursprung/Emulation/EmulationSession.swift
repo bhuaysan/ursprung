@@ -5,6 +5,7 @@ import Foundation
 import ImageIO
 import Observation
 import SwiftData
+import SwiftUI
 import UniformTypeIdentifiers
 
 /// A save state slot on disk.
@@ -23,12 +24,21 @@ final class EmulationSession {
         case idle
         case preparing(String)
         case running
-        case failed(String)
+        case failed(Failure)
+    }
+
+    /// Why a launch failed, written as what happened plus what to do.
+    struct Failure: Equatable {
+        let message: String
+        /// The Settings tab that fixes the cause (missing core or BIOS).
+        var settingsTab: SettingsTab?
     }
 
     struct Toast: Identifiable, Equatable {
+        enum Kind { case info, saved, loaded, warning }
         let id = UUID()
         let text: String
+        var kind = Kind.info
     }
 
     private(set) var phase: Phase = .idle
@@ -46,7 +56,12 @@ final class EmulationSession {
     /// Incremented whenever a core shuts itself down.
     private(set) var coreTerminations = 0
     var isMenuVisible = false {
-        didSet { if isMenuVisible != oldValue { applyPause() } }
+        didSet {
+            guard isMenuVisible != oldValue else { return }
+            // While the menu is open, controllers navigate it instead of the game.
+            input.routesToMenu = isMenuVisible
+            applyPause()
+        }
     }
 
     private(set) var core: LibretroCore?
@@ -95,12 +110,14 @@ final class EmulationSession {
         // a previous game shuts down.
         generation += 1
         let generation = generation
-        phase = .preparing(String(localized: "Loading \(game.title)…"))
+        // The preparing panel shows the title above the message.
+        gameTitle = game.title
+        phase = .preparing(String(localized: "Loading game…"))
         await shutDownRunner(context: context)
         guard generation == self.generation else { return }
         launchContext = context
         guard let system = game.system else {
-            phase = .failed(String(localized: "Unknown system."))
+            phase = .failed(Failure(message: String(localized: "Unknown system.")))
             return
         }
 
@@ -122,10 +139,13 @@ final class EmulationSession {
         let missing = bios.missingRequired(for: system)
         if !missing.isEmpty {
             let names = missing.map(\.fileName).joined(separator: ", ")
-            phase = .failed(String(localized: "\(system.name) needs BIOS files that are missing: \(names). Import them in Settings → BIOS."))
+            phase = .failed(Failure(message: String(localized: "\(system.name) needs BIOS files that are missing: \(names). Import them in Settings → BIOS."),
+                                    settingsTab: .bios))
             return
         }
 
+        // Errors until the core is loaded are fixed in Settings → Cores.
+        var settingsTab: SettingsTab? = .cores
         do {
             phase = .preparing(cores.isInstalled(definition)
                 ? String(localized: "Starting \(definition.name)…")
@@ -133,8 +153,9 @@ final class EmulationSession {
             let coreURL = try await cores.ensureInstalled(definition)
             try checkCurrent(generation)
             let core = try LibretroCore(path: coreURL.path(percentEncoded: false))
+            settingsTab = nil
 
-            phase = .preparing(String(localized: "Loading \(game.title)…"))
+            phase = .preparing(String(localized: "Loading game…"))
             let contentURL = try await prepareContent(for: game, system: system, core: core)
             try checkCurrent(generation)
 
@@ -193,7 +214,7 @@ final class EmulationSession {
             #endif
         } catch {
             guard generation == self.generation, !(error is CancellationError) else { return }
-            phase = .failed(error.localizedDescription)
+            phase = .failed(Failure(message: error.localizedDescription, settingsTab: settingsTab))
         }
     }
 
@@ -385,7 +406,11 @@ final class EmulationSession {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self?.reloadSlots()
-                    self?.showToast(success ? String(localized: "State saved") : String(localized: "This core does not support save states"))
+                    if success {
+                        self?.showToast(String(localized: "State saved"), kind: .saved)
+                    } else {
+                        self?.showToast(String(localized: "This core does not support save states"), kind: .warning)
+                    }
                 }
             }
         }
@@ -402,7 +427,11 @@ final class EmulationSession {
             let success = core.unserializeState(data)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    self?.showToast(success ? String(localized: "State loaded") : String(localized: "The state could not be loaded"))
+                    if success {
+                        self?.showToast(String(localized: "State loaded"), kind: .loaded)
+                    } else {
+                        self?.showToast(String(localized: "The state could not be loaded"), kind: .warning)
+                    }
                     if success { self?.isMenuVisible = false }
                 }
             }
@@ -441,7 +470,11 @@ final class EmulationSession {
             let success = core.insertDisk(at: index)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    self?.showToast(success ? String(localized: "Disc \(index + 1) inserted") : String(localized: "Disc could not be changed"))
+                    if success {
+                        self?.showToast(String(localized: "Disc \(index + 1) inserted"))
+                    } else {
+                        self?.showToast(String(localized: "Disc could not be changed"), kind: .warning)
+                    }
                     self?.refreshDiskInfo()
                 }
             }
@@ -468,8 +501,9 @@ final class EmulationSession {
 
     // MARK: - Toasts
 
-    func showToast(_ text: String, duration: TimeInterval = 2.5) {
-        let toast = Toast(text: text)
+    func showToast(_ text: String, kind: Toast.Kind = .info, duration: TimeInterval = 2.5) {
+        let toast = Toast(text: text, kind: kind)
+        AccessibilityNotification.Announcement(text).post()
         toasts.append(toast)
         if toasts.count > 3 { toasts.removeFirst() }
         Task { [weak self] in

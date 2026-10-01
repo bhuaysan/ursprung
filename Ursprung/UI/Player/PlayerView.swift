@@ -3,16 +3,21 @@
 import SwiftData
 import SwiftUI
 
+/// The game edge to edge, with overlays in fixed zones so the middle of the
+/// image is only covered by panels. See docs/DESIGN_SPEC.md, section I.
 struct PlayerView: View {
     @Environment(EmulationSession.self) private var session
     @Environment(CoreManager.self) private var cores
     @Environment(\.modelContext) private var context
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     @AppStorage(PrefKey.videoFilter) private var filter: VideoFilter = .sharp
     @AppStorage(PrefKey.integerScaling) private var integerScaling = false
     @AppStorage(PrefKey.showFPS) private var showFPS = false
+    @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
 
     var body: some View {
         ZStack {
@@ -26,46 +31,51 @@ struct PlayerView: View {
             }
 
             switch session.phase {
-            case .idle:
+            case .idle, .running:
                 EmptyView()
             case .preparing(let message):
-                PreparingView(message: message, progress: currentDownloadProgress)
-            case .failed(let message):
-                FailureView(message: message,
-                            openSettings: { openSettings() },
-                            close: { dismissWindow(id: WindowID.player) })
-            case .running:
-                EmptyView()
+                PreparingView(title: session.gameTitle, message: message, progress: currentDownloadProgress)
+            case .failed(let failure):
+                FailureView(failure: failure, openSettings: { open(failure.settingsTab) }, close: closePlayer)
             }
 
             if session.isMenuVisible {
-                PauseMenuView(close: { dismissWindow(id: WindowID.player) })
-                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                // Clicking next to the panel resumes.
+                Rectangle()
+                    .fill(.black.opacity(reduceTransparency ? 0.7 : 0.5))
+                    .ignoresSafeArea()
+                    .onTapGesture { session.isMenuVisible = false }
+                    .transition(.opacity)
+                GeometryReader { geometry in
+                    PauseMenuView(maxHeight: min(600, geometry.size.height - 80), close: closePlayer)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .transition(.appFade(or: .opacity.combined(with: .scale(scale: 0.97)), reduceMotion: reduceMotion))
             }
         }
-        .overlay(alignment: .top) { ToastStack(toasts: session.toasts) }
+        .overlay(alignment: .top) {
+            ToastStack(toasts: session.toasts)
+                .padding(.top, AppSpacing.l)
+        }
         .overlay(alignment: .topTrailing) {
-            if showFPS, session.phase == .running {
-                Text("\(session.measuredFPS, format: .number.precision(.fractionLength(1))) fps")
-                    .font(.caption.monospacedDigit())
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .glassEffect(.regular, in: .capsule)
-                    .padding(12)
+            // Indicators that stay while their mode is on.
+            VStack(alignment: .trailing, spacing: 6) {
+                if showFPS, session.phase == .running {
+                    HUDCapsule {
+                        Text("\(session.measuredFPS, format: .number.precision(.fractionLength(1))) fps")
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+                if session.isFastForwarding {
+                    HUDCapsule { Label("Fast Forward", systemImage: "forward.fill") }
+                        .transition(.opacity)
+                }
             }
+            .padding(AppSpacing.l)
         }
-        .overlay(alignment: .bottom) {
-            if session.isFastForwarding {
-                Label("Fast Forward", systemImage: "forward.fill")
-                    .font(.callout.weight(.medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .glassEffect(.regular, in: .capsule)
-                    .padding(20)
-            }
-        }
-        .animation(.smooth(duration: 0.2), value: session.isMenuVisible)
-        .animation(.smooth(duration: 0.2), value: session.toasts)
+        .appAnimation(AppAnimation.panel, value: session.isMenuVisible)
+        .appAnimation(AppAnimation.standard, value: session.toasts)
+        .appAnimation(AppAnimation.standard, value: session.isFastForwarding)
         .navigationTitle(session.gameTitle)
         .toolbar(session.phase == .running && !session.isMenuVisible ? .hidden : .automatic, for: .windowToolbar)
         .onDisappear {
@@ -82,79 +92,138 @@ struct PlayerView: View {
     private var currentDownloadProgress: Double? {
         cores.downloads.values.first
     }
+
+    private func closePlayer() {
+        dismissWindow(id: WindowID.player)
+    }
+
+    private func open(_ tab: SettingsTab?) {
+        if let tab { settingsTab = tab }
+        openSettings()
+    }
 }
 
 private struct PreparingView: View {
+    let title: String
     let message: String
     let progress: Double?
 
+    /// Quick starts finish before the panel appears, so they show no flash.
+    @State private var isShown = false
+
     var body: some View {
-        VStack(spacing: 14) {
-            if let progress {
-                ProgressView(value: progress)
-                    .progressViewStyle(.linear)
-                    .frame(width: 220)
-            } else {
-                ProgressView()
-                    .controlSize(.large)
+        PlayerPanel {
+            VStack(spacing: AppSpacing.m) {
+                VStack(spacing: AppSpacing.xs) {
+                    Text(title)
+                        .font(.headline)
+                        .lineLimit(2)
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                if let progress {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                        .frame(width: 240)
+                } else {
+                    ProgressView()
+                }
             }
-            Text(message)
-                .font(.headline)
-                .foregroundStyle(.white.opacity(0.85))
+            .multilineTextAlignment(.center)
+            .frame(width: 300 - 2 * AppSpacing.xl)
         }
-        .padding(28)
-        .glassEffect(.regular, in: .rect(cornerRadius: 22))
-        .environment(\.colorScheme, .dark)
+        .opacity(isShown ? 1 : 0)
+        .appAnimation(AppAnimation.standard, value: isShown)
+        .accessibilityElement(children: .combine)
+        .task {
+            try? await Task.sleep(for: .milliseconds(300))
+            isShown = true
+        }
     }
 }
 
 private struct FailureView: View {
-    let message: String
+    let failure: EmulationSession.Failure
     let openSettings: () -> Void
     let close: () -> Void
 
+    @FocusState private var isFocused: Bool
+
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.yellow)
-            Text("The game could not be started")
-                .font(.title3.weight(.semibold))
-            Text(message)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        PlayerPanel(padding: 28) {
+            VStack(spacing: AppSpacing.l) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.orange)
+                    .accessibilityHidden(true)
+                VStack(spacing: AppSpacing.s) {
+                    Text("The game couldn't be started")
+                        .font(.title3.weight(.semibold))
+                    Text(failure.message)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
-            HStack {
-                Button("Open Settings", action: openSettings)
-                    .buttonStyle(.glass)
-                Button("Close", action: close)
-                    .buttonStyle(.glassProminent)
-                    .keyboardShortcut(.defaultAction)
+                HStack {
+                    Button("Open Settings", action: openSettings)
+                        .buttonStyle(.glass)
+                    Button("Close", action: close)
+                        .buttonStyle(.glassProminent)
+                        .keyboardShortcut(.defaultAction)
+                }
+                .controlSize(.large)
             }
+            .frame(maxWidth: 420 - 2 * 28)
         }
-        .padding(32)
-        .glassEffect(.regular, in: .rect(cornerRadius: 26))
-        .environment(\.colorScheme, .dark)
+        // Focused so Esc reaches it: Esc closes, like the Close button.
+        .focusable()
+        .focused($isFocused)
+        .focusEffectDisabled()
+        .onExitCommand(perform: close)
+        .onAppear { isFocused = true }
     }
 }
 
 private struct ToastStack: View {
     let toasts: [EmulationSession.Toast]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: AppSpacing.s) {
             ForEach(toasts) { toast in
-                Text(toast.text)
-                    .font(.callout.weight(.medium))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .glassEffect(.regular, in: .capsule)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                HUDCapsule {
+                    Label {
+                        Text(toast.text)
+                    } icon: {
+                        if let symbol = symbol(for: toast.kind) {
+                            Image(systemName: symbol)
+                                .foregroundStyle(toast.kind == .warning ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary))
+                        }
+                    }
+                    .labelStyle(ToastLabelStyle())
+                }
+                .transition(.appFade(or: .move(edge: .top).combined(with: .opacity), reduceMotion: reduceMotion))
             }
         }
-        .padding(.top, 18)
-        .environment(\.colorScheme, .dark)
-        .allowsHitTesting(false)
+    }
+
+    private func symbol(for kind: EmulationSession.Toast.Kind) -> String? {
+        switch kind {
+        case .info: nil
+        case .saved: "square.and.arrow.down"
+        case .loaded: "square.and.arrow.up"
+        case .warning: "exclamationmark.triangle.fill"
+        }
+    }
+}
+
+/// Icon and title like `.titleAndIcon`, without the gap an empty icon leaves.
+private struct ToastLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            configuration.icon
+            configuration.title
+        }
     }
 }
