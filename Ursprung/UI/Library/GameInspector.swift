@@ -221,18 +221,11 @@ struct GameInspector: View {
     /// Inline status row (section H): symbol, text and a Refetch link.
     private func metadataStatusRow(_ state: ScrapeState) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: AppSpacing.s) {
-            Group {
-                if state == .failed {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                } else {
-                    Image(systemName: "questionmark.circle")
-                        .foregroundStyle(.secondary)
-                }
+            if state == .failed {
+                StatusLabel("Metadata couldn't be fetched", kind: .warning, prominent: true)
+            } else {
+                StatusLabel("No match on ScreenScraper", systemImage: "questionmark.circle", kind: .neutral, prominent: true)
             }
-            .frame(width: 16)
-            .accessibilityHidden(true)
-            Text(state == .failed ? "Metadata couldn't be fetched" : "No match on ScreenScraper" as LocalizedStringKey)
             Spacer(minLength: AppSpacing.s)
             Button("Refetch", action: actions.refetchMetadata)
                 .buttonStyle(.link)

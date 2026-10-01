@@ -105,7 +105,7 @@ struct LibraryView: View {
                 }
         }
         .background {
-            WindowWidthReader { width in columns.update { $0.resize(to: width) } }
+            WindowSizeReader { size in columns.update { $0.resize(to: size.width) } }
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search Games")
         .toolbar { toolbar }

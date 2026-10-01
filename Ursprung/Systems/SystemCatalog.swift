@@ -107,7 +107,7 @@ nonisolated enum SystemCatalog {
                    folderAliases: ["gba", "gameboyadvance"],
                    cores: [Cores.mgba, Cores.vbaNext],
                    bios: [BIOSFile(fileName: "gba_bios.bin", md5: "a860e8c0b6d573d191e4ec7db1b1e4f6", required: false,
-                                   note: String(localized: "Optional, improves accuracy."))],
+                                   note: String(localized: "Improves accuracy."))],
                    accent: 0x3F3FA8, boxAspect: 1.0),
         GameSystem(id: "nds", name: "Nintendo DS", shortName: "NDS", manufacturer: "Nintendo", year: 2004,
                    kind: .handheld, screenScraperID: 15, extensions: ["nds", "dsi", "ids"],
@@ -167,7 +167,7 @@ nonisolated enum SystemCatalog {
                    folderAliases: ["dc", "dreamcast", "segadreamcast"],
                    cores: [Cores.flycast],
                    bios: [BIOSFile(fileName: "dc/dc_boot.bin", md5: "e10c53c2f8b90bab96ead2d368858623", required: false,
-                                   note: String(localized: "Optional, Flycast includes an HLE BIOS.")),
+                                   note: String(localized: "Flycast includes an HLE BIOS.")),
                           BIOSFile(fileName: "dc/dc_flash.bin", md5: "0a93f7940c455905bea6e392dfde92a4", required: false)],
                    accent: 0xE35205, boxAspect: 1.0),
 

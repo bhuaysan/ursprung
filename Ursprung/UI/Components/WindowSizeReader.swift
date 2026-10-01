@@ -3,11 +3,11 @@
 import AppKit
 import SwiftUI
 
-/// Reports the width of the hosting window. Measuring a SwiftUI view is not
+/// Reports the size of the hosting window. Measuring a SwiftUI view is not
 /// enough: while the inspector animates in, the split view is briefly laid
-/// out wider than the window.
-struct WindowWidthReader: NSViewRepresentable {
-    let onChange: (Double) -> Void
+/// out wider than the window, and a Settings tab does not know the toolbar.
+struct WindowSizeReader: NSViewRepresentable {
+    let onChange: (CGSize) -> Void
 
     func makeNSView(context: Context) -> ReaderView {
         ReaderView(onChange: onChange)
@@ -18,10 +18,10 @@ struct WindowWidthReader: NSViewRepresentable {
     }
 
     final class ReaderView: NSView {
-        var onChange: (Double) -> Void
+        var onChange: (CGSize) -> Void
         private var observer: (any NSObjectProtocol)?
 
-        init(onChange: @escaping (Double) -> Void) {
+        init(onChange: @escaping (CGSize) -> Void) {
             self.onChange = onChange
             super.init(frame: .zero)
         }
@@ -42,7 +42,7 @@ struct WindowWidthReader: NSViewRepresentable {
         }
 
         private func report() {
-            if let window { onChange(window.frame.width) }
+            if let window { onChange(window.frame.size) }
         }
     }
 }

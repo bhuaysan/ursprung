@@ -422,6 +422,8 @@ The native Settings scene with toolbar tabs and grouped forms stays; the redesig
 - Cores: status column uses the inline status rule; “Installed” stays a menu (Update, Remove); “Experimental” stays a small capsule in `.orange` at 15 % fill with orange text – the only allowed tinted badge. RECOMMENDED
 - BIOS: the drop target outline (dashed accent, 3 pt) stays; import results become inline status rows per recognised or unknown file. RECOMMENDED
 
+Implemented in step 10 with these choices: SwiftUI clears the Settings window's resizable flag after opening it, so a small AppKit helper keeps it (height 528 pt including the toolbar up to the screen, width fixed at 700 pt; the default window height is 560 pt). The fixed keyboard shortcuts and “Restore Default Keys” form a “Keyboard” section before the binding sections. A failed core download is an error row at the top of the Cores section with Retry instead of an alert; removing a core asks only when no other installed core plays one of its systems; downloads have no Stop because `CoreManager` cannot cancel one. More than three unrecognised BIOS files share one row. `StatusLabel` has an optional secondary detail line (the reason of an error). The activity footer keeps its own 16 pt warning rows.
+
 ## L. HID mapping specification
 
 The mapping sheet gets a fixed header and footer around a scrolling form, edits a draft that Done commits and Cancel discards, and shows every reassignment instead of silently moving it.
@@ -450,6 +452,8 @@ The mapping sheet gets a fixed header and footer around a scrolling form, edits 
 - Changes apply to a draft copy of `gamepad.mapping`; Done writes it, Cancel and ⌘. discard it. Today edits apply immediately and there is no Cancel. RECOMMENDED
 - If “Game Menu” is unassigned, a warning row sits at the top of the System section: “Without a Game Menu button, open the menu with esc on the keyboard.” RECOMMENDED
 - VoiceOver: each button reads “B, Button 3” with hint “Press to assign a new button”; listening announces “Waiting for input”. ESSENTIAL
+
+Implemented in step 10 with these choices: the sheet uses `.presentationSizing(.fitted)`, because `.form` fixed it at 400 pt high. Keyboard bindings still let one key drive several inputs, so only the gamepad sheet shows the “moved” line.
 
 ## M. Responsive behavior
 

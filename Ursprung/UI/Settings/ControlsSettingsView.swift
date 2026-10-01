@@ -10,89 +10,111 @@ struct ControlsSettingsView: View {
     @State private var listening: RetroInput?
     @State private var monitor: Any?
     @State private var configuring: HIDGamepad?
+    @State private var windowHeight: CGFloat = 560
 
     var body: some View {
         Form {
-            Section("Game Controllers") {
-                let controllers = session.input.connectedControllers
-                let xinputPads = session.input.xinput.gamepads
-                let gamepads = session.input.hidGamepads
-                if controllers.isEmpty && xinputPads.isEmpty && gamepads.isEmpty {
-                    Text("No controller connected. Pair a controller in System Settings → Bluetooth or connect it via USB.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(Array(controllers.enumerated()), id: \.offset) { index, controller in
-                        LabeledContent(controller.vendorName ?? String(localized: "Controller")) {
-                            Text("Player \(index + 1)")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    ForEach(Array(xinputPads.enumerated()), id: \.element.id) { index, gamepad in
-                        LabeledContent(gamepad.name) {
-                            Text("Player \(controllers.count + index + 1)")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    ForEach(Array(gamepads.enumerated()), id: \.element.id) { index, gamepad in
-                        LabeledContent {
-                            HStack {
-                                Text("Player \(controllers.count + xinputPads.count + index + 1)")
-                                    .foregroundStyle(.secondary)
-                                Button("Configure…") { configuring = gamepad }
-                            }
-                        } label: {
-                            Text(gamepad.name)
-                            if let level = gamepad.batteryLevel {
-                                Text("Battery \(level) %")
-                            }
-                        }
+            controllersSection
+
+            Section {
+                LabeledContent("Game Menu", value: "esc")
+                LabeledContent("Fast Forward (hold)", value: String(localized: "Space"))
+                LabeledContent("Quick Save / Load", value: "F2 / F4")
+                HStack {
+                    Spacer()
+                    Button("Restore Default Keys") {
+                        stopListening()
+                        mapping = .standard
+                        save()
                     }
                 }
-                Text("Controllers are mapped by button position: the bottom face button is B, the right one is A — like on a Super Nintendo pad. The Home button opens the game menu.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if !gamepads.isEmpty {
-                    Text("Some controllers are not supported by macOS directly. Ursprung reads them itself and guesses their layout — if a button is wrong, change it with Configure….")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            } header: {
+                Text("Keyboard")
+            } footer: {
+                Text("Player 1 can always play with the keyboard. Click an input below, then press a key.")
+                    .settingsFootnote()
             }
 
             ForEach(RetroInput.Group.allCases) { group in
                 Section(group.title) {
                     ForEach(RetroInput.allCases.filter { $0.group == group }) { input in
                         LabeledContent(input.title) {
-                            Button {
-                                startListening(for: input)
-                            } label: {
-                                Text(listening == input ? String(localized: "Press a key…") : (mapping.bindings[input]?.label ?? "–"))
-                                    .frame(minWidth: 90)
-                                    .monospaced()
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(listening == input ? .accentColor : nil)
+                            InputBindingButton(
+                                title: input.title,
+                                binding: mapping.bindings[input]?.label,
+                                isListening: listening == input,
+                                prompt: "Press a key…",
+                                hint: "Press to assign a new key",
+                                toggle: { listening == input ? stopListening() : startListening(for: input) },
+                                clear: {
+                                    mapping.bindings[input] = nil
+                                    save()
+                                },
+                                endListening: stopListening)
                         }
                     }
                 }
             }
-
-            Section {
-                LabeledContent("Game menu", value: "esc")
-                LabeledContent("Fast forward (hold)", value: String(localized: "Space"))
-                LabeledContent("Quick save / load", value: "F2 / F4")
-                Button("Restore Default Keys") {
-                    mapping = .standard
-                    save()
-                }
-            } header: {
-                Text("Keyboard Shortcuts")
-            }
         }
         .formStyle(.grouped)
+        .background { WindowSizeReader { windowHeight = $0.height } }
         .sheet(item: $configuring) { gamepad in
-            HIDGamepadMappingView(gamepad: gamepad)
+            HIDGamepadMappingView(gamepad: gamepad, windowHeight: windowHeight)
         }
         .onDisappear(perform: stopListening)
+    }
+
+    private var controllersSection: some View {
+        Section {
+            let controllers = session.input.connectedControllers
+            let xinputPads = session.input.xinput.gamepads
+            let gamepads = session.input.hidGamepads
+            if controllers.isEmpty && xinputPads.isEmpty && gamepads.isEmpty {
+                LabeledContent {
+                    EmptyView()
+                } label: {
+                    Text("No Controller Connected")
+                    Text("Pair a controller in System Settings → Bluetooth or connect it via USB.")
+                }
+            } else {
+                ForEach(Array(controllers.enumerated()), id: \.offset) { index, controller in
+                    LabeledContent(controller.vendorName ?? String(localized: "Controller")) {
+                        Text("Player \(index + 1)")
+                    }
+                }
+                ForEach(Array(xinputPads.enumerated()), id: \.element.id) { index, gamepad in
+                    LabeledContent(gamepad.name) {
+                        Text("Player \(controllers.count + index + 1)")
+                    }
+                }
+                ForEach(Array(gamepads.enumerated()), id: \.element.id) { index, gamepad in
+                    LabeledContent {
+                        HStack {
+                            Text("Player \(controllers.count + xinputPads.count + index + 1)")
+                            Button("Configure…") {
+                                stopListening()
+                                configuring = gamepad
+                            }
+                        }
+                    } label: {
+                        Text(gamepad.name)
+                        if let level = gamepad.batteryLevel {
+                            Text("Battery \(level) %")
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Game Controllers")
+        } footer: {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text("Controllers are mapped by button position: the bottom face button is B, the right one is A — like on a Super Nintendo pad. The Home button opens the game menu.")
+                if !session.input.hidGamepads.isEmpty {
+                    Text("Some controllers are not supported by macOS directly. Ursprung reads them itself and guesses their layout — if a button is wrong, change it with Configure….")
+                }
+            }
+            .settingsFootnote()
+        }
     }
 
     private func startListening(for input: RetroInput) {

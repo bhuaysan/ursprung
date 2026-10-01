@@ -83,8 +83,10 @@ struct UrsprungApp: App {
 
         Settings {
             SettingsView()
-                .frame(width: 720, height: 560)
+                .frame(width: 700)
+                .frame(minHeight: 440, idealHeight: 560, maxHeight: .infinity)
         }
+        .defaultSize(width: 700, height: 560)
         .environment(metadata)
         .environment(library)
         .environment(cores)

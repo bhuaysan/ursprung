@@ -91,6 +91,22 @@ struct LibraryFolderTests {
         #expect(try gamePaths(in: context) == ["/ROMs/SNES/A.sfc"])
     }
 
+    @Test func countsTheGamesThatLeaveWithAFolder() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let parent = URL(filePath: "/ROMs", directoryHint: .isDirectory)
+        let snes = URL(filePath: "/ROMs/SNES", directoryHint: .isDirectory)
+        let other = URL(filePath: "/Other", directoryHint: .isDirectory)
+        for path in ["/ROMs/SNES/A.sfc", "/ROMs/B.sfc", "/Other/C.sfc"] {
+            context.insert(Game(path: path, systemID: "snes", title: "t", fileName: "x", fileSize: 1, crc32: nil))
+        }
+        let store = makeStore(folders: [parent, snes, other])
+
+        #expect(store.games(leavingWith: snes, context: context).isEmpty, "The parent folder still covers A")
+        #expect(store.games(leavingWith: parent, context: context).map(\.path) == ["/ROMs/B.sfc"])
+        #expect(store.games(leavingWith: other, context: context).map(\.path) == ["/Other/C.sfc"])
+    }
+
     @Test func rescanKeepsGamesOfUnreachableNeighbourFolder() async throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

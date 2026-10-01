@@ -51,19 +51,28 @@ final class LibraryStore {
 
     func removeFolder(_ url: URL, context: ModelContext) {
         let url = url.standardizedFileURL
+        let leaving = games(leavingWith: url, context: context)
         folders.removeAll { $0.standardizedFileURL == url }
         unreachableFolders.removeAll { $0.standardizedFileURL == url }
         folderRevision += 1
         persistFolders(folders)
-        // Games that another remaining folder still covers stay in the library.
-        let remaining = folders.map { $0.path(percentEncoded: false) }
-        let games = (try? context.fetch(FetchDescriptor<Game>())) ?? []
-        for game in games where LibraryPaths.isInside(game.path, folder: url.path(percentEncoded: false))
-            && !remaining.contains(where: { LibraryPaths.isInside(game.path, folder: $0) }) {
+        for game in leaving {
             removeMedia(for: game)
             context.delete(game)
         }
         try? context.save()
+    }
+
+    /// The games that leave the library when `url` is removed. Games that
+    /// another remaining folder still covers stay.
+    func games(leavingWith url: URL, context: ModelContext) -> [Game] {
+        let url = url.standardizedFileURL
+        let remaining = folders.filter { $0.standardizedFileURL != url }.map { $0.path(percentEncoded: false) }
+        let games = (try? context.fetch(FetchDescriptor<Game>())) ?? []
+        return games.filter { game in
+            LibraryPaths.isInside(game.path, folder: url.path(percentEncoded: false))
+                && !remaining.contains { LibraryPaths.isInside(game.path, folder: $0) }
+        }
     }
 
     func presentAddFolderPanel(context: ModelContext) {

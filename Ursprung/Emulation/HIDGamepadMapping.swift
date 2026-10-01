@@ -233,6 +233,48 @@ nonisolated struct HIDGamepadMapping: Codable, Equatable, Sendable {
         return state
     }
 
+    /// Something a control can be bound to: a RetroPad input or the game menu.
+    nonisolated enum Slot: Hashable, Sendable {
+        case input(RetroInput)
+        case menu
+
+        static let all: [Slot] = RetroInput.allCases.map(Slot.input) + [.menu]
+
+        var title: String {
+            switch self {
+            case .input(let input): input.title
+            case .menu: String(localized: "Game Menu")
+            }
+        }
+    }
+
+    subscript(slot: Slot) -> HIDBinding? {
+        get {
+            switch slot {
+            case .input(let input): bindings[input]
+            case .menu: menu
+            }
+        }
+        set {
+            switch slot {
+            case .input(let input): bindings[input] = newValue
+            case .menu: menu = newValue
+            }
+        }
+    }
+
+    /// Binds `binding` to `slot`. One control drives one slot, so a slot that
+    /// had the control loses it; that slot is returned.
+    @discardableResult
+    mutating func assign(_ binding: HIDBinding, to slot: Slot) -> Slot? {
+        let previous = Slot.all.first { $0 != slot && self[$0] == binding }
+        for other in Slot.all where other != slot && self[other] == binding {
+            self[other] = nil
+        }
+        self[slot] = binding
+        return previous
+    }
+
     static func stored(forKey key: String) -> HIDGamepadMapping? {
         guard let data = UserDefaults.standard.data(forKey: PrefKey.hidGamepadMapping(key)) else { return nil }
         return try? JSONDecoder().decode(HIDGamepadMapping.self, from: data)

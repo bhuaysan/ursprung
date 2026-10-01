@@ -197,16 +197,6 @@
         }
       }
     },
-    "Behaviour": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verhalten"
-          }
-        }
-      }
-    },
     "Button %lld": {
       "localizations": {
         "de": {
@@ -236,16 +226,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wähle Ordner mit deinen Spielen. Unterordner, die nach einem System benannt sind (z. B. „SNES“ oder „PSX“), helfen Ursprung, Disc-Images zuzuordnen."
-          }
-        }
-      }
-    },
-    "Click an input, then press the button or move the stick on the controller.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Klicke auf eine Eingabe und drücke dann die Taste oder bewege den Stick am Controller."
           }
         }
       }
@@ -500,32 +480,12 @@
         }
       }
     },
-    "Download Failed": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Download fehlgeschlagen"
-          }
-        }
-      }
-    },
     "Downloading %@…": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ wird geladen …"
-          }
-        }
-      }
-    },
-    "Drop BIOS files or a whole folder here. Ursprung recognises them by checksum and renames them to what the cores expect. You must own the original hardware to use its BIOS.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zieh BIOS-Dateien oder einen ganzen Ordner hierher. Ursprung erkennt sie anhand der Prüfsumme und benennt sie so, wie die Cores es erwarten. Du musst die Original-Hardware besitzen, um ihr BIOS zu nutzen."
           }
         }
       }
@@ -590,16 +550,6 @@
         }
       }
     },
-    "Fast forward (hold)": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vorspulen (halten)"
-          }
-        }
-      }
-    },
     "Favorites": {
       "localizations": {
         "de": {
@@ -626,16 +576,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fehlende Metadaten laden"
-          }
-        }
-      }
-    },
-    "Fetch metadata automatically for new games": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Metadaten für neue Spiele automatisch laden"
           }
         }
       }
@@ -700,16 +640,6 @@
         }
       }
     },
-    "Game menu": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spielmenü"
-          }
-        }
-      }
-    },
     "Gamepad": {
       "localizations": {
         "de": {
@@ -770,16 +700,6 @@
         }
       }
     },
-    "Imported: %@": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Importiert: %@"
-          }
-        }
-      }
-    },
     "Individual games can override the core in their info panel.": {
       "localizations": {
         "de": {
@@ -800,32 +720,12 @@
         }
       }
     },
-    "Integer scaling": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ganzzahlige Skalierung"
-          }
-        }
-      }
-    },
     "Japan": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Japan"
-          }
-        }
-      }
-    },
-    "Keyboard Shortcuts": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tastenkürzel"
           }
         }
       }
@@ -1040,16 +940,6 @@
         }
       }
     },
-    "No controller connected. Pair a controller in System Settings → Bluetooth or connect it via USB.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kein Controller verbunden. Kopple einen Controller unter Systemeinstellungen → Bluetooth oder schließe ihn per USB an."
-          }
-        }
-      }
-    },
     "No files imported.": {
       "localizations": {
         "de": {
@@ -1080,32 +970,12 @@
         }
       }
     },
-    "Not recognised: %@": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nicht erkannt: %@"
-          }
-        }
-      }
-    },
     "Nothing Played Yet": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Noch nichts gespielt"
-          }
-        }
-      }
-    },
-    "OK": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OK"
           }
         }
       }
@@ -1140,36 +1010,6 @@
         }
       }
     },
-    "Optional, Flycast includes an HLE BIOS.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Optional, Flycast enthält ein HLE-BIOS."
-          }
-        }
-      }
-    },
-    "Optional, improves accuracy.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Optional, verbessert die Genauigkeit."
-          }
-        }
-      }
-    },
-    "Optional. A free account at screenscraper.fr raises the daily request quota and speeds up scraping. The password is stored in your keychain.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Optional. Ein kostenloses Konto bei screenscraper.fr erhöht das tägliche Anfragekontingent und beschleunigt das Laden. Das Passwort wird im Schlüsselbund gespeichert."
-          }
-        }
-      }
-    },
     "Password": {
       "localizations": {
         "de": {
@@ -1186,16 +1026,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pause"
-          }
-        }
-      }
-    },
-    "Pause when Ursprung is in the background": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pausieren, wenn Ursprung im Hintergrund ist"
           }
         }
       }
@@ -1336,16 +1166,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Schnell speichern"
-          }
-        }
-      }
-    },
-    "Quick save / load": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Schnell speichern / laden"
           }
         }
       }
@@ -1706,16 +1526,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Menü anzeigen"
-          }
-        }
-      }
-    },
-    "Show frame rate": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bildrate anzeigen"
           }
         }
       }
@@ -2102,9 +1912,6 @@
           }
         }
       }
-    },
-    "·": {
-      "shouldTranslate": false
     },
     "The library could not be backed up: %@": {
       "localizations": {
@@ -2932,6 +2739,478 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dieser Core hat keine Optionen."
+          }
+        }
+      }
+    },
+    "%@ moved from %@ to %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ von %2$@ zu %3$@ verschoben."
+          }
+        }
+      }
+    },
+    "%@ · %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%lld other files": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld weitere Dateien"
+          }
+        }
+      }
+    },
+    "Behavior": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verhalten"
+          }
+        }
+      }
+    },
+    "Click an input, then press a button or move a stick.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicke auf eine Eingabe und drücke dann eine Taste oder bewege einen Stick."
+          }
+        }
+      }
+    },
+    "Downloading": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird geladen"
+          }
+        }
+      }
+    },
+    "Drop BIOS files or a whole folder here. Ursprung recognizes them by checksum and renames them to what the cores expect. You must own the original hardware to use its BIOS.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zieh BIOS-Dateien oder einen ganzen Ordner hierher. Ursprung erkennt sie anhand der Prüfsumme und benennt sie so, wie die Cores sie erwarten. Du musst die Originalhardware besitzen, um ihr BIOS zu verwenden."
+          }
+        }
+      }
+    },
+    "Fast Forward (hold)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorspulen (halten)"
+          }
+        }
+      }
+    },
+    "Fetch Metadata Automatically": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten automatisch laden"
+          }
+        }
+      }
+    },
+    "Fetching Metadata": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten werden geladen"
+          }
+        }
+      }
+    },
+    "Game Menu": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielmenü"
+          }
+        }
+      }
+    },
+    "Imported": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importiert"
+          }
+        }
+      }
+    },
+    "Integer Scaling": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ganzzahlige Skalierung"
+          }
+        }
+      }
+    },
+    "Keyboard": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tastatur"
+          }
+        }
+      }
+    },
+    "New games get box art, descriptions and ratings as soon as a scan finds them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Spiele erhalten Cover, Beschreibungen und Bewertungen, sobald ein Scan sie findet."
+          }
+        }
+      }
+    },
+    "No Controller Connected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Controller verbunden"
+          }
+        }
+      }
+    },
+    "No other installed core plays %@ games. The core downloads again the next time you play one.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein anderer installierter Core spielt %@-Spiele. Der Core wird beim nächsten Spielen erneut geladen."
+          }
+        }
+      }
+    },
+    "Not Assigned": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht belegt"
+          }
+        }
+      }
+    },
+    "Not Recognized": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht erkannt"
+          }
+        }
+      }
+    },
+    "Optional. A free account at screenscraper.fr raises the daily request quota and speeds up scraping.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional. Ein kostenloses Konto bei screenscraper.fr erhöht das tägliche Anfragekontingent und beschleunigt das Laden."
+          }
+        }
+      }
+    },
+    "Pair a controller in System Settings → Bluetooth or connect it via USB.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopple einen Controller unter Systemeinstellungen → Bluetooth oder schließe ihn per USB an."
+          }
+        }
+      }
+    },
+    "Pause in Background": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Hintergrund pausieren"
+          }
+        }
+      }
+    },
+    "Pauses the game while another app is active.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hält das Spiel an, solange eine andere App aktiv ist."
+          }
+        }
+      }
+    },
+    "Player 1 can always play with the keyboard. Click an input below, then press a key.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spieler 1 kann immer mit der Tastatur spielen. Klicke unten auf eine Eingabe und drücke dann eine Taste."
+          }
+        }
+      }
+    },
+    "Press to assign a new button": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drücken, um eine neue Taste zuzuweisen"
+          }
+        }
+      }
+    },
+    "Press to assign a new key": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drücken, um eine neue Taste zuzuweisen"
+          }
+        }
+      }
+    },
+    "Quick Save / Load": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schnell speichern / laden"
+          }
+        }
+      }
+    },
+    "Remove Core": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Core entfernen"
+          }
+        }
+      }
+    },
+    "Remove Folder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner entfernen"
+          }
+        }
+      }
+    },
+    "Remove Folder…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner entfernen …"
+          }
+        }
+      }
+    },
+    "Remove “%@”?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ entfernen?"
+          }
+        }
+      }
+    },
+    "Scales the picture by whole multiples only, so every pixel has the same size. Leaves a border around the picture.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skaliert das Bild nur um ganze Vielfache, damit jedes Pixel gleich groß ist. Lässt einen Rand um das Bild."
+          }
+        }
+      }
+    },
+    "Show Frame Rate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildrate anzeigen"
+          }
+        }
+      }
+    },
+    "Shows frames per second in the corner of the player.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt die Bilder pro Sekunde in der Ecke des Players."
+          }
+        }
+      }
+    },
+    "Stored in your keychain.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Schlüsselbund gespeichert."
+          }
+        }
+      }
+    },
+    "System": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        }
+      }
+    },
+    "Undo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Widerrufen"
+          }
+        }
+      }
+    },
+    "Waiting for input": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warte auf Eingabe"
+          }
+        }
+      }
+    },
+    "Without a Game Menu button, open the menu with esc on the keyboard.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Taste für das Spielmenü öffnest du es mit esc auf der Tastatur."
+          }
+        }
+      }
+    },
+    "“%@” couldn't be downloaded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ konnte nicht geladen werden."
+          }
+        }
+      }
+    },
+    "%lld games will be removed from the library. The files stay on disk.": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Spiel wird aus der Bibliothek entfernt. Die Dateien bleiben erhalten."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Spiele werden aus der Bibliothek entfernt. Die Dateien bleiben erhalten."
+                }
+              },
+              "zero": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Es werden keine Spiele aus der Bibliothek entfernt. Die Dateien bleiben erhalten."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld game will be removed from the library. The files stay on disk."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld games will be removed from the library. The files stay on disk."
+                }
+              },
+              "zero": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "No games will be removed from the library. The files stay on disk."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Improves accuracy.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbessert die Genauigkeit."
+          }
+        }
+      }
+    },
+    "Flycast includes an HLE BIOS.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flycast enthält ein HLE-BIOS."
           }
         }
       }

@@ -14,13 +14,38 @@ struct SettingsView: View {
     var body: some View {
         TabView(selection: $tab) {
             Tab("General", systemImage: "gearshape", value: .general) { GeneralSettingsView() }
-            Tab("Metadata", systemImage: "sparkles", value: .metadata) { MetadataSettingsView() }
+            Tab("Metadata", systemImage: "text.below.photo", value: .metadata) { MetadataSettingsView() }
             Tab("Emulation", systemImage: "display", value: .emulation) { EmulationSettingsView() }
             Tab("Controls", systemImage: "gamecontroller", value: .controls) { ControlsSettingsView() }
             Tab("Cores", systemImage: "cpu", value: .cores) { CoresSettingsView() }
             Tab("BIOS", systemImage: "memorychip", value: .bios) { BIOSSettingsView() }
         }
         .scenePadding()
+        .background { VerticallyResizableWindow() }
+    }
+}
+
+/// The Settings scene's window is not resizable, and SwiftUI clears the flag
+/// again after opening it. Long tabs like Controls and BIOS need more height,
+/// so the window keeps a resize handle; the width stays fixed by the content.
+private struct VerticallyResizableWindow: NSViewRepresentable {
+    func makeNSView(context: Context) -> ResizingView { ResizingView() }
+    func updateNSView(_ view: ResizingView, context: Context) {}
+
+    final class ResizingView: NSView {
+        private var observation: NSKeyValueObservation?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            observation = nil
+            guard let window else { return }
+            window.styleMask.insert(.resizable)
+            observation = window.observe(\.styleMask) { window, _ in
+                MainActor.assumeIsolated {
+                    if !window.styleMask.contains(.resizable) { window.styleMask.insert(.resizable) }
+                }
+            }
+        }
     }
 }
 
@@ -30,57 +55,59 @@ struct GeneralSettingsView: View {
     @Environment(LibraryStore.self) private var library
     @Environment(\.modelContext) private var context
     @State private var selection: URL?
+    @State private var folderToRemove: FolderRemoval?
+
+    private struct FolderRemoval: Identifiable {
+        var folder: URL
+        var gameCount: Int
+        var id: URL { folder }
+    }
 
     var body: some View {
         Form {
             Section {
-                List(selection: $selection) {
-                    ForEach(library.folders, id: \.self) { folder in
-                        Label {
-                            VStack(alignment: .leading) {
-                                Text(folder.lastPathComponent)
-                                Text(folder.path(percentEncoded: false))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                        } icon: {
-                            if library.unreachableFolders.contains(folder) {
-                                Image(systemName: "externaldrive.badge.exclamationmark").foregroundStyle(.orange)
-                            } else {
-                                Image(systemName: "folder.fill").foregroundStyle(.tint)
-                            }
+                VStack(alignment: .leading, spacing: 0) {
+                    List(selection: $selection) {
+                        ForEach(library.folders, id: \.self) { folder in
+                            folderRow(folder)
                         }
-                        .help(library.unreachableFolders.contains(folder)
-                              ? String(localized: "Unavailable. Connect the drive, then rescan.") : "")
-                        .accessibilityValue(library.unreachableFolders.contains(folder)
-                                            ? String(localized: "Unavailable") : "")
-                        .tag(folder)
                     }
+                    .listStyle(.bordered)
+                    .alternatingRowBackgrounds(.disabled)
+                    .frame(minHeight: 140)
+                    .onDeleteCommand(perform: confirmRemoval)
+                    HStack(spacing: AppSpacing.xs) {
+                        Button {
+                            library.presentAddFolderPanel(context: context)
+                        } label: {
+                            Label("Add Folder…", systemImage: "plus")
+                        }
+                        .help("Add Folder…")
+                        Button(action: confirmRemoval) {
+                            Label("Remove Folder…", systemImage: "minus")
+                        }
+                        .help("Remove Folder…")
+                        .disabled(selection == nil)
+                    }
+                    .buttonStyle(ListEditButtonStyle())
+                    .padding(.top, AppSpacing.s)
                 }
-                .frame(minHeight: 140)
-                HStack {
-                    Button("Add Folder…") { library.presentAddFolderPanel(context: context) }
-                    Button("Remove") {
-                        if let selection { library.removeFolder(selection, context: context) }
-                        selection = nil
-                    }
-                    .disabled(selection == nil)
+                HStack(spacing: AppSpacing.s) {
                     Spacer()
                     if library.isScanning { ProgressView().controlSize(.small) }
                     Button("Rescan") { Task { await library.rescan(context: context) } }
                         .disabled(library.isScanning || library.folders.isEmpty)
                 }
-                if let summary = library.lastScanSummary {
-                    Text(summary).font(.caption).foregroundStyle(.secondary)
-                }
             } header: {
                 Text("Library Folders")
             } footer: {
-                Text("Name sub folders after the system (for example “PSX”, “Saturn” or “Arcade”) so disc images and archives are assigned correctly.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    if let summary = library.lastScanSummary {
+                        Text(summary)
+                    }
+                    Text("Name sub folders after the system (for example “PSX”, “Saturn” or “Arcade”) so disc images and archives are assigned correctly.")
+                }
+                .settingsFootnote()
             }
 
             Section("Data") {
@@ -93,6 +120,63 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .confirmationDialog(
+            Text("Remove “\(folderToRemove?.folder.lastPathComponent ?? "")” from the library?"),
+            isPresented: Binding(get: { folderToRemove != nil }, set: { if !$0 { folderToRemove = nil } }),
+            presenting: folderToRemove
+        ) { removal in
+            Button("Remove Folder", role: .destructive) {
+                library.removeFolder(removal.folder, context: context)
+                selection = nil
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { removal in
+            Text("\(removal.gameCount) games will be removed from the library. The files stay on disk.")
+        }
+    }
+
+    private func folderRow(_ folder: URL) -> some View {
+        let isUnreachable = library.unreachableFolders.contains(folder)
+        return Label {
+            VStack(alignment: .leading) {
+                Text(folder.lastPathComponent)
+                Text(folder.path(percentEncoded: false))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        } icon: {
+            if isUnreachable {
+                Image(systemName: "externaldrive.badge.exclamationmark").foregroundStyle(.orange)
+            } else {
+                Image(systemName: "folder.fill").foregroundStyle(.tint)
+            }
+        }
+        .help(isUnreachable ? String(localized: "Unavailable. Connect the drive, then rescan.") : "")
+        .accessibilityValue(isUnreachable ? String(localized: "Unavailable") : "")
+        .tag(folder)
+    }
+
+    private func confirmRemoval() {
+        guard let selection else { return }
+        folderToRemove = FolderRemoval(folder: selection,
+                                       gameCount: library.games(leavingWith: selection, context: context).count)
+    }
+}
+
+/// The square +/− buttons under an editable list, as in System Settings.
+private struct ListEditButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .labelStyle(.iconOnly)
+            .frame(width: 22, height: 22)
+            .background(configuration.isPressed ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.quaternary),
+                        in: .rect(cornerRadius: 5))
+            .foregroundStyle(isEnabled ? .primary : .tertiary)
+            .contentShape(.rect)
     }
 }
 
@@ -116,21 +200,23 @@ struct MetadataSettingsView: View {
         Form {
             Section {
                 if !Secrets.hasScreenScraperCredentials {
-                    Label("This build has no ScreenScraper developer credentials. See the README for how to add them.", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                    StatusLabel("This build has no ScreenScraper developer credentials. See the README for how to add them.",
+                                kind: .warning, prominent: true)
                 }
                 TextField("Username", text: $username)
                     .textContentType(.username)
-                SecureField("Password", text: $password)
-                    .textContentType(.password)
-                    .onSubmit { Keychain.setPassword(password, for: username) }
-                    .onChange(of: password) { _, value in Keychain.setPassword(value, for: username) }
+                SecureField(text: $password) {
+                    Text("Password")
+                    Text("Stored in your keychain.")
+                }
+                .textContentType(.password)
+                .onSubmit { Keychain.setPassword(password, for: username) }
+                .onChange(of: password) { _, value in Keychain.setPassword(value, for: username) }
             } header: {
                 Text("ScreenScraper Account")
             } footer: {
-                Text("Optional. A free account at screenscraper.fr raises the daily request quota and speeds up scraping. The password is stored in your keychain.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Optional. A free account at screenscraper.fr raises the daily request quota and speeds up scraping.")
+                    .settingsFootnote()
             }
 
             Section("Preferences") {
@@ -140,25 +226,38 @@ struct MetadataSettingsView: View {
                 Picker("Preferred Region", selection: $region) {
                     ForEach(regions, id: \.0) { Text($0.1).tag($0.0) }
                 }
-                Toggle("Fetch metadata automatically for new games", isOn: $autoScrape)
+                Toggle(isOn: $autoScrape) {
+                    Text("Fetch Metadata Automatically")
+                    Text("New games get box art, descriptions and ratings as soon as a scan finds them.")
+                }
             }
 
             Section("Library") {
+                if let failure = metadata.lastError {
+                    HStack(alignment: .firstTextBaseline) {
+                        StatusLabel("Metadata couldn't be fetched", kind: .error, prominent: true, detail: failure.message)
+                        Spacer(minLength: AppSpacing.s)
+                        Button("Retry") { metadata.enqueue(games, context: context) }
+                            .buttonStyle(.link)
+                    }
+                }
                 LabeledContent("Matched") {
                     Text("\(games.filter { $0.scrapeState == .matched }.count) of \(games.count)")
                         .monospacedDigit()
                 }
-                HStack {
-                    Button("Fetch Missing") { metadata.enqueue(games, context: context) }
-                    Button("Refetch All") { metadata.enqueue(games, force: true, context: context) }
-                    Spacer()
-                    if metadata.isRunning {
-                        ProgressView(value: metadata.progress).frame(width: 120)
-                        Button("Stop") { metadata.cancel() }
+                if metadata.isRunning {
+                    LabeledContent("Fetching Metadata") {
+                        HStack(spacing: AppSpacing.s) {
+                            ProgressView(value: metadata.progress)
+                                .frame(width: 120)
+                            Button("Stop") { metadata.cancel() }
+                        }
                     }
                 }
-                if let error = metadata.lastError {
-                    Text(error.message).font(.caption).foregroundStyle(.red)
+                HStack {
+                    Spacer()
+                    Button("Refetch All") { metadata.enqueue(games, force: true, context: context) }
+                    Button("Fetch Missing") { metadata.enqueue(games, context: context) }
                 }
             }
         }
@@ -185,8 +284,14 @@ struct EmulationSettingsView: View {
                 Picker("Filter", selection: $filter) {
                     ForEach(VideoFilter.allCases) { Text($0.title).tag($0) }
                 }
-                Toggle("Integer scaling", isOn: $integerScaling)
-                Toggle("Show frame rate", isOn: $showFPS)
+                Toggle(isOn: $integerScaling) {
+                    Text("Integer Scaling")
+                    Text("Scales the picture by whole multiples only, so every pixel has the same size. Leaves a border around the picture.")
+                }
+                Toggle(isOn: $showFPS) {
+                    Text("Show Frame Rate")
+                    Text("Shows frames per second in the corner of the player.")
+                }
             }
             Section("Audio") {
                 Slider(value: $volume, in: 0...1) {
@@ -198,8 +303,11 @@ struct EmulationSettingsView: View {
                 }
                 .onChange(of: volume) { _, value in session.setVolume(value) }
             }
-            Section("Behaviour") {
-                Toggle("Pause when Ursprung is in the background", isOn: $pauseInBackground)
+            Section("Behavior") {
+                Toggle(isOn: $pauseInBackground) {
+                    Text("Pause in Background")
+                    Text("Pauses the game while another app is active.")
+                }
             }
             Section {
                 ForEach(SystemCatalog.all.filter { $0.cores.count > 1 }) { system in
@@ -223,8 +331,7 @@ struct EmulationSettingsView: View {
                 Text("Default Cores")
             } footer: {
                 Text("Individual games can override the core in their info panel.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .settingsFootnote()
             }
         }
         .formStyle(.grouped)

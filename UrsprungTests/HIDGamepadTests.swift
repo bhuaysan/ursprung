@@ -90,6 +90,21 @@ struct HIDGamepadTests {
         #expect(!HIDUsage(page: 0x06, usage: 0x20).isBindable, "Battery level must not be learnable")
     }
 
+    @Test func assigningMovesTheControlFromItsSlot() {
+        var mapping = HIDGamepadMapping.standard(for: Self.eightBitDo.keys)
+        #expect(mapping.assign(.button(12), to: .input(.b)) == .input(.start))
+        #expect(mapping.bindings[.b] == .button(12))
+        #expect(mapping.bindings[.start] == nil)
+
+        #expect(mapping.assign(.button(12), to: .input(.b)) == nil, "Same slot again moves nothing")
+        #expect(mapping.assign(.button(12), to: .menu) == .input(.b))
+        #expect(mapping.menu == .button(12))
+        #expect(mapping.bindings[.b] == nil)
+
+        #expect(mapping.assign(.button(16), to: .input(.a)) == nil, "A free control moves nothing")
+        #expect(mapping.bindings[.a] == .button(16))
+    }
+
     @Test func mappingRoundTripsThroughJSON() throws {
         var mapping = HIDGamepadMapping.standard(for: Self.eightBitDo.keys)
         mapping.bindings[.a] = .axis(.z, positive: false)

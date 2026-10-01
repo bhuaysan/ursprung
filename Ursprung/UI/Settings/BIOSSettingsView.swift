@@ -6,25 +6,50 @@ import UniformTypeIdentifiers
 
 struct BIOSSettingsView: View {
     @Environment(BIOSManager.self) private var bios
-    @State private var importMessage: String?
+    @State private var importResult: BIOSManager.ImportResult?
     @State private var isTargeted = false
 
     var body: some View {
         Form {
             Section {
-                HStack {
-                    Button("Import BIOS Files…", action: presentImportPanel)
-                    Button("Open System Folder") { NSWorkspace.shared.open(AppPaths.system) }
+                if let importResult {
+                    if importResult.imported.isEmpty && importResult.unknown.isEmpty {
+                        StatusLabel("No files imported.", kind: .neutral, prominent: true)
+                    }
+                    ForEach(importResult.imported, id: \.self) { name in
+                        LabeledContent {
+                            StatusLabel("Imported", kind: .success)
+                        } label: {
+                            Text(verbatim: name).monospaced()
+                        }
+                    }
+                    // A dropped folder can hold many other files; they share one row.
+                    if importResult.unknown.count > 3 {
+                        LabeledContent {
+                            notRecognized
+                        } label: {
+                            Text("\(importResult.unknown.count) other files")
+                        }
+                        .help(importResult.unknown.joined(separator: ", "))
+                    } else {
+                        ForEach(importResult.unknown, id: \.self) { name in
+                            LabeledContent {
+                                notRecognized
+                            } label: {
+                                Text(verbatim: name).monospaced()
+                            }
+                        }
+                    }
+                }
+                HStack(spacing: AppSpacing.s) {
                     Spacer()
                     if bios.isRefreshing { ProgressView().controlSize(.small) }
-                }
-                if let importMessage {
-                    Text(importMessage).font(.caption).foregroundStyle(.secondary)
+                    Button("Open System Folder") { NSWorkspace.shared.open(AppPaths.system) }
+                    Button("Import BIOS Files…", action: presentImportPanel)
                 }
             } footer: {
-                Text("Drop BIOS files or a whole folder here. Ursprung recognises them by checksum and renames them to what the cores expect. You must own the original hardware to use its BIOS.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Drop BIOS files or a whole folder here. Ursprung recognizes them by checksum and renames them to what the cores expect. You must own the original hardware to use its BIOS.")
+                    .settingsFootnote()
             }
 
             ForEach(SystemCatalog.all.filter { !$0.bios.isEmpty }) { system in
@@ -51,6 +76,10 @@ struct BIOSSettingsView: View {
         .task { await bios.refresh() }
     }
 
+    private var notRecognized: some View {
+        StatusLabel("Not Recognized", systemImage: "questionmark.circle", kind: .neutral)
+    }
+
     private func presentImportPanel() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
@@ -62,13 +91,7 @@ struct BIOSSettingsView: View {
     }
 
     private func importFiles(_ urls: [URL]) {
-        Task {
-            let result = await bios.importFiles(urls)
-            var parts: [String] = []
-            if !result.imported.isEmpty { parts.append(String(localized: "Imported: \(result.imported.joined(separator: ", "))")) }
-            if !result.unknown.isEmpty { parts.append(String(localized: "Not recognised: \(result.unknown.joined(separator: ", "))")) }
-            importMessage = parts.isEmpty ? String(localized: "No files imported.") : parts.joined(separator: "\n")
-        }
+        Task { importResult = await bios.importFiles(urls) }
     }
 }
 
@@ -77,37 +100,34 @@ private struct BIOSRow: View {
     let status: BIOSManager.Status
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(file.fileName).monospaced()
-                HStack(spacing: 4) {
-                    Text(file.required ? String(localized: "Required") : String(localized: "Optional"))
-                    if let note = file.note {
-                        Text("·")
-                        Text(note)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            Spacer()
+        LabeledContent {
             statusLabel
+        } label: {
+            Text(file.fileName).monospaced()
+            Text(file.note.map { String(localized: "\(requirement) · \($0)") } ?? requirement)
         }
+    }
+
+    private var requirement: String {
+        file.required ? String(localized: "Required") : String(localized: "Optional")
     }
 
     @ViewBuilder
     private var statusLabel: some View {
         switch status {
         case .verified:
-            Label("Verified", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
+            StatusLabel("Verified", systemImage: "checkmark.seal.fill", kind: .success)
         case .present:
-            Label("Present", systemImage: "checkmark.circle").foregroundStyle(.secondary)
+            StatusLabel("Present", systemImage: "checkmark.circle", kind: .neutral)
         case .mismatch:
-            Label("Unknown Version", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            StatusLabel("Unknown Version", kind: .warning)
                 .help("The checksum does not match the known good dump. It may still work.")
         case .missing:
-            Label("Missing", systemImage: file.required ? "xmark.circle.fill" : "circle.dashed")
-                .foregroundStyle(file.required ? .red : .secondary)
+            if file.required {
+                StatusLabel("Missing", kind: .error)
+            } else {
+                StatusLabel("Missing", systemImage: "circle.dashed", kind: .neutral)
+            }
         }
     }
 }
