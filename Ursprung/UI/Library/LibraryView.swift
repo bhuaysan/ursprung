@@ -78,6 +78,7 @@ struct LibraryView: View {
         .toolbar { toolbar }
         .focusedSceneValue(\.libraryActions, libraryActions)
         .focusedSceneValue(\.isShowingRecentlyPlayed, selection == .recent)
+        .focusedSceneValue(\.inspectorToggle, InspectorToggle(isShown: columns.showsInspector, toggle: toggleInspector))
         .focusedSceneValue(\.gameActions, selectedGame.map(actions(for:)))
         .confirmationDialog(Text("Remove “\(gamePendingRemoval?.title ?? "")” from the library?"),
                             isPresented: Binding(get: { gamePendingRemoval != nil },
@@ -121,6 +122,10 @@ struct LibraryView: View {
             }
             if let query = ProcessInfo.processInfo.environment["URSPRUNG_SELECT"] {
                 selectedGameID = games.first { $0.title.localizedStandardContains(query) }?.persistentModelID
+            }
+            // Shows the activity footer's error row.
+            if let message = ProcessInfo.processInfo.environment["URSPRUNG_METADATA_ERROR"] {
+                metadata.lastError = message
             }
             #endif
         }
@@ -285,12 +290,7 @@ struct LibraryView: View {
         }
 
         ToolbarItem {
-            // The same path as the View menu's Show Inspector (⌃⌘I), which
-            // goes through the inspector's isPresented binding.
-            Button {
-                let visible = !columns.showsInspector
-                columns.update { $0.setInspector(visible) }
-            } label: {
+            Button(action: toggleInspector) {
                 Label(columns.showsInspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.trailing")
             }
             .help(columns.showsInspector ? "Hide Inspector (⌃⌘I)" : "Show Inspector (⌃⌘I)")
@@ -311,6 +311,12 @@ struct LibraryView: View {
                 openSettings()
             }
         )
+    }
+
+    /// The toolbar button and the View menu's Show/Hide Inspector (⌃⌘I).
+    private func toggleInspector() {
+        let visible = !columns.showsInspector
+        columns.update { $0.setInspector(visible) }
     }
 
     private func fetchMissingMetadata() {

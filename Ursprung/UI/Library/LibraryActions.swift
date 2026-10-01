@@ -75,3 +75,15 @@ extension FocusedValues {
     /// Whether the library window shows Recently Played, for the View menu's sort picker.
     @Entry var isShowingRecentlyPlayed: Bool?
 }
+
+/// Show/Hide Inspector in the View menu. Replaces SwiftUI's InspectorCommands,
+/// whose German title reads “Informationen Hide” on macOS 27.
+struct InspectorToggle {
+    let isShown: Bool
+    let toggle: () -> Void
+}
+
+extension FocusedValues {
+    /// Published by the library window for the View menu.
+    @Entry var inspectorToggle: InspectorToggle?
+}

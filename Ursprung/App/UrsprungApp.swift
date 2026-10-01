@@ -59,7 +59,6 @@ struct UrsprungApp: App {
         .commands {
             AppCommands(session: session)
             SidebarCommands()
-            InspectorCommands()
         }
         .environment(metadata)
         .environment(library)

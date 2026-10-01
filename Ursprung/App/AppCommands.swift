@@ -8,6 +8,7 @@ struct AppCommands: Commands {
     @FocusedValue(\.libraryActions) private var libraryActions
     @FocusedValue(\.isShowingRecentlyPlayed) private var isShowingRecentlyPlayed
     @FocusedValue(\.gameActions) private var gameActions
+    @FocusedValue(\.inspectorToggle) private var inspectorToggle
 
     var body: some Commands {
         // Every toolbar command is also here (docs/DESIGN_SPEC.md, section D);
@@ -23,6 +24,12 @@ struct AppCommands: Commands {
             Divider()
             CoverSizeItems(showsShortcuts: true)
                 .disabled(libraryActions == nil)
+        }
+
+        CommandGroup(after: .sidebar) {
+            Button(inspectorToggle?.isShown == true ? "Hide Inspector" : "Show Inspector") { inspectorToggle?.toggle() }
+                .keyboardShortcut("i", modifiers: [.command, .control])
+                .disabled(inspectorToggle == nil)
         }
 
         CommandMenu("Game") {
