@@ -11,27 +11,30 @@ struct SidebarView: View {
     @Environment(MetadataService.self) private var metadata
     @Environment(SystemMediaStore.self) private var systemMedia
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("sidebarSystemsExpanded") private var systemsExpanded = true
 
     var body: some View {
         List(selection: $selection) {
             Section("Library") {
                 row("All Games", symbol: "square.grid.2x2", count: games.count, tag: .all)
                 row("Favorites", symbol: "heart", count: games.filter(\.isFavorite).count, tag: .favorites)
-                row("Recently Played", symbol: "clock", count: games.filter { $0.lastPlayed != nil }.count, tag: .recent)
+                // No badge: the number of played games says nothing about this list.
+                row("Recently Played", symbol: "clock", count: nil, tag: .recent)
             }
 
             if !systems.isEmpty {
-                Section("Systems") {
+                Section("Systems", isExpanded: $systemsExpanded) {
                     ForEach(systems, id: \.system.id) { entry in
                         Label {
                             Text(entry.system.name)
                                 .lineLimit(1)
                         } icon: {
-                            // Mixed towards the text colour so near-black systems stay visible in dark mode.
-                            Circle()
-                                .fill(Color(hex: entry.system.accent).mix(with: .primary, by: 0.3).gradient)
-                                .frame(width: 10, height: 10)
+                            SystemDot(color: entry.system.identityColor)
                         }
+                        // The tooltip only covers the label's frame; widen it to the whole row.
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
+                        .help(entry.system.name)
                         .badge(entry.count)
                         .tag(LibrarySelection.system(entry.system.id))
                     }
@@ -52,9 +55,10 @@ struct SidebarView: View {
         Activity.isPending(library: library, metadata: metadata, systemMedia: systemMedia)
     }
 
-    private func row(_ title: LocalizedStringKey, symbol: String, count: Int, tag: LibrarySelection) -> some View {
+    private func row(_ title: LocalizedStringKey, symbol: String, count: Int?, tag: LibrarySelection) -> some View {
         Label(title, systemImage: symbol)
-            .badge(count)
+            .lineLimit(1)
+            .badge(count ?? 0) // 0 hides the badge
             .tag(tag)
     }
 
@@ -74,5 +78,20 @@ struct SidebarView: View {
                 .padding(.horizontal, AppSpacing.m)
                 .padding(.vertical, 10)
         }
+    }
+}
+
+/// Flat system identity dot, centred in the sidebar's icon slot. Decorative:
+/// the row label already names the system.
+private struct SystemDot: View {
+    let color: Color
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            // Keeps near-white and near-black systems visible on the sidebar material.
+            .strokeBorder(.separator, lineWidth: 0.5)
+            .frame(width: 8, height: 8)
+            .accessibilityHidden(true)
     }
 }

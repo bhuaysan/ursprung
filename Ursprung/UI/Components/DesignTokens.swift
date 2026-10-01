@@ -52,6 +52,12 @@ extension ShapeStyle where Self == Color {
     static var favorite: Color { .accentColor }
 }
 
+extension GameSystem {
+    /// Small identity signals (sidebar dot): the accent mixed toward the text
+    /// colour so near-black systems stay visible in Dark Mode.
+    var identityColor: Color { Color(hex: accent).mix(with: .primary, by: 0.3) }
+}
+
 /// Restrained, bounce-free animations. Call sites go through `appAnimation`,
 /// `withAppAnimation` and `appFade` so Reduce Motion is handled in one place.
 nonisolated enum AppAnimation {
