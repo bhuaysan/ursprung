@@ -3,15 +3,22 @@
 import SwiftData
 import SwiftUI
 
+/// The Settings tabs. The selected one is stored, so other windows can open a specific tab.
+enum SettingsTab: String {
+    case general, metadata, emulation, controls, cores, bios
+}
+
 struct SettingsView: View {
+    @AppStorage(PrefKey.settingsTab) private var tab = SettingsTab.general
+
     var body: some View {
-        TabView {
-            Tab("General", systemImage: "gearshape") { GeneralSettingsView() }
-            Tab("Metadata", systemImage: "sparkles") { MetadataSettingsView() }
-            Tab("Emulation", systemImage: "display") { EmulationSettingsView() }
-            Tab("Controls", systemImage: "gamecontroller") { ControlsSettingsView() }
-            Tab("Cores", systemImage: "cpu") { CoresSettingsView() }
-            Tab("BIOS", systemImage: "memorychip") { BIOSSettingsView() }
+        TabView(selection: $tab) {
+            Tab("General", systemImage: "gearshape", value: .general) { GeneralSettingsView() }
+            Tab("Metadata", systemImage: "sparkles", value: .metadata) { MetadataSettingsView() }
+            Tab("Emulation", systemImage: "display", value: .emulation) { EmulationSettingsView() }
+            Tab("Controls", systemImage: "gamecontroller", value: .controls) { ControlsSettingsView() }
+            Tab("Cores", systemImage: "cpu", value: .cores) { CoresSettingsView() }
+            Tab("BIOS", systemImage: "memorychip", value: .bios) { BIOSSettingsView() }
         }
         .scenePadding()
     }

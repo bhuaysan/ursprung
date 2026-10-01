@@ -1,34 +1,28 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import SwiftData
 import SwiftUI
 
 struct AppCommands: Commands {
     let session: EmulationSession
-    let library: LibraryStore
 
-    @FocusedValue(\.modelContext) private var modelContext
+    @FocusedValue(\.libraryActions) private var libraryActions
+    @FocusedValue(\.isShowingRecentlyPlayed) private var isShowingRecentlyPlayed
     @FocusedValue(\.gameActions) private var gameActions
 
     var body: some Commands {
+        // Every toolbar command is also here (docs/DESIGN_SPEC.md, section D);
+        // the items are disabled while another window is key.
         CommandGroup(replacing: .newItem) {
-            Button("Add Folder to Library…") {
-                if let modelContext { library.presentAddFolderPanel(context: modelContext) }
-            }
-            .keyboardShortcut("o")
-            .disabled(modelContext == nil)
-
-            Button("Rescan Library") {
-                if let modelContext { Task { await library.rescan(context: modelContext) } }
-            }
-            .keyboardShortcut("r", modifiers: [.command, .shift])
-            .disabled(modelContext == nil || library.isScanning)
+            LibraryActionItems(actions: libraryActions, placement: .menuBar)
         }
 
         CommandGroup(after: .toolbar) {
+            LibrarySortPicker(isFixedToRecentlyPlayed: isShowingRecentlyPlayed ?? false)
+                .pickerStyle(.menu)
+                .disabled(isShowingRecentlyPlayed == nil)
             Divider()
             CoverSizeItems(showsShortcuts: true)
-                .disabled(modelContext == nil)
+                .disabled(libraryActions == nil)
         }
 
         CommandMenu("Game") {
@@ -65,9 +59,4 @@ struct AppCommands: Commands {
                 .disabled(!running)
         }
     }
-}
-
-extension FocusedValues {
-    /// The library window publishes its model context for menu commands.
-    @Entry var modelContext: ModelContext?
 }

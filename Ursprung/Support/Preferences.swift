@@ -18,6 +18,7 @@ nonisolated enum PrefKey {
     static let gridSize = "gridSize"
     static let keyboardMapping = "keyboardMapping"
     static let librarySort = "librarySort"
+    static let settingsTab = "settingsTab"
     static func coreChoice(_ systemID: String) -> String { "coreChoice.\(systemID)" }
     static func coreOptions(_ coreID: String) -> String { "coreOptions.\(coreID)" }
     static func hidGamepadMapping(_ deviceKey: String) -> String { "hidGamepadMapping.\(deviceKey)" }

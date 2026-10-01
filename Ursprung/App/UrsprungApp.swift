@@ -56,7 +56,11 @@ struct UrsprungApp: App {
                 .frame(minWidth: 820, minHeight: 520)
         }
         .defaultSize(width: 1240, height: 800)
-        .commands { AppCommands(session: session, library: library) }
+        .commands {
+            AppCommands(session: session)
+            SidebarCommands()
+            InspectorCommands()
+        }
         .environment(metadata)
         .environment(library)
         .environment(cores)

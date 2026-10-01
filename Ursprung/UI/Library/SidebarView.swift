@@ -5,8 +5,12 @@ import SwiftUI
 struct SidebarView: View {
     let games: [Game]
     @Binding var selection: LibrarySelection?
+    /// Retries a failed metadata fetch from the activity footer.
+    let retryMetadata: () -> Void
     @Environment(LibraryStore.self) private var library
     @Environment(MetadataService.self) private var metadata
+    @Environment(SystemMediaStore.self) private var systemMedia
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         List(selection: $selection) {
@@ -35,11 +39,17 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .safeAreaInset(edge: .bottom) {
-            if library.isScanning || metadata.lastError != nil {
-                statusFooter
+        .safeAreaBar(edge: .bottom, spacing: 0) {
+            if hasActivity {
+                activityFooter
+                    .transition(.appFade(or: .move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
             }
         }
+        .appAnimation(AppAnimation.standard, value: hasActivity)
+    }
+
+    private var hasActivity: Bool {
+        Activity.isPending(library: library, metadata: metadata, systemMedia: systemMedia)
     }
 
     private func row(_ title: LocalizedStringKey, symbol: String, count: Int, tag: LibrarySelection) -> some View {
@@ -56,23 +66,13 @@ struct SidebarView: View {
         .sorted { ($0.system.manufacturer, $0.system.year) < ($1.system.manufacturer, $1.system.year) }
     }
 
-    @ViewBuilder
-    private var statusFooter: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if library.isScanning {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Scanning library…").font(.caption)
-                }
-            }
-            if let error = metadata.lastError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-            }
+    /// Hidden entirely while nothing runs and no error is pending.
+    private var activityFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+            ActivityStatusView(retry: retryMetadata)
+                .padding(.horizontal, AppSpacing.m)
+                .padding(.vertical, 10)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
     }
 }

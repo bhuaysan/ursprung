@@ -810,16 +810,6 @@
         }
       }
     },
-    "Info": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Info"
-          }
-        }
-      }
-    },
     "Installed": {
       "localizations": {
         "de": {
@@ -1460,16 +1450,6 @@
         }
       }
     },
-    "Refetch All Metadata": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alle Metadaten neu laden"
-          }
-        }
-      }
-    },
     "Refetch Metadata": {
       "localizations": {
         "de": {
@@ -1970,16 +1950,6 @@
         }
       }
     },
-    "Stop fetching metadata": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Laden der Metadaten stoppen"
-          }
-        }
-      }
-    },
     "System Default (%@)": {
       "localizations": {
         "de": {
@@ -2462,6 +2432,156 @@
           "stringUnit": {
             "state": "translated",
             "value": "Standardgröße"
+          }
+        }
+      }
+    },
+    "Refetch All Metadata…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Metadaten neu laden …"
+          }
+        }
+      }
+    },
+    "Library Folders…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliotheksordner …"
+          }
+        }
+      }
+    },
+    "Library Actions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliotheksaktionen"
+          }
+        }
+      }
+    },
+    "Add Folder to Library… (⌘O)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner zur Bibliothek hinzufügen … (⌘O)"
+          }
+        }
+      }
+    },
+    "Hide Inspector": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Infofenster ausblenden"
+          }
+        }
+      }
+    },
+    "Show Inspector": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Infofenster einblenden"
+          }
+        }
+      }
+    },
+    "Hide Inspector (⌃⌘I)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Infofenster ausblenden (⌃⌘I)"
+          }
+        }
+      }
+    },
+    "Show Inspector (⌃⌘I)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Infofenster einblenden (⌃⌘I)"
+          }
+        }
+      }
+    },
+    "Refetch metadata for all games?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten aller Spiele neu laden?"
+          }
+        }
+      }
+    },
+    "Titles, descriptions and artwork of every game are replaced with the data from ScreenScraper.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel, Beschreibungen und Bilder aller Spiele werden durch die Daten von ScreenScraper ersetzt."
+          }
+        }
+      }
+    },
+    "Metadata fetched": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten geladen"
+          }
+        }
+      }
+    },
+    "Fetching system artwork": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lade Systembilder"
+          }
+        }
+      }
+    },
+    "Dismiss": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
+          }
+        }
+      }
+    },
+    "Retry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
+          }
+        }
+      }
+    },
+    "Warning": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warnung"
           }
         }
       }

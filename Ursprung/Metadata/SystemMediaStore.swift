@@ -20,10 +20,11 @@ final class SystemMediaStore {
 
     /// Downloaded files by kind and system ID.
     private(set) var files: [Kind: [String: URL]] = [:]
+    /// Shown in the activity footer.
+    private(set) var isFetching = false
 
     @ObservationIgnored private let directory: URL
     @ObservationIgnored private var attempted: Set<String> = []
-    @ObservationIgnored private var isFetching = false
 
     init(directory: URL = AppPaths.systemMedia) {
         self.directory = directory

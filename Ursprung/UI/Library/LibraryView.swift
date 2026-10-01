@@ -25,6 +25,7 @@ enum LibrarySort: String, CaseIterable, Identifiable {
 struct LibraryView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     @Environment(LibraryStore.self) private var library
     @Environment(MetadataService.self) private var metadata
     @Environment(EmulationSession.self) private var session
@@ -37,12 +38,14 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var columns = ColumnLayoutState()
     @State private var gamePendingRemoval: Game?
+    @State private var isConfirmingRefetch = false
     @AppStorage(PrefKey.librarySort) private var sort: LibrarySort = .title
     @AppStorage(PrefKey.gridSize) private var gridSize = AppMetrics.defaultCoverStep
+    @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
 
     var body: some View {
         NavigationSplitView(columnVisibility: sidebarVisibility) {
-            SidebarView(games: games, selection: $selection)
+            SidebarView(games: games, selection: $selection, retryMetadata: fetchMissingMetadata)
                 .navigationSplitViewColumnWidth(min: AppMetrics.sidebarWidth.min, ideal: AppMetrics.sidebarWidth.ideal,
                                                 max: AppMetrics.sidebarWidth.max)
                 .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
@@ -73,17 +76,34 @@ struct LibraryView: View {
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search Games")
         .toolbar { toolbar }
-        .focusedSceneValue(\.modelContext, context)
+        .focusedSceneValue(\.libraryActions, libraryActions)
+        .focusedSceneValue(\.isShowingRecentlyPlayed, selection == .recent)
         .focusedSceneValue(\.gameActions, selectedGame.map(actions(for:)))
         .confirmationDialog(Text("Remove “\(gamePendingRemoval?.title ?? "")” from the library?"),
                             isPresented: Binding(get: { gamePendingRemoval != nil },
                                                  set: { if !$0 { gamePendingRemoval = nil } }),
                             presenting: gamePendingRemoval) { game in
             Button("Remove", role: .destructive) { remove(game) }
+            // No .defaultAction here: a button has one key equivalent, and Return would replace Escape.
             Button("Cancel", role: .cancel) {}
-                .keyboardShortcut(.defaultAction)
         } message: { _ in
             Text("The file stays on disk. Play time and favorite status are lost, and the next rescan adds the game again.")
+        }
+        .confirmationDialog("Refetch metadata for all games?", isPresented: $isConfirmingRefetch) {
+            // Destructive: it overwrites existing metadata. Cancel keeps Escape.
+            Button("Refetch All", role: .destructive) { metadata.enqueue(games, force: true, context: context) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Titles, descriptions and artwork of every game are replaced with the data from ScreenScraper.")
+        }
+        .onChange(of: library.isScanning) { _, isScanning in
+            if !isScanning, let summary = library.lastScanSummary { announce(summary) }
+        }
+        .onChange(of: metadata.isRunning) { _, isRunning in
+            if !isRunning, metadata.lastError == nil { announce(String(localized: "Metadata fetched")) }
+        }
+        .onChange(of: metadata.lastError) { _, error in
+            if let error { announce(error) }
         }
         .task(id: librarySystems.map(\.id)) {
             if Preferences.autoScrape { await systemMedia.fetchMissing(for: librarySystems) }
@@ -221,51 +241,86 @@ struct LibraryView: View {
 
     // MARK: Toolbar
 
+    /// [Activity] · View · Add Folder · Library Actions · Inspector, then search.
+    /// See docs/DESIGN_SPEC.md, section D.
+    ///
+    /// The spec asks for separate glass capsules and the inspector toggle after
+    /// the search field. `ToolbarSpacer` only separates capsules when the toolbar
+    /// is declared in the detail column, and there it crowds into the inspector
+    /// column and overflows below 1000 pt, or breaks the column yielding; the
+    /// search field always stays at the trailing edge. So one toolbar on the
+    /// split view, without spacers.
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            if metadata.isRunning {
-                ScrapeProgressView()
+        // Progress lives in the sidebar footer; only a collapsed sidebar needs a stand-in.
+        if !columns.showsSidebar, Activity.isPending(library: library, metadata: metadata, systemMedia: systemMedia) {
+            ToolbarItem {
+                ActivityToolbarButton(retry: fetchMissingMetadata)
             }
+        }
+
+        ToolbarItem {
             Menu {
-                Picker("Sort By", selection: $sort) {
-                    ForEach(LibrarySort.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.inline)
+                LibrarySortPicker(isFixedToRecentlyPlayed: selection == .recent)
+                    .pickerStyle(.inline)
                 Divider()
                 CoverSizeItems()
             } label: {
-                Label("View Options", systemImage: "line.3.horizontal.decrease")
+                Label("View Options", systemImage: "square.grid.2x2")
             }
             .menuIndicator(.hidden)
+            .help("View Options")
+        }
 
+        ToolbarItemGroup {
+            Button("Add Folder to Library…", systemImage: "plus", action: libraryActions.addFolder)
+                .help("Add Folder to Library… (⌘O)")
             Menu {
-                Button("Add Folder…", systemImage: "folder.badge.plus") { library.presentAddFolderPanel(context: context) }
-                Button("Rescan Library", systemImage: "arrow.clockwise") { Task { await library.rescan(context: context) } }
-                    .disabled(library.isScanning)
-                Divider()
-                Button("Fetch Missing Metadata", systemImage: "sparkles") {
-                    metadata.enqueue(games, context: context)
-                    Task { await systemMedia.fetchMissing(for: librarySystems, retry: true) }
-                }
-                Button("Refetch All Metadata", systemImage: "arrow.triangle.2.circlepath") {
-                    metadata.enqueue(games, force: true, context: context)
-                }
+                LibraryActionItems(actions: libraryActions, placement: .toolbar)
             } label: {
-                Label("Library", systemImage: "plus")
+                Label("Library Actions", systemImage: "ellipsis.circle")
             }
             .menuIndicator(.hidden)
+            .help("Library Actions")
+        }
 
+        ToolbarItem {
+            // The same path as the View menu's Show Inspector (⌃⌘I), which
+            // goes through the inspector's isPresented binding.
             Button {
                 let visible = !columns.showsInspector
                 columns.update { $0.setInspector(visible) }
             } label: {
-                Label("Info", systemImage: "info.circle")
+                Label(columns.showsInspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.trailing")
             }
+            .help(columns.showsInspector ? "Hide Inspector (⌃⌘I)" : "Show Inspector (⌃⌘I)")
         }
     }
 
     // MARK: Actions
+
+    private var libraryActions: LibraryActions {
+        LibraryActions(
+            isScanning: library.isScanning,
+            addFolder: { library.presentAddFolderPanel(context: context) },
+            rescan: { Task { await library.rescan(context: context) } },
+            fetchMissingMetadata: fetchMissingMetadata,
+            requestRefetchAllMetadata: { isConfirmingRefetch = true },
+            showLibraryFolders: {
+                settingsTab = .general
+                openSettings()
+            }
+        )
+    }
+
+    private func fetchMissingMetadata() {
+        metadata.enqueue(games, context: context)
+        Task { await systemMedia.fetchMissing(for: librarySystems, retry: true) }
+    }
+
+    private func announce(_ message: String) {
+        AccessibilityNotification.Announcement(message).post()
+    }
 
     private func play(_ game: Game) {
         selectedGameID = game.persistentModelID
@@ -294,36 +349,6 @@ struct LibraryView: View {
     private func remove(_ game: Game) {
         if selectedGameID == game.persistentModelID { selectedGameID = nil }
         library.remove(game, context: context)
-    }
-}
-
-struct ScrapeProgressView: View {
-    @Environment(MetadataService.self) private var metadata
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ProgressView(value: metadata.progress)
-                .progressViewStyle(.circular)
-                .controlSize(.small)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Fetching metadata")
-                    .font(.caption.weight(.medium))
-                Text("\(metadata.completed + 1) of \(metadata.total)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            Button {
-                metadata.cancel()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Stop fetching metadata")
-        }
-        .padding(.horizontal, 6)
-        .help(metadata.currentTitle ?? "")
     }
 }
 
