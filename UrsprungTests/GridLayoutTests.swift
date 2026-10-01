@@ -7,26 +7,48 @@ import Testing
 @Suite("Game grid layout")
 struct GridLayoutTests {
     @Test(arguments: [
-        (560.0, 180.0, 3), // 186 pt slots
+        (560.0, 180.0, 2),
+        (580.0, 180.0, 3), // exactly 3 × 180 + 2 × 20
         (440.0, 180.0, 2),
-        (736.0, 180.0, 4),
+        (736.0, 180.0, 3),
         (1200.0, 180.0, 6),
         (1200.0, 260.0, 4),
         (560.0, 120.0, 4),
     ])
-    func columnsStayNearTheChosenStep(width: Double, step: Double, expected: Int) {
-        let columns = GridLayout.columnCount(availableWidth: width, coverStep: step)
-        #expect(columns == expected)
-        let slot = (width - Double(columns - 1) * 20) / Double(columns)
-        #expect(abs(slot - step) / step <= 0.2)
+    func slotsKeepTheChosenStepAndGapsTakeTheRest(width: Double, step: Double, expected: Int) {
+        let layout = GridLayout(availableWidth: width, coverStep: step)
+        #expect(layout.columns == expected)
+        #expect(layout.slotWidth == step)
+        #expect(layout.spacing >= 20)
+        // Both grid edges stay aligned.
+        let used = Double(layout.columns) * layout.slotWidth + Double(layout.columns - 1) * layout.spacing
+        #expect(abs(used - width) < 0.001)
     }
 
-    @Test func narrowWidthsKeepTwoColumnsDownToTheSmallestStep() {
-        // 260 pt does not fit twice, but two 120 pt columns do.
-        #expect(GridLayout.columnCount(availableWidth: 300, coverStep: 260) == 2)
-        #expect(GridLayout.columnCount(availableWidth: 260, coverStep: 180) == 2)
-        #expect(GridLayout.columnCount(availableWidth: 259, coverStep: 180) == 1)
-        #expect(GridLayout.columnCount(availableWidth: 0, coverStep: 180) == 1)
+    @Test func everyStepChangesTheCoverSize() {
+        // With rounding, 150 and 180 pt used to give the same 186 pt slots here.
+        let slots = AppMetrics.coverSteps.map { GridLayout(availableWidth: 560, coverStep: $0).slotWidth }
+        #expect(slots == AppMetrics.coverSteps)
+    }
+
+    @Test func narrowWidthsShrinkTwoColumnsDownToTheSmallestStep() {
+        // 260 pt does not fit twice, so two columns share the width.
+        let squeezed = GridLayout(availableWidth: 300, coverStep: 260)
+        #expect(squeezed.columns == 2)
+        #expect(squeezed.slotWidth == 140)
+        #expect(squeezed.spacing == 20)
+
+        let smallest = GridLayout(availableWidth: 260, coverStep: 180)
+        #expect(smallest.columns == 2)
+        #expect(smallest.slotWidth == 120)
+
+        let single = GridLayout(availableWidth: 259, coverStep: 180)
+        #expect(single.columns == 1)
+        #expect(single.slotWidth == 180)
+
+        #expect(GridLayout(availableWidth: 100, coverStep: 180).slotWidth == 100)
+        #expect(GridLayout(availableWidth: 0, coverStep: 180).columns == 1)
+        #expect(GridLayout(availableWidth: -10, coverStep: 180).slotWidth == 0)
     }
 
     @Test func storedSizesSnapToTheNearestStep() {

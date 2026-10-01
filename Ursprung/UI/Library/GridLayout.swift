@@ -2,17 +2,34 @@
 
 import Foundation
 
-/// Column count for the game grid. See docs/DESIGN_SPEC.md, section E.
-nonisolated enum GridLayout {
-    /// Computed rather than `.adaptive`, so slots stay within about ±20 % of
-    /// the chosen cover step and keyboard navigation knows the row length.
-    static func columnCount(availableWidth: Double, coverStep: Double,
-                            spacing: Double = AppMetrics.gridColumnSpacing) -> Int {
+/// Columns of the game grid. See docs/DESIGN_SPEC.md, section E.
+nonisolated struct GridLayout: Equatable {
+    let columns: Int
+    /// Width of every cover slot: the chosen step, unless two columns only fit smaller.
+    let slotWidth: Double
+    /// Space between columns; takes up the width the slots leave, so both grid
+    /// edges stay aligned as in Finder's icon view.
+    let spacing: Double
+
+    /// Computed rather than `.adaptive`, so every step changes the cover size
+    /// visibly and keyboard navigation knows the row length.
+    init(availableWidth: Double, coverStep: Double, minSpacing: Double = AppMetrics.gridColumnSpacing) {
+        let available = max(availableWidth, 0)
         // Two columns squeeze down to the smallest step before the grid drops to one.
-        let smallest = AppMetrics.coverSteps.first ?? coverStep
-        guard availableWidth >= 2 * smallest + spacing else { return 1 }
-        let fitting = ((availableWidth + spacing) / (coverStep + spacing)).rounded()
-        return max(2, Int(fitting))
+        let smallest = min(AppMetrics.coverSteps.first ?? coverStep, coverStep)
+        if available >= 2 * coverStep + minSpacing {
+            columns = Int((available + minSpacing) / (coverStep + minSpacing))
+            slotWidth = coverStep
+            spacing = (available - Double(columns) * coverStep) / Double(columns - 1)
+        } else if available >= 2 * smallest + minSpacing {
+            columns = 2
+            slotWidth = (available - minSpacing) / 2
+            spacing = minSpacing
+        } else {
+            columns = 1
+            slotWidth = min(coverStep, available)
+            spacing = minSpacing
+        }
     }
 }
 

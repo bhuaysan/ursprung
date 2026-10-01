@@ -36,7 +36,7 @@ struct GameGridView: View {
                             SystemBanner(system: system)
                                 .padding(.top, 20)
                         }
-                        grid(columns: metrics.columns)
+                        grid(metrics.layout)
                             .padding(.top, system == nil ? 20 : AppSpacing.l)
                             .padding(.bottom, AppSpacing.xxl)
                     }
@@ -57,7 +57,7 @@ struct GameGridView: View {
                 .onChange(of: focused) { _, isFocused in
                     // Tabbing into the grid selects the first visible game.
                     if isFocused, !isFocusingByClick, selectedGameID == nil, let index = firstVisibleIndex {
-                        select(index, columns: metrics.columns, proxy: proxy)
+                        select(index, columns: metrics.layout.columns, proxy: proxy)
                     }
                     isFocusingByClick = false
                 }
@@ -76,11 +76,11 @@ struct GameGridView: View {
                 .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .home, .end, .pageUp, .pageDown]) { press in
                     guard press.modifiers.isDisjoint(with: [.command, .option, .control]),
                           let move = GridMove(press.key) else { return .ignored }
-                    return perform(move, columns: metrics.columns, proxy: proxy)
+                    return perform(move, columns: metrics.layout.columns, proxy: proxy)
                 }
                 .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters).union(.whitespaces), phases: .down) { press in
                     guard press.modifiers.isDisjoint(with: [.command, .option, .control]) else { return .ignored }
-                    return handleTypeSelect(press.characters, columns: metrics.columns, proxy: proxy)
+                    return handleTypeSelect(press.characters, columns: metrics.layout.columns, proxy: proxy)
                 }
                 .background {
                     // Clicking empty space clears the selection.
@@ -93,15 +93,15 @@ struct GameGridView: View {
         }
     }
 
-    private func grid(columns count: Int) -> some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: AppMetrics.gridColumnSpacing, alignment: .top),
-                            count: count)
+    private func grid(_ layout: GridLayout) -> some View {
+        let columns = Array(repeating: GridItem(.fixed(layout.slotWidth), spacing: layout.spacing, alignment: .top),
+                            count: layout.columns)
         let isActive = focused && appearsActive
         return LazyVGrid(columns: columns, alignment: .leading, spacing: AppMetrics.gridRowSpacing) {
             ForEach(games, id: \.persistentModelID) { game in
                 let id = game.persistentModelID
                 let actions = actions(game)
-                GameCard(game: game, coverStep: coverStep, showsSystem: system == nil,
+                GameCard(game: game, slotWidth: layout.slotWidth, showsSystem: system == nil,
                          selection: id == selectedGameID ? (isActive ? .focused : .unfocused) : nil,
                          actions: actions, select: { selectedGameID = id })
                     .id(id)
@@ -184,14 +184,14 @@ private final class VisibleGames {
     var ids: [PersistentIdentifier] = []
 }
 
-/// Padding and column count for one content width.
+/// Padding and columns for one content width.
 private struct GridMetrics {
     let padding: CGFloat
-    let columns: Int
+    let layout: GridLayout
 
     init(width: CGFloat, coverStep: Double) {
         padding = width < AppMetrics.compactContentWidth ? AppMetrics.compactGridPadding : AppMetrics.gridPadding
-        columns = GridLayout.columnCount(availableWidth: width - 2 * padding, coverStep: coverStep)
+        layout = GridLayout(availableWidth: width - 2 * padding, coverStep: coverStep)
     }
 }
 
@@ -286,7 +286,8 @@ struct GameCard: View {
     }
 
     let game: Game
-    let coverStep: Double
+    /// The slot's actual width: the cover step, or less when two columns only fit smaller.
+    let slotWidth: Double
     /// Inside a system the header already names it, so the metadata line shows the developer instead.
     let showsSystem: Bool
     let selection: Selection?
@@ -345,7 +346,7 @@ struct GameCard: View {
     private var isHighContrast: Bool { contrast == .increased }
 
     private var radius: CGFloat {
-        coverStep <= 150 ? AppMetrics.smallArtworkRadius : AppMetrics.artworkRadius
+        slotWidth <= 150 ? AppMetrics.smallArtworkRadius : AppMetrics.artworkRadius
     }
 
     /// Box art sits on a common baseline inside a square slot, so rows stay
