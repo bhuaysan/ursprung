@@ -46,8 +46,16 @@ struct GeneralSettingsView: View {
                                     .truncationMode(.middle)
                             }
                         } icon: {
-                            Image(systemName: "folder.fill").foregroundStyle(.tint)
+                            if library.unreachableFolders.contains(folder) {
+                                Image(systemName: "externaldrive.badge.exclamationmark").foregroundStyle(.orange)
+                            } else {
+                                Image(systemName: "folder.fill").foregroundStyle(.tint)
+                            }
                         }
+                        .help(library.unreachableFolders.contains(folder)
+                              ? String(localized: "Unavailable. Connect the drive, then rescan.") : "")
+                        .accessibilityValue(library.unreachableFolders.contains(folder)
+                                            ? String(localized: "Unavailable") : "")
                         .tag(folder)
                     }
                 }
@@ -150,7 +158,7 @@ struct MetadataSettingsView: View {
                     }
                 }
                 if let error = metadata.lastError {
-                    Text(error).font(.caption).foregroundStyle(.red)
+                    Text(error.message).font(.caption).foregroundStyle(.red)
                 }
             }
         }

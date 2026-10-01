@@ -58,11 +58,24 @@ nonisolated enum ScreenScraperError: LocalizedError, Equatable {
         case .tooManyThreads:
             String(localized: "ScreenScraper is busy. Please try again in a moment.")
         case .serverClosed:
-            String(localized: "ScreenScraper is currently closed for maintenance or overloaded.")
+            String(localized: "ScreenScraper is closed for maintenance or overloaded. Try again later.")
         case .http(let code):
-            String(localized: "ScreenScraper returned HTTP \(code).")
+            String(localized: "ScreenScraper returned HTTP \(code). Try again later.")
         case .invalidResponse:
-            String(localized: "ScreenScraper returned an unexpected response.")
+            String(localized: "ScreenScraper returned an unexpected response. Try again later.")
+        }
+    }
+
+    /// What happened in a few words, for the one-line activity footer.
+    var reason: String {
+        switch self {
+        case .missingDeveloperCredentials: String(localized: "No ScreenScraper developer credentials")
+        case .invalidCredentials: String(localized: "ScreenScraper login rejected")
+        case .quotaExceeded: String(localized: "Daily ScreenScraper quota reached")
+        case .tooManyThreads: String(localized: "ScreenScraper is busy")
+        case .serverClosed: String(localized: "ScreenScraper is unavailable")
+        case .http(let code): String(localized: "ScreenScraper error (HTTP \(code))")
+        case .invalidResponse: String(localized: "Unexpected response from ScreenScraper")
         }
     }
 

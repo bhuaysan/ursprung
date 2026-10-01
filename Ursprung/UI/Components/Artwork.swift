@@ -132,10 +132,18 @@ struct PlaceholderCover: View {
     let system: GameSystem?
     @Environment(SystemMediaStore.self) private var systemMedia
 
+    /// A nearly flat fill, two stops 8 % apart, so a system without covers
+    /// reads as one calm block. Darkened for the white title.
+    private var fill: LinearGradient {
+        let color = Color(hex: system?.accent ?? 0x6E6E73)
+        return LinearGradient(colors: [color.mix(with: .black, by: 0.18), color.mix(with: .black, by: 0.26)],
+                              startPoint: .top, endPoint: .bottom)
+    }
+
     var body: some View {
         let logo = systemMedia.logo(for: system)
         ZStack(alignment: .bottomLeading) {
-            LinearGradient.system(accent: system?.accent ?? 0x6E6E73)
+            fill
             if let logo {
                 ArtworkImage(url: logo, maxPixel: 600, isTemplate: true) { EmptyView() }
                     .foregroundStyle(.white.opacity(0.85))
@@ -146,7 +154,7 @@ struct PlaceholderCover: View {
             VStack(alignment: .leading, spacing: 4) {
                 if logo == nil {
                     Text(system?.shortName ?? "")
-                        .font(.caption2.weight(.bold))
+                        .font(.caption.weight(.semibold))
                         .tracking(1.2)
                         .textCase(.uppercase)
                         .foregroundStyle(.white.opacity(0.7))

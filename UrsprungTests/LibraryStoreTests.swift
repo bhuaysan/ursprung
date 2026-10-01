@@ -110,6 +110,16 @@ struct LibraryFolderTests {
         await store.rescan(context: context)
 
         #expect(try gamePaths(in: context) == [kept])
+        #expect(store.unreachableFolders == [unreachable])
+
+        store.removeFolder(unreachable, context: context)
+        #expect(store.unreachableFolders.isEmpty)
+    }
+
+    @Test func volumeNameOfAFolder() {
+        #expect(LibraryPaths.volumeName(of: URL(filePath: "/Volumes/Retro Drive/ROMs/SNES")) == "Retro Drive")
+        #expect(LibraryPaths.volumeName(of: URL(filePath: "/Volumes/Retro", directoryHint: .isDirectory)) == "Retro")
+        #expect(LibraryPaths.volumeName(of: URL(filePath: "/Users/me/ROMs", directoryHint: .isDirectory)) == "ROMs")
     }
 }
 

@@ -12,7 +12,7 @@ final class MetadataService {
     private(set) var completed = 0
     private(set) var total = 0
     private(set) var currentTitle: String?
-    var lastError: String?
+    var lastError: MetadataFailure?
 
     private var queue: [PersistentIdentifier] = []
     private var worker: Task<Void, Never>?
@@ -56,14 +56,14 @@ final class MetadataService {
                 try? context.save()
             } catch let error as ScreenScraperError {
                 game.scrapeState = .failed
-                lastError = error.localizedDescription
+                lastError = MetadataFailure(error)
                 if error.isFatal { queue.removeAll() }
                 if error == .tooManyThreads { try? await Task.sleep(for: .seconds(5)) }
             } catch is CancellationError {
                 break
             } catch {
                 game.scrapeState = .failed
-                lastError = error.localizedDescription
+                lastError = MetadataFailure(error)
             }
             completed += 1
         }
@@ -126,5 +126,36 @@ final class MetadataService {
     @concurrent
     private static func checksum(of url: URL) async -> String? {
         (try? Checksum.crc(of: url)).map(Checksum.hex)
+    }
+}
+
+/// Why the last metadata fetch failed, written as what happened plus what to do.
+nonisolated struct MetadataFailure: Hashable, Sendable {
+    /// What happened in a few words: one line in the activity footer.
+    var reason: String
+    /// What happened and what to do, for tooltips, VoiceOver and Settings.
+    var message: String
+
+    init(reason: String, message: String) {
+        self.reason = reason
+        self.message = message
+    }
+
+    init(_ error: any Error) {
+        switch error {
+        case let error as ScreenScraperError:
+            self.init(reason: error.reason, message: error.localizedDescription)
+        case let error as URLError where [.notConnectedToInternet, .networkConnectionLost, .dataNotAllowed,
+                                          .internationalRoamingOff].contains(error.code):
+            self.init(reason: String(localized: "No internet connection"),
+                      message: String(localized: "Ursprung is offline. Check your internet connection, then retry."))
+        case let error as URLError where [.timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed,
+                                          .secureConnectionFailed].contains(error.code):
+            self.init(reason: String(localized: "ScreenScraper didn't respond"),
+                      message: String(localized: "ScreenScraper can't be reached right now. Try again later."))
+        default:
+            self.init(reason: error.localizedDescription,
+                      message: String(localized: "\(error.localizedDescription) Try again later."))
+        }
     }
 }

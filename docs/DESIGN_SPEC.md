@@ -272,10 +272,12 @@ Every state uses one of four presentations, chosen by scope: a full-area `Conten
 - The “Favorites empty” description no longer says “heart button”; it names where the action is. ESSENTIAL
 - Scanning with existing games keeps the grid visible; progress shows only in the activity footer. ESSENTIAL
 
+Implemented in step 8 with these decisions: the scanning state shows no game count (the scanner has no progress callback); the folder-unreachable row also has a dismiss button, hides until the next scan finds the folder missing again, and Settings marks such folders; a system whose last game is removed falls back to All Games.
+
 **Metadata and artwork**
 
 - Scraping never blocks the grid and adds no per-card spinners. ESSENTIAL
-- A failed batch leaves a warning row in the activity footer: “Metadata couldn't be fetched”, the reason in one line (e.g. “Daily ScreenScraper quota reached”), Retry and dismiss. ESSENTIAL
+- A failed batch leaves a warning row in the activity footer: “Metadata couldn't be fetched”, the reason in one line (e.g. “Daily ScreenScraper quota reached”), Retry and dismiss. ESSENTIAL The full what-to-do text (`MetadataFailure.message`) is the row's tooltip and VoiceOver value.
 - A single game with no match: inspector inline row `questionmark.circle` secondary, “No match on ScreenScraper”, link “Refetch”. ESSENTIAL
 - Missing artwork: the generated `PlaceholderCover` stays, with a flatter fill (two stops 8 % apart instead of the white/black diagonal mix) so a system without covers reads as one calm block. RECOMMENDED
 

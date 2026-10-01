@@ -94,16 +94,6 @@
         }
       }
     },
-    "Add a folder with your games to get started. Ursprung recognises the system from file types and folder names, and fetches covers and details from ScreenScraper.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Füge einen Ordner mit deinen Spielen hinzu, um loszulegen. Ursprung erkennt das System anhand von Dateityp und Ordnername und lädt Cover und Details von ScreenScraper."
-          }
-        }
-      }
-    },
     "Add to Favorites": {
       "localizations": {
         "de": {
@@ -730,16 +720,6 @@
         }
       }
     },
-    "Games you play will show up here.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gespielte Spiele erscheinen hier."
-          }
-        }
-      }
-    },
     "General": {
       "localizations": {
         "de": {
@@ -966,16 +946,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ wird geladen …"
-          }
-        }
-      }
-    },
-    "Mark games with the heart button to find them here.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Markiere Spiele mit dem Herz, um sie hier zu finden."
           }
         }
       }
@@ -1690,42 +1660,12 @@
         }
       }
     },
-    "ScreenScraper is currently closed for maintenance or overloaded.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ScreenScraper ist gerade wegen Wartung geschlossen oder überlastet."
-          }
-        }
-      }
-    },
     "ScreenScraper rejected the login. Check your username and password in Settings.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "ScreenScraper hat die Anmeldung abgelehnt. Prüfe Benutzername und Passwort in den Einstellungen."
-          }
-        }
-      }
-    },
-    "ScreenScraper returned HTTP %lld.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ScreenScraper antwortete mit HTTP %lld."
-          }
-        }
-      }
-    },
-    "ScreenScraper returned an unexpected response.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ScreenScraper lieferte eine unerwartete Antwort."
           }
         }
       }
@@ -2122,16 +2062,6 @@
     },
     "Ursprung": {
       "shouldTranslate": false
-    },
-    "Ursprung didn't find any games in your library folders.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ursprung hat in deinen Bibliotheksordnern keine Spiele gefunden."
-          }
-        }
-      }
     },
     "Username": {
       "localizations": {
@@ -2622,6 +2552,296 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bewertung: %lld von 5 Sternen"
+          }
+        }
+      }
+    },
+    "Show in Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Einstellungen zeigen"
+          }
+        }
+      }
+    },
+    "Scanning Library…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliothek wird gescannt …"
+          }
+        }
+      }
+    },
+    "Add a folder with your games. Ursprung detects the system and fetches covers from ScreenScraper.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füge einen Ordner mit deinen Spielen hinzu. Ursprung erkennt das System und lädt Cover von ScreenScraper."
+          }
+        }
+      }
+    },
+    "Ursprung didn't recognize any games in your library folders.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprung hat in deinen Bibliotheksordnern keine Spiele erkannt."
+          }
+        }
+      }
+    },
+    "No Results for “%@”": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Ergebnisse für „%@“"
+          }
+        }
+      }
+    },
+    "Check the spelling or try a new search.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Überprüfe die Schreibweise oder versuche eine neue Suche."
+          }
+        }
+      }
+    },
+    "Search All Games": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Spiele durchsuchen"
+          }
+        }
+      }
+    },
+    "Mark a game as favorite in its info panel or context menu.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markiere ein Spiel im Infofenster oder Kontextmenü als Favorit."
+          }
+        }
+      }
+    },
+    "Games you play appear here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gespielte Spiele erscheinen hier."
+          }
+        }
+      }
+    },
+    "Games on “%@” are unavailable.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele auf „%@“ sind nicht verfügbar."
+          }
+        }
+      }
+    },
+    "Games in %lld locations are unavailable.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele an %lld Orten sind nicht verfügbar."
+          }
+        }
+      }
+    },
+    "Unavailable. Connect the drive, then rescan.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht verfügbar. Schließe das Laufwerk an und scanne dann neu."
+          }
+        }
+      }
+    },
+    "Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Metadata couldn't be fetched. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten konnten nicht geladen werden. %@"
+          }
+        }
+      }
+    },
+    "No internet connection": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Internetverbindung"
+          }
+        }
+      }
+    },
+    "Ursprung is offline. Check your internet connection, then retry.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprung ist offline. Prüfe deine Internetverbindung und versuche es dann erneut."
+          }
+        }
+      }
+    },
+    "ScreenScraper didn't respond": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper antwortet nicht"
+          }
+        }
+      }
+    },
+    "ScreenScraper can't be reached right now. Try again later.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper ist gerade nicht erreichbar. Versuche es später erneut."
+          }
+        }
+      }
+    },
+    "%@ Try again later.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Versuche es später erneut."
+          }
+        }
+      }
+    },
+    "ScreenScraper is closed for maintenance or overloaded. Try again later.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper ist wegen Wartung geschlossen oder überlastet. Versuche es später erneut."
+          }
+        }
+      }
+    },
+    "ScreenScraper returned HTTP %lld. Try again later.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper antwortete mit HTTP %lld. Versuche es später erneut."
+          }
+        }
+      }
+    },
+    "ScreenScraper returned an unexpected response. Try again later.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper lieferte eine unerwartete Antwort. Versuche es später erneut."
+          }
+        }
+      }
+    },
+    "No ScreenScraper developer credentials": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine ScreenScraper-Entwicklerzugangsdaten"
+          }
+        }
+      }
+    },
+    "ScreenScraper login rejected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper-Anmeldung abgelehnt"
+          }
+        }
+      }
+    },
+    "Daily ScreenScraper quota reached": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tägliches ScreenScraper-Kontingent erreicht"
+          }
+        }
+      }
+    },
+    "ScreenScraper is busy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper ist ausgelastet"
+          }
+        }
+      }
+    },
+    "ScreenScraper is unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper ist nicht verfügbar"
+          }
+        }
+      }
+    },
+    "ScreenScraper error (HTTP %lld)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper-Fehler (HTTP %lld)"
+          }
+        }
+      }
+    },
+    "Unexpected response from ScreenScraper": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unerwartete Antwort von ScreenScraper"
           }
         }
       }

@@ -3,9 +3,42 @@
 import SwiftData
 import SwiftUI
 
-enum LibrarySelection: Hashable {
+nonisolated enum LibrarySelection: Hashable {
     case all, favorites, recent
     case system(String)
+}
+
+/// What the content column shows. See docs/DESIGN_SPEC.md, section H.
+nonisolated enum LibraryState: Equatable {
+    case welcome
+    /// The first scan is running and no game is known yet.
+    case scanning
+    case noGames
+    case noResults(query: String)
+    case noFavorites
+    case nothingPlayed
+    case games
+
+    init(hasFolders: Bool, isScanning: Bool, libraryCount: Int, visibleCount: Int, searchText: String,
+         selection: LibrarySelection) {
+        if !hasFolders {
+            self = .welcome
+        } else if visibleCount > 0 {
+            self = .games
+        } else if libraryCount == 0 {
+            // A scan with games already known keeps the grid; progress is in the activity footer.
+            self = isScanning ? .scanning : .noGames
+        } else if !searchText.isEmpty {
+            self = .noResults(query: searchText)
+        } else {
+            switch selection {
+            case .favorites: self = .noFavorites
+            case .recent: self = .nothingPlayed
+            // A system without games has no sidebar row; LibraryView falls back to All Games.
+            case .all, .system: self = .games
+            }
+        }
+    }
 }
 
 enum LibrarySort: String, CaseIterable, Identifiable {
@@ -104,7 +137,11 @@ struct LibraryView: View {
             if !isRunning, metadata.lastError == nil { announce(String(localized: "Metadata fetched")) }
         }
         .onChange(of: metadata.lastError) { _, error in
-            if let error { announce(error) }
+            if let error { announce(String(localized: "Metadata couldn't be fetched. \(error.message)")) }
+        }
+        .onChange(of: librarySystems.map(\.id)) { _, systemIDs in
+            // The sidebar row of a system disappears with its last game.
+            if case .system(let id) = selection, !systemIDs.contains(id) { selection = .all }
         }
         .task(id: librarySystems.map(\.id)) {
             if Preferences.autoScrape { await systemMedia.fetchMissing(for: librarySystems) }
@@ -125,7 +162,8 @@ struct LibraryView: View {
             }
             // Shows the activity footer's error row.
             if let message = ProcessInfo.processInfo.environment["URSPRUNG_METADATA_ERROR"] {
-                metadata.lastError = message
+                metadata.lastError = message == "quota" ? MetadataFailure(ScreenScraperError.quotaExceeded)
+                    : MetadataFailure(reason: message, message: message)
             }
             #endif
         }
@@ -155,21 +193,60 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var content: some View {
-        if library.folders.isEmpty {
-            EmptyLibraryView { library.presentAddFolderPanel(context: context) }
-        } else if filteredGames.isEmpty {
-            if library.isScanning {
-                ProgressView("Scanning library…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if !searchText.isEmpty {
-                ContentUnavailableView.search(text: searchText)
-            } else {
-                ContentUnavailableView(emptyTitle, systemImage: "gamecontroller",
-                                       description: Text(emptyDescription))
-            }
-        } else {
-            GameGridView(games: filteredGames, selectedGameID: $selectedGameID, coverStep: CoverSize.snapped(gridSize),
+        let visibleGames = filteredGames
+        switch LibraryState(hasFolders: !library.folders.isEmpty, isScanning: library.isScanning,
+                            libraryCount: games.count, visibleCount: visibleGames.count, searchText: searchText,
+                            selection: selection ?? .all) {
+        case .games:
+            GameGridView(games: visibleGames, selectedGameID: $selectedGameID, coverStep: CoverSize.snapped(gridSize),
                          system: selectedSystem, actions: actions(for:))
+        case .welcome:
+            ContentUnavailableView {
+                Label("Welcome to Ursprung", systemImage: "gamecontroller")
+            } description: {
+                Text("Add a folder with your games. Ursprung detects the system and fetches covers from ScreenScraper.")
+            } actions: {
+                Button("Add Folder…", action: libraryActions.addFolder)
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.large)
+            }
+        case .scanning:
+            ContentUnavailableView {
+                Label {
+                    Text("Scanning Library…")
+                } icon: {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+        case .noGames:
+            ContentUnavailableView {
+                Label("No Games Found", systemImage: "questionmark.folder")
+            } description: {
+                Text("Ursprung didn't recognize any games in your library folders.")
+            } actions: {
+                Button("Rescan", action: libraryActions.rescan)
+                    .buttonStyle(.glassProminent)
+                Button("Library Folders…", action: libraryActions.showLibraryFolders)
+                    .buttonStyle(.glass)
+            }
+        case .noResults(let query):
+            ContentUnavailableView {
+                Label("No Results for “\(query)”", systemImage: "magnifyingglass")
+            } description: {
+                Text("Check the spelling or try a new search.")
+            } actions: {
+                if selection != .all {
+                    Button("Search All Games") { selection = .all }
+                        .buttonStyle(.glass)
+                }
+            }
+        case .noFavorites:
+            ContentUnavailableView("No Favorites Yet", systemImage: "heart",
+                                   description: Text("Mark a game as favorite in its info panel or context menu."))
+        case .nothingPlayed:
+            ContentUnavailableView("Nothing Played Yet", systemImage: "clock",
+                                   description: Text("Games you play appear here."))
         }
     }
 
@@ -226,22 +303,6 @@ struct LibraryView: View {
     private var subtitle: String {
         let count = filteredGames.count
         return count == 1 ? String(localized: "1 game") : String(localized: "\(count) games")
-    }
-
-    private var emptyTitle: LocalizedStringKey {
-        switch selection ?? .all {
-        case .favorites: "No Favorites Yet"
-        case .recent: "Nothing Played Yet"
-        default: "No Games Found"
-        }
-    }
-
-    private var emptyDescription: LocalizedStringKey {
-        switch selection ?? .all {
-        case .favorites: "Mark games with the heart button to find them here."
-        case .recent: "Games you play will show up here."
-        default: "Ursprung didn't find any games in your library folders."
-        }
     }
 
     // MARK: Toolbar
@@ -355,21 +416,5 @@ struct LibraryView: View {
     private func remove(_ game: Game) {
         if selectedGameID == game.persistentModelID { selectedGameID = nil }
         library.remove(game, context: context)
-    }
-}
-
-struct EmptyLibraryView: View {
-    let addFolder: () -> Void
-
-    var body: some View {
-        ContentUnavailableView {
-            Label("Welcome to Ursprung", systemImage: "gamecontroller")
-        } description: {
-            Text("Add a folder with your games to get started. Ursprung recognises the system from file types and folder names, and fetches covers and details from ScreenScraper.")
-        } actions: {
-            Button("Add Folder…", action: addFolder)
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
-        }
     }
 }

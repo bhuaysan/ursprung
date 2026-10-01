@@ -14,6 +14,8 @@ final class LibraryStore {
     private(set) var folders: [URL]
     private(set) var isScanning = false
     private(set) var lastScanSummary: String?
+    /// Library folders the last scan could not reach, e.g. on an unmounted volume.
+    private(set) var unreachableFolders: [URL] = []
 
     let metadata: MetadataService
 
@@ -50,6 +52,7 @@ final class LibraryStore {
     func removeFolder(_ url: URL, context: ModelContext) {
         let url = url.standardizedFileURL
         folders.removeAll { $0.standardizedFileURL == url }
+        unreachableFolders.removeAll { $0.standardizedFileURL == url }
         folderRevision += 1
         persistFolders(folders)
         // Games that another remaining folder still covers stay in the library.
@@ -90,6 +93,7 @@ final class LibraryStore {
             let reachable = folders.filter { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) }
             let scanned = await scanner(reachable)
             guard revision == folderRevision else { continue }
+            unreachableFolders = folders.filter { !reachable.contains($0) }
             apply(scanned, reachable: reachable, folders: folders, context: context)
             return
         }
@@ -139,6 +143,11 @@ final class LibraryStore {
         }
     }
 
+    /// Hides the unreachable-folder warning until the next scan finds it again.
+    func dismissUnreachableFolders() {
+        unreachableFolders = []
+    }
+
     @concurrent
     private static func scan(_ folders: [URL]) async -> [ScannedROM] {
         LibraryScanner.scan(folders: folders)
@@ -164,5 +173,13 @@ nonisolated enum LibraryPaths {
     static func isInside(_ path: String, folder: String) -> Bool {
         let folder = folder.hasSuffix("/") ? folder : folder + "/"
         return path.hasPrefix(folder)
+    }
+
+    /// The name to show for an unreachable folder: its volume for a folder on
+    /// `/Volumes/<name>`, otherwise the folder itself.
+    static func volumeName(of folder: URL) -> String {
+        let components = folder.standardizedFileURL.pathComponents
+        if components.count > 2, components[1] == "Volumes" { return components[2] }
+        return folder.lastPathComponent
     }
 }

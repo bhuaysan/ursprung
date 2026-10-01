@@ -7,7 +7,9 @@ nonisolated enum Activity: Hashable, Identifiable {
     case scan
     case metadata(completed: Int, total: Int, currentTitle: String?)
     case systemMedia
-    case error(String)
+    case error(MetadataFailure)
+    /// Library folders the last scan could not reach, by volume name.
+    case unreachable(volumes: [String])
 
     static let maxRows = 3
 
@@ -17,28 +19,38 @@ nonisolated enum Activity: Hashable, Identifiable {
         case .metadata: "metadata"
         case .systemMedia: "systemMedia"
         case .error: "error"
+        case .unreachable: "unreachable"
         }
     }
 
     /// The rows to show, at most `maxRows`, in a fixed order: scan, metadata,
-    /// system media, last error.
+    /// system media, last error, unreachable folders.
     static func rows(isScanning: Bool, metadata: (completed: Int, total: Int, currentTitle: String?)?,
-                     isFetchingSystemMedia: Bool, error: String?) -> [Activity] {
+                     isFetchingSystemMedia: Bool, error: MetadataFailure?,
+                     unreachableFolders: [URL] = []) -> [Activity] {
         var rows: [Activity] = []
         if isScanning { rows.append(.scan) }
         if let metadata { rows.append(.metadata(completed: metadata.completed, total: metadata.total,
                                                 currentTitle: metadata.currentTitle)) }
         if isFetchingSystemMedia { rows.append(.systemMedia) }
         if let error { rows.append(.error(error)) }
+        if !unreachableFolders.isEmpty {
+            var volumes: [String] = []
+            for name in unreachableFolders.map(LibraryPaths.volumeName(of:)) where !volumes.contains(name) {
+                volumes.append(name)
+            }
+            rows.append(.unreachable(volumes: volumes))
+        }
         return Array(rows.prefix(maxRows))
     }
 }
 
 extension Activity {
-    /// Whether anything runs or failed. Reads only flags, so hosts do not
-    /// re-render on every progress step.
+    /// Whether anything runs or needs attention. Reads only flags, so hosts do
+    /// not re-render on every progress step.
     static func isPending(library: LibraryStore, metadata: MetadataService, systemMedia: SystemMediaStore) -> Bool {
         library.isScanning || metadata.isRunning || systemMedia.isFetching || metadata.lastError != nil
+            || !library.unreachableFolders.isEmpty
     }
 
     /// Whether anything still runs, as opposed to only an error being left.
@@ -57,6 +69,8 @@ struct ActivityStatusView: View {
     @Environment(LibraryStore.self) private var library
     @Environment(MetadataService.self) private var metadata
     @Environment(SystemMediaStore.self) private var systemMedia
+    @Environment(\.openSettings) private var openSettings
+    @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.s) {
@@ -69,7 +83,8 @@ struct ActivityStatusView: View {
         Activity.rows(isScanning: library.isScanning,
                       metadata: metadata.isRunning ? (metadata.completed, metadata.total, metadata.currentTitle) : nil,
                       isFetchingSystemMedia: systemMedia.isFetching,
-                      error: metadata.lastError)
+                      error: metadata.lastError,
+                      unreachableFolders: library.unreachableFolders)
     }
 
     @ViewBuilder
@@ -85,9 +100,24 @@ struct ActivityStatusView: View {
                 .help(currentTitle ?? "")
         case .systemMedia:
             progressRow(title: "Fetching system artwork", detail: nil, progress: nil)
-        case .error(let message):
-            errorRow(message)
+        case .error(let failure):
+            warningRow(symbol: "exclamationmark.triangle.fill", title: "Metadata couldn't be fetched",
+                       detail: failure.reason, help: failure.message,
+                       action: ("Retry", retry), dismiss: { metadata.lastError = nil })
+        case .unreachable(let volumes):
+            warningRow(symbol: "externaldrive.badge.exclamationmark", title: unreachableTitle(volumes),
+                       detail: nil, help: volumes.formatted(.list(type: .and)),
+                       action: ("Show in Settings", showLibraryFolders), dismiss: library.dismissUnreachableFolders)
         }
+    }
+
+    private func unreachableTitle(_ volumes: [String]) -> LocalizedStringKey {
+        volumes.count == 1 ? "Games on “\(volumes[0])” are unavailable." : "Games in \(volumes.count) locations are unavailable."
+    }
+
+    private func showLibraryFolders() {
+        settingsTab = .general
+        openSettings()
     }
 
     private func progressRow(title: LocalizedStringKey, detail: String?, progress: Double?,
@@ -127,22 +157,40 @@ struct ActivityStatusView: View {
         }
     }
 
-    private func errorRow(_ message: String) -> some View {
+    /// Something that needs attention: an orange symbol, what happened, the
+    /// reason in one line, a link button and a dismiss button.
+    private func warningRow(symbol: String, title: LocalizedStringKey, detail: String?, help: String,
+                            action: (title: LocalizedStringKey, perform: () -> Void),
+                            dismiss: @escaping () -> Void) -> some View {
         HStack(alignment: .top, spacing: AppSpacing.s) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: symbol)
+                .resizable()
+                .scaledToFit() // Badged symbols are wider than the 16 pt slot.
                 .foregroundStyle(.orange)
                 .frame(width: 16, height: 16)
                 .accessibilityLabel("Warning")
             VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                Text(message)
-                    .lineLimit(2)
-                    .help(message)
-                Button("Retry", action: retry)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(title)
+                        .lineLimit(2)
+                        // Otherwise the one-line detail below takes the second line.
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let detail {
+                        Text(verbatim: detail)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .help(help)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(title))
+                .accessibilityValue(help)
+                Button(action.title, action: action.perform)
                     .buttonStyle(.link)
             }
             .font(.subheadline)
             Spacer(minLength: 0)
-            RowButton(title: "Dismiss", systemImage: "xmark.circle.fill") { metadata.lastError = nil }
+            RowButton(title: "Dismiss", systemImage: "xmark.circle.fill", action: dismiss)
         }
     }
 }
