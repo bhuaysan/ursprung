@@ -43,10 +43,20 @@ nonisolated struct ColumnLayout: Equatable {
     }
 
     /// A visible column reported its width, for example after the user dragged it.
+    ///
+    /// Mid-layout values are off (at launch the sidebar reports 144 pt, the
+    /// inspector 400 pt), so widths are clamped to the column's range and a
+    /// measurement may hide the inspector but never show it: showing it in
+    /// the middle of the launch layout makes AppKit close it again and shrink
+    /// the window, leaving the grid stuck at its interim width.
     mutating func measure(sidebar: Double? = nil, inspector: Double? = nil) {
-        if let sidebar, sidebar > 0 { sidebarWidth = sidebar }
-        if let inspector, inspector > 0 { inspectorWidth = inspector }
-        reconcile()
+        if let sidebar, sidebar > 0 {
+            sidebarWidth = min(max(sidebar, AppMetrics.sidebarWidth.min), AppMetrics.sidebarWidth.max)
+        }
+        if let inspector, inspector > 0 {
+            inspectorWidth = min(max(inspector, AppMetrics.inspectorWidth.min), AppMetrics.inspectorWidth.max)
+        }
+        reconcile(mayShowInspector: false)
     }
 
     /// The user showed or hid the inspector.
@@ -76,14 +86,15 @@ nonisolated struct ColumnLayout: Equatable {
         sidebarCollapsedAutomatically = false
     }
 
-    private mutating func reconcile() {
+    private mutating func reconcile(mayShowInspector: Bool = true) {
         guard windowWidth > 0 else { return }
         // The sidebar comes back once the window has room for everything.
         if sidebarCollapsedAutomatically, windowWidth >= Self.narrowWindowWidth,
            fits(sidebar: prefersSidebar, inspector: showsInspector) {
             restoreSidebar()
         }
-        showsInspector = prefersInspector && fits(sidebar: showsSidebar, inspector: true)
+        let inspectorFits = prefersInspector && fits(sidebar: showsSidebar, inspector: true)
+        showsInspector = inspectorFits && (mayShowInspector || showsInspector)
         // Nothing left to make room for.
         if sidebarCollapsedAutomatically, !showsInspector {
             restoreSidebar()

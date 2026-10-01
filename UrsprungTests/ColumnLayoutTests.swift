@@ -94,6 +94,31 @@ struct ColumnLayoutTests {
         #expect(layout.prefersInspector)
     }
 
+    @Test func measuredWidthsAreClampedToTheColumnsRange() {
+        var layout = layout(width: 1240)
+        layout.measure(sidebar: 144, inspector: 270)
+        #expect(layout.sidebarWidth == 200)
+        #expect(layout.inspectorWidth == 280)
+        layout.measure(sidebar: 500, inspector: 500)
+        #expect(layout.sidebarWidth == 280)
+        #expect(layout.inspectorWidth == 400)
+        layout.measure(sidebar: 0)
+        #expect(layout.sidebarWidth == 280)
+    }
+
+    @Test func measuringNeverShowsAHiddenInspector() {
+        // At launch in a 950 pt window AppKit briefly reports a 144 pt sidebar,
+        // which would make room for the inspector.
+        var layout = layout(width: 950)
+        #expect(!layout.showsInspector)
+        layout.measure(sidebar: 144, inspector: 270) // 950 − 200 − 280 = 470
+        #expect(!layout.showsInspector)
+        #expect(layout.prefersInspector)
+        // A real resize still brings it back.
+        layout.resize(to: 951)
+        #expect(layout.showsInspector)
+    }
+
     @Test func wideColumnsCollapseTheSidebarAboveTheNarrowBand() {
         var layout = layout(width: 1060)
         layout.setInspector(false)
