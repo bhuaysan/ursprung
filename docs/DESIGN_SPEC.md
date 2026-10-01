@@ -185,6 +185,8 @@ The grid becomes a shelf of box art on the plain window background, with an expl
 
 The 172 pt accent-gradient banner (`GameGridView.swift:98`) becomes an 88 pt library header on the plain window background: logo, one line of context, and an optional small console photo. ESSENTIAL
 
+> Decided on 1 October 2026, after building it in step 7: the plain header was reverted. The 172 pt accent-gradient banner with logo and console photo stays, because it reads better. Only the accessibility rule below applies to it (one heading element with name, manufacturer, year and game count). The rest of this section is kept for reference.
+
 - **Placement**: first item inside the grid's scroll view, aligned to the grid's horizontal padding (24 / 20 pt), 20 pt from the top. It scrolls away with the content; the toolbar title already shows the system name and count, so nothing needs to stick. ESSENTIAL
 - **Height**: 88 pt (72 pt when the content column is narrower than 560 pt). No background, no rounded rectangle, no shadow. ESSENTIAL
 - **Logo**: the template-rendered wordmark in `.primary`, max 36 pt high and 240 pt wide, leading-aligned. Without a logo: the system name in `.title` (22 pt) `.semibold`. ESSENTIAL

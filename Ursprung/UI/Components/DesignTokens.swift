@@ -38,9 +38,6 @@ nonisolated enum AppMetrics {
     static let selectionRingGap: CGFloat = 3
     static let coverPlayButton: CGFloat = 32
 
-    static let systemHeaderHeight: CGFloat = 88
-    static let compactSystemHeaderHeight: CGFloat = 72
-
     static let pausePanelRadius: CGFloat = 24
     static let playerPanelRadius: CGFloat = 20
     static let rowHighlightRadius: CGFloat = 8

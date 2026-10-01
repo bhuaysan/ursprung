@@ -33,7 +33,7 @@ struct GameGridView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if let system {
-                            SystemHeader(system: system, gameCount: games.count, isCompact: metrics.isCompact)
+                            SystemBanner(system: system, gameCount: games.count)
                                 .padding(.top, 20)
                         }
                         grid(metrics.layout)
@@ -184,15 +184,13 @@ private final class VisibleGames {
     var ids: [PersistentIdentifier] = []
 }
 
-/// Padding, columns and header density for one content width.
+/// Padding and columns for one content width.
 private struct GridMetrics {
-    let isCompact: Bool
     let padding: CGFloat
     let layout: GridLayout
 
     init(width: CGFloat, coverStep: Double) {
-        isCompact = width < AppMetrics.compactContentWidth
-        padding = isCompact ? AppMetrics.compactGridPadding : AppMetrics.gridPadding
+        padding = width < AppMetrics.compactContentWidth ? AppMetrics.compactGridPadding : AppMetrics.gridPadding
         layout = GridLayout(availableWidth: width - 2 * padding, coverStep: coverStep)
     }
 }
@@ -241,42 +239,40 @@ struct CoverSizeItems: View {
     }
 }
 
-/// Header above a system's games: the logo, one line of context and a small
-/// console photo, on the plain window background. See docs/DESIGN_SPEC.md, section F.
-struct SystemHeader: View {
+/// Banner above a system's games: the official logo and a console photo on the
+/// system's accent colour. Kept instead of the spec's plain header (section F)
+/// at the user's request.
+struct SystemBanner: View {
     let system: GameSystem
     let gameCount: Int
-    /// Narrow content column: lower header, no console photo.
-    let isCompact: Bool
-
     @Environment(SystemMediaStore.self) private var systemMedia
 
     var body: some View {
-        HStack(spacing: AppSpacing.xl) {
-            VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 24) {
+            VStack(alignment: .leading, spacing: 10) {
                 if let logo = systemMedia.logo(for: system) {
                     ArtworkImage(url: logo, maxPixel: 600, isTemplate: true) { Color.clear }
-                        .foregroundStyle(.primary)
-                        .frame(maxWidth: 240, maxHeight: 36, alignment: .leading)
+                        .frame(maxWidth: 300, maxHeight: 64, alignment: .leading)
                 } else {
                     Text(system.name)
-                        .font(.title.weight(.semibold))
-                        .lineLimit(1)
+                        .font(.largeTitle.weight(.bold))
                 }
-                Text(verbatim: "\(system.manufacturer) · \(String(system.year)) · \(countText)")
-                    .font(.callout)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Text(verbatim: "\(system.manufacturer) · \(system.year)")
+                    .font(.callout.weight(.medium))
+                    .opacity(0.75)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if !isCompact, let photo = systemMedia.photo(for: system) {
-                ArtworkImage(url: photo, maxPixel: 480) { Color.clear }
-                    .frame(maxWidth: 160, maxHeight: 72, alignment: .trailing)
+            if let photo = systemMedia.photo(for: system) {
+                ArtworkImage(url: photo, maxPixel: 800) { Color.clear }
+                    .frame(maxWidth: 280, maxHeight: 132)
+                    .shadow(color: .black.opacity(0.35), radius: 12, y: 8)
             }
         }
-        .frame(height: isCompact ? AppMetrics.compactSystemHeaderHeight : AppMetrics.systemHeaderHeight)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 28)
+        .frame(height: 172)
+        .background(LinearGradient.system(accent: system.accent), in: .rect(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: [system.name, system.manufacturer, String(system.year), countText]
             .joined(separator: ", ")))
