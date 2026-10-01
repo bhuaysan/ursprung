@@ -52,8 +52,11 @@ struct ArtworkImage<Placeholder: View>: View {
     var contentMode: ContentMode = .fit
     /// Renders only the alpha channel in the foreground style (for monochrome logos).
     var isTemplate = false
+    /// Fades the image in when it had to be loaded from disk (not with Reduce Motion).
+    var fadesIn = false
     @ViewBuilder var placeholder: () -> Placeholder
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var image: CGImage?
 
     var body: some View {
@@ -66,6 +69,7 @@ struct ArtworkImage<Placeholder: View>: View {
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: contentMode)
+                    .transition(.opacity)
             } else {
                 placeholder()
             }
@@ -76,8 +80,33 @@ struct ArtworkImage<Placeholder: View>: View {
                 image = cached
                 return
             }
-            image = await ArtworkCache.shared.loadAsync(url, maxPixel: maxPixel)
+            let loaded = await ArtworkCache.shared.loadAsync(url, maxPixel: maxPixel)
+            // 0.15 s, the same short fade Reduce Motion uses elsewhere.
+            withAnimation(fadesIn && !reduceMotion ? AppAnimation.reduced : nil) { image = loaded }
         }
+    }
+}
+
+extension View {
+    /// Rounded artwork with a hairline edge that stays visible on light and
+    /// dark art alike: grid covers and the inspector's box art.
+    func artworkFrame(radius: CGFloat) -> some View {
+        modifier(ArtworkFrame(radius: radius))
+    }
+}
+
+private struct ArtworkFrame: ViewModifier {
+    let radius: CGFloat
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let isHighContrast = contrast == .increased
+        content
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(.primary.opacity(isHighContrast ? 0.25 : 0.10), lineWidth: isHighContrast ? 1 : 0.5)
+            }
     }
 }
 

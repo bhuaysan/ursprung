@@ -1100,16 +1100,6 @@
         }
       }
     },
-    "No match on ScreenScraper.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kein Treffer bei ScreenScraper."
-          }
-        }
-      }
-    },
     "No saved state in this slot": {
       "localizations": {
         "de": {
@@ -1406,16 +1396,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spiel beenden"
-          }
-        }
-      }
-    },
-    "Rating: %lld percent": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bewertung: %lld Prozent"
           }
         }
       }
@@ -2582,6 +2562,66 @@
           "stringUnit": {
             "state": "translated",
             "value": "Warnung"
+          }
+        }
+      }
+    },
+    "Overview": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beschreibung"
+          }
+        }
+      }
+    },
+    "Starting…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gestartet …"
+          }
+        }
+      }
+    },
+    "Metadata couldn't be fetched": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten konnten nicht geladen werden"
+          }
+        }
+      }
+    },
+    "No match on ScreenScraper": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Treffer bei ScreenScraper"
+          }
+        }
+      }
+    },
+    "Refetch": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu laden"
+          }
+        }
+      }
+    },
+    "Rating: %lld of 5 stars": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewertung: %lld von 5 Sternen"
           }
         }
       }
