@@ -23,6 +23,9 @@ BIOS/
 # Generated secrets
 **/Secrets.generated.swift
 
+# Local code signing (see Config/Ursprung.xcconfig)
+Config/Signing.local.xcconfig
+
 # macOS
 .DS_Store
 

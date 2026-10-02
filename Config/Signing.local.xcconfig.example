@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Copy to Signing.local.xcconfig and enter your team ID: the OU of your
+// Apple Development certificate, shown by
+//   security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject
+// A free Personal Team (Xcode › Settings › Accounts) is enough.
+
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = Apple Development
+DEVELOPMENT_TEAM = ABCDE12345

@@ -13,7 +13,7 @@ GPL-3.0-or-later. See `docs/ARCHITECTURE.md` for the full picture.
 
 ## Hard rules
 
-- `ROMS/`, `BIOS/`, `.env`, `Secrets.generated.swift` must never be committed or pushed. Check `git status` before every commit.
+- `ROMS/`, `BIOS/`, `.env`, `Secrets.generated.swift`, `Config/Signing.local.xcconfig` must never be committed or pushed. Check `git status` before every commit.
 - ScreenScraper media URLs embed API credentials: never log, print or persist them.
 - New files start with `// SPDX-License-Identifier: GPL-3.0-or-later`.
 - No third-party dependencies without discussion.

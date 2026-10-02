@@ -30,6 +30,9 @@ targets:
   Ursprung:
     type: application
     platform: macOS
+    configFiles:
+      Debug: Config/Ursprung.xcconfig
+      Release: Config/Ursprung.xcconfig
     sources:
       - path: Ursprung
         excludes:

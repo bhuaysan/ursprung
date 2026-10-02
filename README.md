@@ -79,6 +79,11 @@ open Ursprung.xcodeproj     # then press ⌘R
 Or entirely from the command line: `make run`. Other targets: `make test`,
 `make release`, `make smoke` (headless core test), see the [Makefile](Makefile).
 
+Builds are signed ad hoc, so the Keychain treats every rebuild as a new app and
+asks again for a stored ScreenScraper account password. To sign with your Apple
+Development certificate instead, copy `Config/Signing.local.xcconfig.example` to
+`Config/Signing.local.xcconfig` (git-ignored) and enter your team ID.
+
 ### ScreenScraper credentials
 
 ScreenScraper requires *developer* credentials for every API client. They are

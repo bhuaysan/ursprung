@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Build settings of the app target. project.yml holds the rest.
+//
+// The app is signed ad hoc by default. The Keychain identifies ad-hoc
+// signed code by its code hash, so every rebuild asks for the ScreenScraper
+// password again. To sign your own builds with your Apple Development
+// certificate instead, copy Signing.local.xcconfig.example to
+// Signing.local.xcconfig (git-ignored) and enter your team ID.
+
+#include? "Signing.local.xcconfig"
