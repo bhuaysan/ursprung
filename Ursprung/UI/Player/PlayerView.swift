@@ -18,6 +18,12 @@ struct PlayerView: View {
     @AppStorage(PrefKey.integerScaling) private var integerScaling = false
     @AppStorage(PrefKey.showFPS) private var showFPS = false
     @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
+    /// The pause menu is in the view tree; it fades in with its insertion
+    /// transition.
+    @State private var showsMenu = false
+    /// The pause menu is fading out. A removal transition is never animated
+    /// here, so closing animates the opacity and removes the views afterwards.
+    @State private var isMenuClosing = false
 
     var body: some View {
         ZStack {
@@ -39,18 +45,24 @@ struct PlayerView: View {
                 FailureView(failure: failure, openSettings: { open(failure.settingsTab) }, close: closePlayer)
             }
 
-            if session.isMenuVisible {
-                // Clicking next to the panel resumes.
-                Rectangle()
-                    .fill(.black.opacity(reduceTransparency ? 0.7 : 0.5))
-                    .ignoresSafeArea()
-                    .onTapGesture { session.isMenuVisible = false }
-                    .transition(.opacity)
+            // Always in the tree: its fade-out is animated only that way.
+            // Clicking next to the panel resumes.
+            Rectangle()
+                .fill(.black.opacity(reduceTransparency ? 0.7 : 0.5))
+                .ignoresSafeArea()
+                .onTapGesture { session.isMenuVisible = false }
+                .opacity(showsMenu && !isMenuClosing ? 1 : 0)
+                .allowsHitTesting(showsMenu && !isMenuClosing)
+                .accessibilityHidden(true)
+            if showsMenu {
                 GeometryReader { geometry in
                     PauseMenuView(maxHeight: min(600, geometry.size.height - 80), close: closePlayer)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .transition(.appFade(or: .opacity.combined(with: .scale(scale: 0.97)), reduceMotion: reduceMotion))
+                .scaleEffect(isMenuClosing && !reduceMotion ? 0.97 : 1)
+                .opacity(isMenuClosing ? 0 : 1)
+                .allowsHitTesting(!isMenuClosing)
             }
         }
         .overlay(alignment: .top) {
@@ -73,11 +85,27 @@ struct PlayerView: View {
             }
             .padding(AppSpacing.l)
         }
-        .appAnimation(AppAnimation.panel, value: session.isMenuVisible)
         .appAnimation(AppAnimation.standard, value: session.toasts)
         .appAnimation(AppAnimation.standard, value: session.isFastForwarding)
         .navigationTitle(session.gameTitle)
         .toolbar(session.phase == .running && !session.isMenuVisible ? .hidden : .automatic, for: .windowToolbar)
+        .onChange(of: session.isMenuVisible, initial: true) { _, visible in
+            if visible {
+                withAppAnimation(AppAnimation.panel, reduceMotion: reduceMotion) {
+                    showsMenu = true
+                    isMenuClosing = false
+                }
+            } else if showsMenu {
+                withAppAnimation(AppAnimation.panel, reduceMotion: reduceMotion) {
+                    isMenuClosing = true
+                } completion: {
+                    // Reopened meanwhile: keep it.
+                    guard !session.isMenuVisible else { return }
+                    showsMenu = false
+                    isMenuClosing = false
+                }
+            }
+        }
         .onDisappear {
             Task { await session.stop(context: context) }
         }

@@ -92,6 +92,13 @@ func withAppAnimation<Result>(_ animation: Animation, reduceMotion: Bool,
     try withAnimation(reduceMotion ? AppAnimation.reduced : animation, body)
 }
 
+/// `withAppAnimation` that runs `completion` once the animation has finished.
+func withAppAnimation<Result>(_ animation: Animation, reduceMotion: Bool,
+                              _ body: () throws -> Result, completion: @escaping () -> Void) rethrows -> Result {
+    try withAnimation(reduceMotion ? AppAnimation.reduced : animation, completionCriteria: .logicallyComplete,
+                      body, completion: completion)
+}
+
 extension AnyTransition {
     /// `transition` normally, a plain fade when Reduce Motion is on.
     static func appFade(or transition: AnyTransition, reduceMotion: Bool) -> AnyTransition {
