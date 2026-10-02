@@ -44,9 +44,9 @@ nonisolated struct ColumnLayout: Equatable {
 
     /// A visible column reported its width, for example after the user dragged it.
     ///
-    /// Mid-layout values are off (at launch the sidebar reports 144 pt, the
-    /// inspector 400 pt), so widths are clamped to the column's range and a
-    /// measurement may hide the inspector but never show it: showing it in
+    /// Mid-layout values are off (at launch the inspector reports 400 pt), so
+    /// widths are clamped to the column's range and a measurement may hide
+    /// the inspector but never show it: showing it in
     /// the middle of the launch layout makes AppKit close it again and shrink
     /// the window, leaving the grid stuck at its interim width.
     mutating func measure(sidebar: Double? = nil, inspector: Double? = nil) {

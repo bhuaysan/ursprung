@@ -79,11 +79,12 @@ struct LibraryView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: sidebarVisibility) {
             SidebarView(games: games, selection: $selection, retryMetadata: fetchMissingMetadata)
-                .navigationSplitViewColumnWidth(min: AppMetrics.sidebarWidth.min, ideal: AppMetrics.sidebarWidth.ideal,
-                                                max: AppMetrics.sidebarWidth.max)
                 .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
                     columns.update { $0.measure(sidebar: width) }
                 }
+                // After onGeometryChange, as for the inspector below.
+                .navigationSplitViewColumnWidth(min: AppMetrics.sidebarWidth.min, ideal: AppMetrics.sidebarWidth.ideal,
+                                                max: AppMetrics.sidebarWidth.max)
         } detail: {
             content
                 .navigationTitle(title)
@@ -97,14 +98,13 @@ struct LibraryView: View {
                                                    description: Text("Select a game to see its details."))
                         }
                     }
-                    // The column follows its content's ideal width; without this
-                    // each game's content (e.g. the core picker) set a different one.
-                    .frame(minWidth: 0, idealWidth: AppMetrics.inspectorWidth.ideal, maxWidth: .infinity)
-                    .inspectorColumnWidth(min: AppMetrics.inspectorWidth.min, ideal: AppMetrics.inspectorWidth.ideal,
-                                          max: AppMetrics.inspectorWidth.max)
                     .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
                         columns.update { $0.measure(inspector: width) }
                     }
+                    // Must come after onGeometryChange, which otherwise hides the
+                    // width from AppKit: the column then opened at its 270 pt default.
+                    .inspectorColumnWidth(min: AppMetrics.inspectorWidth.min, ideal: AppMetrics.inspectorWidth.ideal,
+                                          max: AppMetrics.inspectorWidth.max)
                 }
         }
         .background {
