@@ -253,7 +253,9 @@ struct GameInspector: View {
                             .pickerStyle(.menu)
                             .labelsHidden()
                             .controlSize(.small)
-                            .fixedSize()
+                            // Not fixedSize: the picker's ideal width, set by the
+                            // longest core name, became the column's width.
+                            .frame(maxWidth: 180, alignment: .leading)
                     }
                 } else {
                     InfoRow("Core", system.defaultCore.name)

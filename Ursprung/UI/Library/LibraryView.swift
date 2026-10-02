@@ -97,6 +97,9 @@ struct LibraryView: View {
                                                    description: Text("Select a game to see its details."))
                         }
                     }
+                    // The column follows its content's ideal width; without this
+                    // each game's content (e.g. the core picker) set a different one.
+                    .frame(minWidth: 0, idealWidth: AppMetrics.inspectorWidth.ideal, maxWidth: .infinity)
                     .inspectorColumnWidth(min: AppMetrics.inspectorWidth.min, ideal: AppMetrics.inspectorWidth.ideal,
                                           max: AppMetrics.inspectorWidth.max)
                     .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
