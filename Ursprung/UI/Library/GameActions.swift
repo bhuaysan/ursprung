@@ -28,6 +28,9 @@ struct GameActions {
 extension FocusedValues {
     /// The selected game's actions, published by the library window for the Game menu.
     @Entry var gameActions: GameActions?
+    /// Set while the grid has keyboard focus. Only then does the Game menu give
+    /// Remove from Library ⌘⌫, so the search field keeps ⌘⌫ for its text.
+    @Entry var isGridFocused: Bool?
 }
 
 /// The menu items for one game, in one fixed order.
@@ -43,6 +46,8 @@ struct GameActionItems: View {
 
     let actions: GameActions
     let placement: Placement
+    /// Menu bar only: registers ⌘⌫ for Remove from Library.
+    var removesWithDeleteKey = false
 
     var body: some View {
         if placement != .inspectorMenu {
@@ -60,6 +65,7 @@ struct GameActionItems: View {
         }
         Divider()
         Button("Remove from Library…", systemImage: "trash", role: .destructive, action: actions.requestRemoval)
+            .keyboardShortcut(placement == .menuBar && removesWithDeleteKey ? KeyboardShortcut(.delete) : nil)
     }
 
     private func shortcut(_ key: KeyEquivalent) -> KeyboardShortcut? {

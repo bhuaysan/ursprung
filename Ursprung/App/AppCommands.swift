@@ -8,6 +8,7 @@ struct AppCommands: Commands {
     @FocusedValue(\.libraryActions) private var libraryActions
     @FocusedValue(\.isShowingRecentlyPlayed) private var isShowingRecentlyPlayed
     @FocusedValue(\.gameActions) private var gameActions
+    @FocusedValue(\.isGridFocused) private var isGridFocused
     @FocusedValue(\.inspectorToggle) private var inspectorToggle
     @FocusedValue(\.saveStateSlot) private var saveStateSlot
 
@@ -36,7 +37,7 @@ struct AppCommands: Commands {
         CommandMenu("Game") {
             // The selected game in the library; disabled while another window is key.
             if let gameActions {
-                GameActionItems(actions: gameActions, placement: .menuBar)
+                GameActionItems(actions: gameActions, placement: .menuBar, removesWithDeleteKey: isGridFocused == true)
             } else {
                 Button("Play") {}.disabled(true)
                 Button("Add to Favorites") {}.keyboardShortcut("d").disabled(true)

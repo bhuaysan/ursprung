@@ -53,6 +53,9 @@ struct GameGridView: View {
                 .onScrollTargetVisibilityChange(idType: PersistentIdentifier.self) { visible.ids = $0 }
                 .focusable()
                 .focused($focused)
+                // ⌘⌫ is the Game menu's shortcut while the grid has focus;
+                // an onKeyPress handler here never received it.
+                .focusedValue(\.isGridFocused, true)
                 .focusEffectDisabled()
                 .onChange(of: focused) { _, isFocused in
                     // Tabbing into the grid selects the first visible game.
@@ -64,13 +67,6 @@ struct GameGridView: View {
                 .onKeyPress(.return) {
                     guard let game = selectedGame else { return .ignored }
                     actions(game).play()
-                    return .handled
-                }
-                .onKeyPress(.delete, phases: .down) { press in
-                    // ⌘⌫ only in the grid: as a menu shortcut it would also fire
-                    // while the search field is being edited.
-                    guard press.modifiers.contains(.command), let game = selectedGame else { return .ignored }
-                    actions(game).requestRemoval()
                     return .handled
                 }
                 .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .home, .end, .pageUp, .pageDown]) { press in
