@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import AppKit
 import SwiftUI
 
 /// One glass panel with menu-like rows, operable by pointer, keyboard and
@@ -20,6 +21,7 @@ struct PauseMenuView: View {
     @State private var focusedRow = Row.resume
     @State private var focusedSlot = 1
     @State private var slotToDelete: SaveStateSlot?
+    @State private var pointer = PointerAnchor()
 
     enum Page {
         case main, states, discs, options
@@ -144,7 +146,7 @@ struct PauseMenuView: View {
         VStack(spacing: 0) {
             ResumeRow(isFocused: showsFocus && focusedRow == .resume, action: resume)
                 .id(Row.resume)
-                .onHover { if $0 { focusedRow = .resume } }
+                .onHover { if $0, pointer.hasMoved { focusedRow = .resume } }
             GroupDivider()
             row(.quickSave, "Quick Save", symbol: "square.and.arrow.down", hint: .keys("F2"))
             row(.quickLoad, "Quick Load", symbol: "square.and.arrow.up", hint: .keys("F4"))
@@ -177,7 +179,7 @@ struct PauseMenuView: View {
             .id(row)
             .onHover { inside in
                 // The pointer moves the focus, so hover and focus never show on different rows.
-                if inside, isEnabled(row) { focusedRow = row }
+                if inside, isEnabled(row), pointer.hasMoved { focusedRow = row }
             }
     }
 
@@ -228,7 +230,7 @@ struct PauseMenuView: View {
                          load: { session.loadState(slot: slot) },
                          delete: { slotToDelete = state })
                     .id(slot)
-                    .onHover { if $0 { focusedSlot = slot } }
+                    .onHover { if $0, pointer.hasMoved { focusedSlot = slot } }
             }
         }
         // Room for the focus ring, which the scroll view would clip.
@@ -244,6 +246,7 @@ struct PauseMenuView: View {
     /// Handles a key or controller command; false when the page has no use for it.
     @discardableResult
     private func perform(_ command: MenuCommand) -> Bool {
+        pointer.anchor()
         if command == .back {
             back()
             return true
@@ -280,6 +283,7 @@ struct PauseMenuView: View {
     /// Cross-fades to `page`. The width animates with it, or jumps under
     /// Reduce Motion (section O).
     private func show(_ page: Page) {
+        pointer.anchor()
         if reduceMotion {
             withTransaction(\.disablesAnimations, true) { width = page.width }
         }
@@ -658,5 +662,19 @@ private struct FittingScrollView<Content: View>: View {
             ScrollView { content }
                 .scrollBounceBehavior(.basedOnSize)
         }
+    }
+}
+
+/// Where the pointer was when the keyboard, a controller or a page change
+/// last moved the focus. A panel that opens or changes size under a resting
+/// pointer sends hover events too; only a pointer that has moved since may
+/// take the focus. Not observed: only event handlers read it.
+private final class PointerAnchor {
+    private var location = NSEvent.mouseLocation
+
+    var hasMoved: Bool { NSEvent.mouseLocation != location }
+
+    func anchor() {
+        location = NSEvent.mouseLocation
     }
 }
