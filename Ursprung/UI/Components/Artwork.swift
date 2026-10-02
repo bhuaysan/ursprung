@@ -142,17 +142,18 @@ struct PlaceholderCover: View {
 
     var body: some View {
         let logo = systemMedia.logo(for: system)
-        ZStack(alignment: .bottomLeading) {
-            fill
-            if let logo {
-                ArtworkImage(url: logo, maxPixel: 600, isTemplate: true) { EmptyView() }
-                    .foregroundStyle(.white.opacity(0.85))
-                    .frame(maxWidth: .infinity, maxHeight: 44, alignment: .leading)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            }
+        // Logo on top, title at the bottom, in one column so they never
+        // overlap: the inspector shows this cover at 96 pt wide.
+        GeometryReader { geometry in
+            let padding = min(14, geometry.size.width * 0.1)
             VStack(alignment: .leading, spacing: 4) {
-                if logo == nil {
+                if let logo {
+                    ArtworkImage(url: logo, maxPixel: 600, isTemplate: true) { EmptyView() }
+                        .foregroundStyle(.white.opacity(0.85))
+                        .frame(maxWidth: .infinity, maxHeight: min(44, geometry.size.height * 0.22), alignment: .leading)
+                    Spacer(minLength: 0)
+                } else {
+                    Spacer(minLength: 0)
                     Text(system?.shortName ?? "")
                         .font(.caption.weight(.semibold))
                         .tracking(1.2)
@@ -163,9 +164,11 @@ struct PlaceholderCover: View {
                     .font(.system(.headline, design: .rounded, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(4)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.6)
             }
-            .padding(14)
+            .padding(padding)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
         }
+        .background(fill)
     }
 }
