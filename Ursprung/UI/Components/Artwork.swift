@@ -80,6 +80,10 @@ struct ArtworkImage<Placeholder: View>: View {
                 image = cached
                 return
             }
+            // The view stays when the URL changes (the inspector on a new
+            // selection): without this the previous game's art shows until
+            // the new one has loaded.
+            image = nil
             let loaded = await ArtworkCache.shared.loadAsync(url, maxPixel: maxPixel)
             // 0.15 s, the same short fade Reduce Motion uses elsewhere.
             withAnimation(fadesIn && !reduceMotion ? AppAnimation.reduced : nil) { image = loaded }
