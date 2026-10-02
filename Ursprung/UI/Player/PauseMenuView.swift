@@ -15,6 +15,8 @@ struct PauseMenuView: View {
     @FocusState private var isFocused: Bool
     // Reset every time the menu opens: focus starts on Resume.
     @State private var page = Page.main
+    /// Follows `page`; set apart so it can jump under Reduce Motion.
+    @State private var width = Page.main.width
     @State private var focusedRow = Row.resume
     @State private var focusedSlot = 1
     @State private var slotToDelete: SaveStateSlot?
@@ -47,22 +49,26 @@ struct PauseMenuView: View {
                 .padding(.top, AppSpacing.l)
                 .padding(.bottom, AppSpacing.s)
             ScrollViewReader { proxy in
-                Group {
-                    switch page {
-                    case .main: FittingScrollView { mainPage }
-                    case .states: FittingScrollView { statesPage }
-                    case .discs: FittingScrollView { discsPage }
-                    case .options: CoreOptionsPage()
+                // Old and new page overlap while they cross-fade; stacked,
+                // they briefly made the panel as tall as both together.
+                ZStack(alignment: .topLeading) {
+                    Group {
+                        switch page {
+                        case .main: FittingScrollView { mainPage }
+                        case .states: FittingScrollView { statesPage }
+                        case .discs: FittingScrollView { discsPage }
+                        case .options: CoreOptionsPage()
+                        }
                     }
+                    .id(page)
+                    .transition(.opacity)
                 }
-                .id(page)
-                .transition(.opacity)
                 .onChange(of: focusedRow) { proxy.scrollTo(focusedRow) }
                 .onChange(of: focusedSlot) { proxy.scrollTo(focusedSlot) }
             }
         }
         .padding(20)
-        .frame(width: page.width)
+        .frame(width: width)
         .modifier(HeightLimit(maxHeight: maxHeight))
         .glassEffect(.regular, in: .rect(cornerRadius: AppMetrics.pausePanelRadius))
         .environment(\.colorScheme, .dark)
@@ -271,8 +277,16 @@ struct PauseMenuView: View {
         return true
     }
 
+    /// Cross-fades to `page`. The width animates with it, or jumps under
+    /// Reduce Motion (section O).
     private func show(_ page: Page) {
-        withAppAnimation(AppAnimation.panel, reduceMotion: reduceMotion) { self.page = page }
+        if reduceMotion {
+            withTransaction(\.disablesAnimations, true) { width = page.width }
+        }
+        withAppAnimation(AppAnimation.panel, reduceMotion: reduceMotion) {
+            self.page = page
+            width = page.width
+        }
     }
 
     /// Main page: resume. Sub-page: back to the row that opened it.
@@ -631,18 +645,18 @@ private struct HeightLimitLayout: Layout {
     }
 }
 
-/// A scroll view as tall as its content, up to the height it is offered,
-/// so short pages keep the panel small and long ones scroll inside it.
+/// The content as tall as it is, or in a scroll view when it is taller than
+/// the height it is offered, so short pages keep the panel small and long
+/// ones scroll inside it. Decided in one layout pass: a measured height
+/// started each new page at zero and made the panel jump while it animated.
 private struct FittingScrollView<Content: View>: View {
     @ViewBuilder var content: Content
-    @State private var height: CGFloat = 0
 
     var body: some View {
-        ScrollView {
+        ViewThatFits(in: .vertical) {
             content
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+            ScrollView { content }
+                .scrollBounceBehavior(.basedOnSize)
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(maxHeight: height)
     }
 }
