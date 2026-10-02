@@ -107,3 +107,14 @@ final class Game {
         (fileName as NSString).deletingPathExtension
     }
 }
+
+extension ModelContext {
+    /// The game with this ID, or nil when it has left the library meanwhile
+    /// (rescan, folder removal). `model(for:)` would return a placeholder whose
+    /// first property access traps.
+    func existingGame(_ id: PersistentIdentifier) -> Game? {
+        var descriptor = FetchDescriptor<Game>(predicate: #Predicate { $0.persistentModelID == id })
+        descriptor.fetchLimit = 1
+        return try? fetch(descriptor).first
+    }
+}

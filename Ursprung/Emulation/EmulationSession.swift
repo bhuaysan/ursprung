@@ -291,7 +291,7 @@ final class EmulationSession {
 
     private func recordPlayTime(context: ModelContext?) {
         guard let startedAt, let gameID, let context = context ?? launchContext,
-              let game = context.model(for: gameID) as? Game else { return }
+              let game = context.existingGame(gameID) else { return }
         game.playTime += Date.now.timeIntervalSince(startedAt)
         try? context.save()
     }

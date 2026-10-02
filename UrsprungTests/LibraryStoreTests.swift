@@ -52,6 +52,20 @@ private func gamePaths(in context: ModelContext) throws -> [String] {
 
 @Suite("Library folders")
 struct LibraryFolderTests {
+    @Test func existingGameIsNilOnceTheGameIsDeleted() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let game = Game(path: "/ROMs/SNES/A.sfc", systemID: "snes", title: "t", fileName: "A.sfc", fileSize: 1, crc32: nil)
+        context.insert(game)
+        try context.save()
+        let id = game.persistentModelID
+        #expect(context.existingGame(id)?.path == "/ROMs/SNES/A.sfc")
+
+        context.delete(game)
+        try context.save()
+        #expect(context.existingGame(id) == nil)
+    }
+
     @Test func insideComparesWholePathComponents() {
         #expect(LibraryPaths.isInside("/ROMs/SNES/Game.sfc", folder: "/ROMs/SNES"))
         #expect(LibraryPaths.isInside("/ROMs/SNES/Sub/Game.sfc", folder: "/ROMs/SNES/"))

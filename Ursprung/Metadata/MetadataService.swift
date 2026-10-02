@@ -49,7 +49,7 @@ final class MetadataService {
         let client = ScreenScraperClient.configured
         while !queue.isEmpty, !Task.isCancelled {
             let id = queue.removeFirst()
-            guard let game = context.model(for: id) as? Game else { completed += 1; continue }
+            guard let game = context.existingGame(id) else { completed += 1; continue }
             currentTitle = game.title
             do {
                 try await scrape(game, client: client)
