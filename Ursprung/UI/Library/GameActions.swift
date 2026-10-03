@@ -34,6 +34,12 @@ struct GameActions {
     /// library. A present file would come back with the next scan, so
     /// present games are hidden instead.
     let requestRemoval: () -> Void
+    let organize: OrganizeActions
+    /// Opens the game's save states.
+    let showSaveStates: () -> Void
+    /// Edits the disc playlist of an .m3u game, or creates one from the
+    /// game's loose discs; nil when the game has neither.
+    var discs: DiscAction?
 
     var favoriteTitle: LocalizedStringKey {
         game.isFavorite ? "Remove from Favorites" : "Add to Favorites"
@@ -53,6 +59,17 @@ struct GameActions {
 
     var favoriteSymbol: String {
         game.isFavorite ? "heart.slash" : "heart"
+    }
+}
+
+/// Edit Discs… or Create Disc Playlist… for a multi-disc game.
+struct DiscAction {
+    enum Kind { case edit, create }
+    let kind: Kind
+    let perform: () -> Void
+
+    var title: LocalizedStringKey {
+        kind == .edit ? "Edit Discs…" : "Create Disc Playlist…"
     }
 }
 
@@ -89,12 +106,12 @@ struct GameActionItems: View {
             }
             Button(actions.favoriteTitle, systemImage: actions.favoriteSymbol, action: actions.toggleFavorite)
                 .keyboardShortcut(shortcut("d"))
-            Divider()
         } else if actions.hasAutosave {
             Button(actions.alternatePlayTitle, systemImage: actions.resumesAutomatically ? "backward.end" : "play",
                    action: actions.playAlternate)
-            Divider()
         }
+        OrganizeItems(actions: actions.organize)
+        Divider()
         Button("Edit Info…", systemImage: "pencil", action: actions.editInfo)
             .keyboardShortcut(shortcut("i"))
         Button("Choose Match…", systemImage: "magnifyingglass.circle", action: actions.chooseMatch)
@@ -105,8 +122,12 @@ struct GameActionItems: View {
             Button("Show in Finder", systemImage: "folder", action: actions.showInFinder)
                 .keyboardShortcut(shortcut("r"))
         }
+        Button("Save States…", systemImage: "square.stack.3d.up", action: actions.showSaveStates)
         Button("Import Battery Save…", systemImage: "square.and.arrow.down", action: actions.importBatterySave)
             .disabled(!actions.canImportBatterySave)
+        if let discs = actions.discs {
+            Button(discs.title, systemImage: "opticaldisc", action: discs.perform)
+        }
         if placement == .contextMenu, (actions.game.system?.cores.count ?? 0) > 1 {
             GameCorePicker(actions: actions)
                 .pickerStyle(.menu)

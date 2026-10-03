@@ -7,6 +7,12 @@ nonisolated enum ScrapeState: String, Codable, Sendable {
     case pending, matched, notFound, failed
 }
 
+/// Where the user is with a game. Set by hand; playing never changes it.
+nonisolated enum PlayStatus: String, CaseIterable, Codable, Sendable, Identifiable {
+    case upNext, playing, completed, abandoned
+    var id: String { rawValue }
+}
+
 /// Metadata the user can edit. An edited field is locked: scraping keeps the
 /// user's value.
 nonisolated enum GameField: String, CaseIterable, Codable, Sendable {
@@ -57,6 +63,13 @@ final class Game {
     var coreOptionsData: Data?
     /// Controls for this game only: JSON `InputProfile`.
     var inputProfileData: Data?
+    /// Newline-separated names of the collections the game belongs to.
+    var collectionsRaw: String?
+    /// A `PlayStatus`; nil while the user has not set one.
+    var playStatusRaw: String?
+    /// The user chose this file among the versions of the game (regions,
+    /// revisions, translations); grouped versions show it.
+    var isPreferredVariant: Bool = false
 
     // Metadata
     var scrapeStateRaw: String
@@ -124,6 +137,21 @@ final class Game {
     }
 
     func isLocked(_ field: GameField) -> Bool { lockedFields.contains(field) }
+
+    var playStatus: PlayStatus? {
+        get { playStatusRaw.flatMap(PlayStatus.init(rawValue:)) }
+        set { playStatusRaw = newValue?.rawValue }
+    }
+
+    /// Collection names in the order they were added.
+    var collections: [String] {
+        get { (collectionsRaw ?? "").split(separator: "\n").map(String.init) }
+        set {
+            var seen = Set<String>()
+            let names = newValue.filter { !$0.isEmpty && seen.insert($0).inserted }
+            collectionsRaw = names.isEmpty ? nil : names.joined(separator: "\n")
+        }
+    }
 
     var missingTracks: [String] {
         get { (missingTracksRaw ?? "").split(separator: "\n").map(String.init) }
@@ -206,7 +234,9 @@ extension Game {
                    releaseDate: releaseDate, players: players, rating: rating, boxArtFile: boxArtFile,
                    screenshotFile: screenshotFile, titleScreenFile: titleScreenFile, logoFile: logoFile,
                    fanartFile: fanartFile, systemOverride: systemOverride, lockedFields: lockedFieldsRaw,
-                   isHidden: isHidden, coreOptions: coreOptionsData, inputProfile: inputProfileData)
+                   isHidden: isHidden, coreOptions: coreOptionsData, inputProfile: inputProfileData,
+                   collections: collections.isEmpty ? nil : collections, playStatus: playStatusRaw,
+                   isPreferredVariant: isPreferredVariant ? true : nil)
     }
 
     /// A new library entry from a backup record.
@@ -226,6 +256,9 @@ extension Game {
         isHidden = record.isHidden ?? false
         coreOptionsData = record.coreOptions
         inputProfileData = record.inputProfile
+        collections = record.collections ?? []
+        playStatusRaw = record.playStatus
+        isPreferredVariant = record.isPreferredVariant ?? false
         adoptMetadata(of: record)
     }
 
@@ -246,6 +279,9 @@ extension Game {
         isHidden = isHidden || (record.isHidden ?? false)
         if coreOptionsData == nil { coreOptionsData = record.coreOptions }
         if inputProfileData == nil { inputProfileData = record.inputProfile }
+        collections += record.collections ?? []
+        if playStatusRaw == nil { playStatusRaw = record.playStatus }
+        isPreferredVariant = isPreferredVariant || (record.isPreferredVariant ?? false)
         // The user's own edits count as much as a match.
         let hasOwnMetadata = scrapeState == .matched || !lockedFields.isEmpty
         if !hasOwnMetadata, record.scrapeState == ScrapeState.matched.rawValue || record.lockedFields != nil {

@@ -26,7 +26,14 @@
   identifies the system of every game from file types and folder names, hides
   disc track files, and rescans by itself when files change. A scan report
   lists files it could not identify (add them with a system of your choice)
-  and discs with missing tracks; games can be hidden instead of removed.
+  and discs with missing tracks; games can be hidden instead of removed. Drop
+  games or folders on the window, or open them from the Finder.
+- **Organised your way.** Collections such as “Couch Co-op”, a play status
+  (Up Next, Playing, Completed, Abandoned) and filters for genre, players,
+  decade, metadata and missing files. Select several games to favourite, tag,
+  scrape or hide them at once, or switch to a sortable list (⌘2). Regions,
+  revisions, translations and hacks of a game show as one entry with the
+  version you prefer.
 - **Covers and details from ScreenScraper.** Box art, screenshots, fan art,
   logos, descriptions, developer, publisher, genre, release date and rating —
   in your language and region (e.g. German titles and box art). Edit any
@@ -37,9 +44,12 @@
   cores (N64, PSP, Dreamcast).
 - **libretro cores on demand.** The right core is downloaded automatically from
   the libretro buildbot the first time you start a game — nothing to configure.
-- **Save states with thumbnails**, quick save/load, battery saves, fast forward,
-  multi-disc games, core options per core or per game. Quitting a game keeps
-  where you are, and Play resumes there.
+- **Save states with thumbnails and names**, quick save/load, battery saves,
+  fast forward, core options per core or per game. Overwritten and deleted
+  states can be brought back, and every state can start its game from the
+  library. Quitting a game keeps where you are, and Play resumes there.
+- **Multi-disc games** with disc playlists Ursprung creates from loose discs,
+  disc labels, reordering and a check for missing discs.
 - **Your progress stays put.** Renamed or moved ROMs keep their favourites,
   play time and saves; missing files can be located again. One-file backups
   restore your library, saves, states and settings on another Mac.
@@ -49,7 +59,9 @@
   USB/Bluetooth gamepads via IOKit. Up to four players, each controller on
   the player you choose; keyboard, controller buttons and hotkeys remappable
   for all systems, per system or per game; live input test; mouse as touch
-  screen / pointer (Nintendo DS).
+  screen / pointer (Nintendo DS). Browse the library with a controller: the
+  D-pad moves, the right face button plays, the top one toggles a favourite
+  and the shoulder buttons switch lists.
 - **BIOS management.** Drop BIOS files in and Ursprung recognises them by
   checksum and names them the way each core expects.
 - **English and German** user interface.
@@ -142,7 +154,7 @@ Everything lives in `~/Library/Application Support/Ursprung/`:
 | `Cores/` | Downloaded libretro cores |
 | `System/` | BIOS files and core assets (the libretro system directory) |
 | `Saves/<system>/<game-id>/` | Battery saves (`.srm`), one folder per game. Memory cards and other core saves live in `Saves/<system>/` |
-| `States/<game-id>/<core>/` | Save states with thumbnails and manifests, one folder per core |
+| `States/<game-id>/<core>/` | Save states with thumbnails and manifests, one folder per core; `History/` keeps recently replaced ones |
 | `Media/<game>/` | Artwork from ScreenScraper |
 
 Your game files are only ever read, never modified. File › Back Up Library…

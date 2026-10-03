@@ -8,6 +8,11 @@ import SwiftUI
 struct GameInspector: View {
     let game: Game
     let actions: GameActions
+    /// Every version of the game, the shown one first.
+    var versions: [Game] = []
+    /// Whether the library shows one card for all versions.
+    var showsGroupedVersions = true
+    var versionActions: VersionActions?
 
     @Environment(EmulationSession.self) private var session
     @Environment(BIOSManager.self) private var bios
@@ -36,8 +41,13 @@ struct GameInspector: View {
                         overviewSection(overview)
                     }
                     detailsSection
+                    organizeSection
+                    if versions.count > 1 {
+                        versionsSection
+                    }
                     activitySection
                     emulationSection
+                    discsSection
                     fileSection
                 }
                 .padding(.top, AppSpacing.xl)
@@ -258,12 +268,95 @@ struct GameInspector: View {
         .font(.callout)
     }
 
+    private var organizeSection: some View {
+        InfoSection("Organize") {
+            InfoRowLayout("Status") {
+                Picker("Status", selection: Binding(get: { game.playStatus }, set: { actions.organize.setStatus($0) })) {
+                    Text(verbatim: "–").tag(PlayStatus?.none)
+                    Divider()
+                    ForEach(PlayStatus.allCases) { status in
+                        Label(status.title, systemImage: status.symbol).tag(PlayStatus?.some(status))
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .controlSize(.small)
+                .frame(maxWidth: 180, alignment: .leading)
+            }
+            CollectionToggles(actions: actions.organize)
+        }
+    }
+
+    /// The other files of this game: regions, revisions, translations, hacks.
+    private var versionsSection: some View {
+        InfoSection("Versions") {
+            ForEach(versions, id: \.persistentModelID) { version in
+                VersionRow(version: version, isCurrent: version === game,
+                           isShown: showsGroupedVersions && version === versions.first,
+                           isDuplicate: isDuplicate(version), actions: versionActions)
+            }
+        }
+    }
+
+    private func isDuplicate(_ version: Game) -> Bool {
+        guard let crc = version.crc32 else { return false }
+        return versions.contains { $0 !== version && $0.crc32?.caseInsensitiveCompare(crc) == .orderedSame }
+    }
+
     private var activitySection: some View {
         InfoSection("Activity") {
             InfoRow("Last Played", game.lastPlayed.map { $0.formatted(.relative(presentation: .named)) } ?? String(localized: "Never"))
             InfoRow("Play Time", game.playTime > 0 ? Duration.seconds(game.playTime).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)) : "–")
             InfoRow("Sessions", game.playCount > 0 ? String(game.playCount) : "–")
             InfoRow("Added", game.dateAdded.formatted(date: .abbreviated, time: .omitted))
+            InfoRowLayout("Save States") {
+                HStack(spacing: AppSpacing.s) {
+                    let count = stateCount
+                    Text(count > 0 ? String(count) : "–")
+                    if count > 0 {
+                        Button("Show…", action: actions.showSaveStates)
+                            .buttonStyle(.link)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Slots and automatic states of all cores; replaced ones are not counted.
+    private var stateCount: Int {
+        SaveStateStore.allStates(in: AppPaths.states, gameID: game.id)
+            .reduce(0) { $0 + $1.slots.count + ($1.autosave == nil ? 0 : 1) }
+    }
+
+    /// The discs of a playlist, or the loose discs this one belongs to.
+    @ViewBuilder
+    private var discsSection: some View {
+        if let discs = actions.discs {
+            InfoSection("Discs") {
+                switch discs.kind {
+                case .edit:
+                    let entries = DiscPlaylist.read(game.fileURL)?.entries ?? []
+                    ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                        InfoRow("Disc \(index + 1)", entry.label ?? (entry.path as NSString).lastPathComponent)
+                    }
+                    let numbers = entries.compactMap { VariantInfo.parse(fileName: ($0.path as NSString).lastPathComponent).disc }
+                    let declared = entries.compactMap { VariantInfo.parse(fileName: ($0.path as NSString).lastPathComponent).discCount }.max()
+                    let missing = DiscSets.missingDiscs(numbers, declaredCount: declared)
+                    if !missing.isEmpty {
+                        StatusLabel("Disc \(missing.map(String.init).formatted(.list(type: .and))) isn't in the playlist",
+                                    kind: .warning, prominent: true)
+                            .font(.callout)
+                    }
+                case .create:
+                    Text("This disc has no playlist yet, so each disc is a game of its own. A playlist lets you change discs from the pause menu.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Button(discs.title, action: discs.perform)
+                    .buttonStyle(.link)
+                    .font(.callout)
+            }
         }
     }
 
@@ -339,6 +432,79 @@ struct GameInspector: View {
             InfoRow("Size", ByteCountFormatter.string(fromByteCount: game.fileSize, countStyle: .file))
             InfoRow("CRC32", game.crc32, isCode: true)
         }
+    }
+}
+
+/// Playing a particular version, or making it the one the library shows.
+struct VersionActions {
+    let play: (Game) -> Void
+    let prefer: (Game) -> Void
+}
+
+/// One version in the inspector: what sets it apart, and its actions.
+private struct VersionRow: View {
+    let version: Game
+    /// The version this inspector shows.
+    let isCurrent: Bool
+    /// The version the library's card stands for.
+    let isShown: Bool
+    /// Another version is the identical file.
+    let isDuplicate: Bool
+    let actions: VersionActions?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.s) {
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                HStack(spacing: AppSpacing.xs) {
+                    Text(verbatim: version.variantLabel)
+                        .fontWeight(isCurrent ? .semibold : .regular)
+                        .lineLimit(2)
+                    if version.isFavorite {
+                        Image(systemName: "heart.fill")
+                            .imageScale(.small)
+                            .foregroundStyle(.favorite)
+                            .accessibilityLabel("Favorite")
+                    }
+                }
+                Text(verbatim: details)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(version.fileName)
+            }
+            Spacer(minLength: AppSpacing.s)
+            if let actions {
+                Menu {
+                    Button("Play", systemImage: "play.fill") { actions.play(version) }
+                    Button("Show This Version", systemImage: "checkmark.circle") { actions.prefer(version) }
+                        .disabled(isShown || isCurrent && version.isPreferredVariant)
+                    Button("Show in Finder", systemImage: "folder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([version.fileURL])
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.button)
+                .menuIndicator(.hidden)
+                .buttonStyle(.borderless)
+                .fixedSize()
+                .help("Version Actions")
+                .accessibilityLabel(Text("Actions for \(version.variantLabel)"))
+            }
+        }
+        .font(.callout)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var details: String {
+        var parts: [String] = []
+        if isShown { parts.append(String(localized: "Shown in Library")) }
+        if version.variantInfo.flags.contains(.verified) { parts.append(String(localized: "Verified")) }
+        if isDuplicate { parts.append(String(localized: "Identical File")) }
+        if version.isMissing { parts.append(String(localized: "File Missing")) }
+        parts.append(version.fileName)
+        return parts.joined(separator: " · ")
     }
 }
 

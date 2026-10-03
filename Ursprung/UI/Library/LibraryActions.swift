@@ -16,6 +16,10 @@ struct LibraryActions {
     let requestRefetchAllMetadata: () -> Void
     /// Settings › General, where the library folders are managed.
     let showLibraryFolders: () -> Void
+    /// Asks for a name and creates an empty collection.
+    let newCollection: () -> Void
+    /// Chooses single games or folders to add.
+    let addGames: () -> Void
 }
 
 extension FocusedValues {
@@ -42,6 +46,11 @@ struct LibraryActionItems: View {
                 Button("Add Folder to Library…") { actions?.addFolder() }
                     .keyboardShortcut("o")
             }
+            Button("Add Games…", systemImage: "doc.badge.plus") { actions?.addGames() }
+                .keyboardShortcut(placement == .menuBar ? KeyboardShortcut("o", modifiers: [.command, .shift]) : nil)
+            Button("New Collection…", systemImage: "rectangle.stack.badge.plus") { actions?.newCollection() }
+                .keyboardShortcut(placement == .menuBar ? KeyboardShortcut("n", modifiers: [.command, .option]) : nil)
+            Divider()
             Button("Rescan Library", systemImage: "arrow.clockwise") { actions?.rescan() }
                 .keyboardShortcut(placement == .menuBar ? KeyboardShortcut("r", modifiers: [.command, .shift]) : nil)
                 .disabled(actions?.isScanning ?? false)

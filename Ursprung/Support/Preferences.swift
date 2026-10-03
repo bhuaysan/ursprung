@@ -26,6 +26,10 @@ nonisolated enum PrefKey {
     static let hotkeys = "hotkeys"
     static let portAssignments = "portAssignments"
     static let stickDeadZone = "stickDeadZone"
+    static let collections = "collections"
+    static let libraryViewMode = "libraryViewMode"
+    static let groupsVariants = "groupsVariants"
+    static let preferredRegions = "preferredRegions"
     static func inputProfile(_ systemID: String) -> String { "inputProfile.\(systemID)" }
     static func coreChoice(_ systemID: String) -> String { "coreChoice.\(systemID)" }
     static func coreOptions(_ coreID: String) -> String { "coreOptions.\(coreID)" }
@@ -72,6 +76,7 @@ nonisolated enum Preferences {
             PrefKey.periodicAutosave: false,
             PrefKey.resumeAutomatically: true,
             PrefKey.stickDeadZone: 0.15,
+            PrefKey.groupsVariants: true,
         ])
     }
 
@@ -92,6 +97,12 @@ nonisolated enum Preferences {
     static var periodicAutosave: Bool { defaults.bool(forKey: PrefKey.periodicAutosave) }
     static var resumeAutomatically: Bool { defaults.bool(forKey: PrefKey.resumeAutomatically) }
     static var stickDeadZone: Float { Float(defaults.double(forKey: PrefKey.stickDeadZone)) }
+
+    /// The user's collections in sidebar order, including empty ones.
+    static var collections: [String] {
+        get { defaults.stringArray(forKey: PrefKey.collections) ?? [] }
+        set { defaults.set(newValue, forKey: PrefKey.collections) }
+    }
 
     static func coreChoice(for systemID: String) -> String? {
         defaults.string(forKey: PrefKey.coreChoice(systemID))
@@ -126,6 +137,7 @@ nonisolated enum Preferences {
         PrefKey.showFPS, PrefKey.gridSize, PrefKey.keyboardMapping, PrefKey.librarySort,
         PrefKey.autosaveOnQuit, PrefKey.periodicAutosave, PrefKey.resumeAutomatically,
         PrefKey.controllerMapping, PrefKey.hotkeys, PrefKey.portAssignments, PrefKey.stickDeadZone,
+        PrefKey.collections, PrefKey.libraryViewMode, PrefKey.groupsVariants,
     ]
     private static let backedUpPrefixes = ["coreChoice.", "coreOptions.", "hidGamepadMapping.", "inputProfile."]
 
@@ -150,6 +162,10 @@ nonisolated enum Preferences {
         for (key, value) in values where isBackedUp(key) {
             if key == PrefKey.libraryFolders {
                 folders = (value as? [String] ?? []).map { URL(filePath: $0, directoryHint: .isDirectory) }
+            } else if key == PrefKey.collections {
+                // Like the games, collections are added to the current ones.
+                let current = collections
+                collections = current + (value as? [String] ?? []).filter { !current.contains($0) }
             } else {
                 defaults.set(value, forKey: key)
             }

@@ -286,6 +286,75 @@ final class LibraryStore {
         }
     }
 
+    // MARK: Importing
+
+    /// What dropping or opening files added.
+    struct ImportResult {
+        /// The library's games for the files, new or already known.
+        var games: [Game] = []
+        /// Files whose system is unknown; the scan report offers them.
+        var unrecognized = 0
+    }
+
+    /// Adds dropped or opened files and folders. Folders become library
+    /// folders. Files inside a library folder are found by a scan; files
+    /// elsewhere are added one by one and stay where they are.
+    func importItems(_ urls: [URL], context: ModelContext) async -> ImportResult {
+        var folders: [URL] = []
+        var files: [URL] = []
+        for url in urls.map(\.standardizedFileURL) {
+            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            let isPackage = (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) ?? false
+            if isDirectory, !isPackage { folders.append(url) } else { files.append(url) }
+        }
+        addFolders(folders)
+
+        let folderPaths = self.folders.map { $0.path(percentEncoded: false) }
+        let known = Set(((try? context.fetch(FetchDescriptor<Game>())) ?? []).map(\.path))
+        let isCovered = { (url: URL) in folderPaths.contains { LibraryPaths.isInside(url.path(percentEncoded: false), folder: $0) } }
+        if !folders.isEmpty || files.contains(where: { isCovered($0) && !known.contains($0.path(percentEncoded: false)) }) {
+            await rescan(context: context)
+        }
+
+        let outside = files.filter { !isCovered($0) && !known.contains($0.path(percentEncoded: false)) }
+        var result = ImportResult()
+        if !outside.isEmpty {
+            let scan = await Self.scanFiles(outside)
+            for rom in scan.roms {
+                let game = Game(path: rom.url.path(percentEncoded: false), systemID: rom.systemID, title: rom.title,
+                                fileName: rom.fileName, fileSize: rom.fileSize, crc32: rom.crc32)
+                game.fileModified = rom.modified
+                game.missingTracks = rom.missingTracks
+                context.insert(game)
+            }
+            let newUnrecognized = scan.unrecognized.filter { !unrecognizedFiles.contains($0) }
+            unrecognizedFiles += newUnrecognized
+            result.unrecognized = newUnrecognized.count
+            try? context.save()
+            let added = (try? context.fetch(FetchDescriptor<Game>())) ?? []
+            if scrapesAutomatically() {
+                let paths = Set(scan.roms.map { $0.url.path(percentEncoded: false) })
+                metadata.enqueue(added.filter { paths.contains($0.path) }, context: context)
+            }
+        }
+
+        let library = (try? context.fetch(FetchDescriptor<Game>())) ?? []
+        let byPath = Dictionary(library.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+        for file in files {
+            guard let game = byPath[file.path(percentEncoded: false)] else { continue }
+            // Adding a hidden game asks for it back.
+            if game.isHidden { game.isHidden = false }
+            result.games.append(game)
+        }
+        try? context.save()
+        return result
+    }
+
+    @concurrent
+    private static func scanFiles(_ files: [URL]) async -> LibraryScan {
+        LibraryScanner.scan(files: files)
+    }
+
     /// Adds a file the scan could not identify as a game of `systemID`. The
     /// choice is kept: later scans leave the system alone.
     func addUnrecognized(_ url: URL, systemID: String, context: ModelContext) {
@@ -482,6 +551,32 @@ final class LibraryStore {
         }
     }
 
+    // MARK: Disc playlists
+
+    /// Makes one game of loose discs once a playlist for them exists at
+    /// `playlist`. The disc played most keeps its identity and moves to the
+    /// playlist; the others fold into it with their play time and saves.
+    /// `keeping` is the playlist's own game when the playlist was edited.
+    @discardableResult
+    func adoptPlaylist(_ playlist: URL, discs: [Game], keeping: Game? = nil, context: ModelContext) throws -> Game? {
+        let mostPlayed = discs.max { ($0.playTime, $0.lastPlayed ?? .distantPast) < ($1.playTime, $1.lastPlayed ?? .distantPast) }
+        guard let main = keeping ?? mostPlayed else { return nil }
+        let baseName = (playlist.lastPathComponent as NSString).deletingPathExtension
+        let derivedTitle = main.title == TitleFormatter.title(fromFileName: main.fileName)
+        for disc in discs where disc !== main {
+            merge(disc, into: main, baseName: main.saveBaseName)
+            context.delete(disc)
+        }
+        try relink(main, to: playlist, context: context)
+        main.missingTracks = LibraryScanner.missingTracks(of: playlist)
+        // A disc's title (“Game”) stays; only one derived from its file name follows the playlist.
+        if derivedTitle, main.scrapeState != .matched, main.lockedFields.isEmpty {
+            main.title = TitleFormatter.title(fromFileName: baseName)
+        }
+        try? context.save()
+        return main
+    }
+
     /// Folds `duplicate` into `game` before it is deleted.
     private func merge(_ duplicate: Game, into game: Game, baseName: String) {
         game.isFavorite = game.isFavorite || duplicate.isFavorite
@@ -493,6 +588,8 @@ final class LibraryStore {
         if game.systemOverride == nil { game.systemOverride = duplicate.systemOverride }
         if game.coreOptionsData == nil { game.coreOptionsData = duplicate.coreOptionsData }
         if game.inputProfileData == nil { game.inputProfileData = duplicate.inputProfileData }
+        game.collections += duplicate.collections
+        if game.playStatus == nil { game.playStatus = duplicate.playStatus }
         if game.scrapeState != .matched, game.lockedFields.isEmpty, duplicate.scrapeState == .matched || !duplicate.lockedFields.isEmpty {
             game.adoptMetadata(of: duplicate)
         }

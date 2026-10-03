@@ -83,6 +83,25 @@ written, so quitting meanwhile keeps the state. An automatic state made from
 a different version of the game file is not loaded. If the core rejects the
 state, the game starts from the beginning.
 
+### Names and history
+
+A state can be named in the pause menu (Rename… on a slot, or the top face
+button on a controller) and in the library's Save States window. The name is
+stored in the manifest (`"name"`); saving into the slot again starts without a
+name.
+
+Saving into an occupied slot, or deleting a slot's state, does not destroy the
+previous state. It moves to `States/<game id>/<core id>/History/` as
+`<milliseconds since 1970>-slotN.state` (with its `.png` and `.json`), where the
+pause menu's Recently Replaced page and the library's Save States window can
+load it or put it back into its slot. The newest 20 per game and core are
+kept. The new state is written to a temporary file first, so a failed save
+leaves the slot as it was. Automatic states have no history.
+
+The library's Save States window (Game › Save States…) lists every state of a
+game, per core. States of the game's current core can start the game
+(Play from Here).
+
 States are specific to a core, so every core has its own slots: switching a
 game to another core never overwrites the first core's states, and switching
 back finds them again.
@@ -98,7 +117,8 @@ ROM's CRC32, file name and size, and the date:
   "format" : 1,
   "gameCRC32" : "B19ED489",
   "gameFileName" : "Super Mario World (USA).sfc",
-  "gameFileSize" : 524288
+  "gameFileSize" : 524288,
+  "name" : "Before the final boss"
 }
 ```
 
@@ -148,7 +168,9 @@ its manifest lists, nothing is restored. Otherwise a summary asks for
 confirmation (optionally including settings), and then
 
 - per-game settings travel with the game: its chosen system, edited fields,
-  hidden state, core options and controls;
+  hidden state, core options and controls, collections, play status and the
+  version chosen among a game's variants. Collections are added to the
+  current ones; a play status already set is kept;
 - every backup entry joins the library entry with the same ID, the same path,
   or the same game by unique CRC32 or unique file name and size. It adds its
   favourite and takes the larger play time and play count, so restoring the
@@ -178,3 +200,25 @@ Rename such a copy to the original name to use it instead.
 (`LibrarySchema.swift`). Every change to `Game` adds a schema version and a
 migration stage, so a library written by an earlier release opens in a newer
 one. The frozen versions keep an exact copy of the model as it shipped.
+
+| Version | Adds |
+|---|---|
+| 1 | The first library |
+| 2 | Missing files (`missingSince`) |
+| 3 | Manual system, locked fields, hidden games, incomplete artwork, missing disc tracks, per-game core options and controls |
+| 4 | Collections, play status, preferred version among variants |
+
+## Disc playlists
+
+Discs named like `Game (USA) (Disc 1).cue` and `Game (USA) (Disc 2).cue` in
+one folder are a disc set. Until a playlist joins them, every disc is a game
+of its own; Game › Create Disc Playlist… writes `Game (USA).m3u` next to them.
+The disc played most keeps its identity and moves to the playlist, and the
+other discs fold into it with their play time, favourites, collections and
+saves (see *Conflicts*).
+
+Game › Edit Discs… orders, labels, adds and removes the discs of any .m3u
+game and warns about missing files and disc numbers. Labels are written as
+`#EXTINF:0,<label>` lines, which cores skip; a playlist without labels stays
+a plain list of files. RetroArch's `Disc.cue|Label` form is read too. The
+pause menu's Change Disc page shows the labels.

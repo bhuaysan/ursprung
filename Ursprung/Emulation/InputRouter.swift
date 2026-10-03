@@ -5,10 +5,15 @@ import GameController
 import Observation
 import simd
 
-/// A pause menu command from a game controller. Positional, like the
-/// RetroPad mapping: the right face button confirms, the bottom one goes back.
+/// A menu command from a game controller, for the pause menu and the
+/// library. Positional, like the RetroPad mapping: the right face button
+/// confirms, the bottom one goes back, the top one is a secondary action;
+/// the shoulder buttons switch pages.
 nonisolated enum MenuCommand: Equatable, Sendable {
-    case up, down, left, right, confirm, back
+    case up, down, left, right, confirm, back, secondary, previousPage, nextPage
+
+    /// Commands that repeat while their button is held.
+    var repeats: Bool { [.up, .down, .left, .right].contains(self) }
 }
 
 /// One controller press in the pause menu; the ID makes a repeated command a change.
@@ -64,6 +69,19 @@ final class InputRouter {
     }
     /// The latest controller press in the pause menu.
     private(set) var menuEvent: MenuEvent?
+    /// While set (the library window is key and no game runs), controllers
+    /// move through the library and feed no core.
+    @ObservationIgnored var routesToLibrary = false {
+        didSet {
+            guard routesToLibrary != oldValue else { return }
+            // Buttons held when the library takes over do not act in it.
+            libraryButtons = routesToLibrary ? Self.menuMask(of: padStates().map(\.state)) : 0
+            updateRepeat(0)
+            push()
+        }
+    }
+    /// The latest controller press in the library; directions repeat while held.
+    private(set) var libraryEvent: MenuEvent?
 
     /// The controls in use: the running game's, or the global ones.
     @ObservationIgnored var profile = InputProfile.global {
@@ -124,6 +142,9 @@ final class InputRouter {
     @ObservationIgnored private var pressedKeys = Set<UInt16>()
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var menuButtons: UInt32 = 0
+    @ObservationIgnored private var libraryButtons: UInt32 = 0
+    @ObservationIgnored private var repeating: MenuCommand?
+    @ObservationIgnored private var repeatTimer: Timer?
     @ObservationIgnored private var deadZone = Preferences.stickDeadZone
     @ObservationIgnored private var learning: ((RetroInput) -> Void)?
     @ObservationIgnored private var learnBaseline: UInt32 = 0
@@ -280,6 +301,7 @@ final class InputRouter {
         let new = mask & ~previous
         let buttons: [(RetroButton, MenuCommand)] = [
             (.up, .up), (.down, .down), (.left, .left), (.right, .right), (.A, .confirm), (.B, .back),
+            (.X, .secondary), (.L, .previousPage), (.R, .nextPage),
         ]
         return buttons.filter { new & (1 << UInt32($0.0.rawValue)) != 0 }.map(\.1)
     }
@@ -290,6 +312,48 @@ final class InputRouter {
             menuEvent = MenuEvent(id: (menuEvent?.id ?? 0) + 1, command: command)
         }
         menuButtons = mask
+    }
+
+    // MARK: Library
+
+    /// Delay before a held direction repeats, and the interval after that.
+    static let repeatDelay: TimeInterval = 0.4
+    static let repeatInterval: TimeInterval = 0.09
+
+    private func routeToLibrary(_ pads: [PadState]) {
+        let mask = Self.menuMask(of: pads)
+        for command in Self.menuCommands(pressed: mask, previous: libraryButtons) {
+            sendLibraryEvent(command)
+        }
+        libraryButtons = mask
+        updateRepeat(mask)
+    }
+
+    private func sendLibraryEvent(_ command: MenuCommand) {
+        libraryEvent = MenuEvent(id: (libraryEvent?.id ?? 0) + 1, command: command)
+    }
+
+    /// Starts repeating the direction held in `mask`, or stops.
+    private func updateRepeat(_ mask: UInt32) {
+        let held = Self.menuCommands(pressed: mask, previous: 0).first(where: \.repeats)
+        guard held != repeating else { return }
+        repeating = held
+        repeatTimer?.invalidate()
+        repeatTimer = nil
+        guard let held else { return }
+        repeatTimer = Timer.scheduledTimer(withTimeInterval: Self.repeatDelay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.startRepeating(held) }
+        }
+    }
+
+    private func startRepeating(_ command: MenuCommand) {
+        guard repeating == command else { return }
+        repeatTimer = Timer.scheduledTimer(withTimeInterval: Self.repeatInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.repeating == command, self.routesToLibrary else { return }
+                self.sendLibraryEvent(command)
+            }
+        }
     }
 
     // MARK: State
@@ -374,6 +438,9 @@ final class InputRouter {
         }
         if routesToMenu {
             routeToMenu(pads.map(\.state))
+            pads = []
+        } else if routesToLibrary {
+            routeToLibrary(pads.map(\.state))
             pads = []
         }
         let ports = portStates(pads, includesKeyboard: !routesToMenu && learning == nil)

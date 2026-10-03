@@ -21,10 +21,12 @@ struct PauseMenuView: View {
     @State private var focusedRow = Row.resume
     @State private var focusedSlot = 1
     @State private var slotToDelete: SaveStateSlot?
+    @State private var stateToRename: SaveStateSlot?
+    @State private var newStateName = ""
     @State private var pointer = PointerAnchor()
 
     enum Page {
-        case main, states, discs, options
+        case main, states, history, discs, options
 
         var width: CGFloat { self == .main || self == .discs ? 340 : 560 }
 
@@ -32,17 +34,24 @@ struct PauseMenuView: View {
         var opener: Row {
             switch self {
             case .main: .resume
-            case .states: .saveStates
+            case .states, .history: .saveStates
             case .discs: .changeDisc
             case .options: .coreOptions
             }
         }
+
+        /// The page Back returns to.
+        var parent: Page { self == .history ? .states : .main }
     }
 
     enum Row: Hashable {
         case resume, quickSave, quickLoad, saveStates, changeDisc, coreOptions, reset, quit
         case disc(Int)
+        case history(Int)
     }
+
+    /// The Recently Replaced row below the 3 × 3 slot grid, as a focus position.
+    private static let historySlot = 10
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -58,6 +67,7 @@ struct PauseMenuView: View {
                         switch page {
                         case .main: FittingScrollView { mainPage }
                         case .states: FittingScrollView { statesPage }
+                        case .history: FittingScrollView { historyPage }
                         case .discs: FittingScrollView { discsPage }
                         case .options: CoreOptionsPage()
                         }
@@ -92,8 +102,11 @@ struct PauseMenuView: View {
         }
         .onDeleteCommand {
             // The Delete key arrives as the delete: action, not as a key press.
-            guard page == .states, let state = slotState(focusedSlot) else { return }
-            slotToDelete = state
+            if page == .states, let state = slotState(focusedSlot) {
+                slotToDelete = state
+            } else if page == .history, case .history(let index) = focusedRow, session.history.indices.contains(index) {
+                slotToDelete = session.history[index]
+            }
         }
         .onExitCommand(perform: back)
         .onChange(of: session.input.menuEvent) { _, event in
@@ -101,13 +114,24 @@ struct PauseMenuView: View {
         }
         .onAppear { isFocused = true }
         .focusedSceneValue(\.saveStateSlot, page == .states ? focusedSlot : nil)
-        .confirmationDialog(Text("Delete the save state in slot \(slotToDelete?.slot ?? 0)?"),
+        .confirmationDialog(deleteTitle,
                             isPresented: Binding(get: { slotToDelete != nil }, set: { if !$0 { slotToDelete = nil } }),
                             presenting: slotToDelete) { state in
             Button("Delete", role: .destructive) { session.deleteState(slot: state) }
             Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("This can't be undone.")
+        } message: { state in
+            Text(state.isHistory ? "This can't be undone." : "You can restore it from Recently Replaced.")
+        }
+        .alert("Name Save State", isPresented: Binding(get: { stateToRename != nil }, set: { if !$0 { stateToRename = nil } }),
+               presenting: stateToRename) { state in
+            TextField("Name", text: $newStateName)
+            Button("Save") { session.renameState(state, to: newStateName) }
+            if state.name != nil {
+                Button("Remove Name") { session.renameState(state, to: nil) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { state in
+            Text("A name for the state in \(state.slotTitle).")
         }
     }
 
@@ -165,10 +189,24 @@ struct PauseMenuView: View {
     private var discsPage: some View {
         VStack(spacing: 0) {
             ForEach(0..<session.diskCount, id: \.self) { index in
-                row(.disc(index), "Disc \(index + 1)", symbol: "opticaldisc",
+                row(.disc(index), discTitle(index), symbol: "opticaldisc",
                     hint: index == session.currentDisk ? .checkmark : nil)
             }
         }
+    }
+
+    /// “Disc 2”, or “Disc 2: Label” when the playlist labels it.
+    private func discTitle(_ index: Int) -> LocalizedStringKey {
+        if session.discLabels.indices.contains(index), let label = session.discLabels[index] {
+            return "Disc \(index + 1): \(label)"
+        }
+        return "Disc \(index + 1)"
+    }
+
+    private var deleteTitle: Text {
+        guard let slotToDelete else { return Text(verbatim: "") }
+        if slotToDelete.isHistory { return Text("Delete this replaced state?") }
+        return Text("Delete the save state in slot \(slotToDelete.slot)?")
     }
 
     private func row(_ row: Row, _ title: LocalizedStringKey, symbol: String, hint: MenuRow.Hint? = nil,
@@ -191,6 +229,8 @@ struct PauseMenuView: View {
                 + [.coreOptions, .reset, .quit]
         case .discs:
             (0..<session.diskCount).map(Row.disc)
+        case .history:
+            session.history.indices.map(Row.history)
         case .states, .options:
             []
         }
@@ -215,27 +255,69 @@ struct PauseMenuView: View {
         case .disc(let index):
             session.insertDisk(index)
             back()
+        case .history(let index):
+            if session.history.indices.contains(index) { session.loadState(session.history[index]) }
         }
     }
 
     // MARK: Save states page
 
     private var statesPage: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppSpacing.m, alignment: .top), count: 3),
-                  spacing: AppSpacing.m) {
-            ForEach(1...9, id: \.self) { slot in
-                let state = slotState(slot)
-                SlotView(slot: slot, state: state, issues: state.map(session.issues(for:)) ?? [],
-                         isFocused: focusedSlot == slot, showsFocus: showsFocus,
-                         save: { session.saveState(slot: slot) },
-                         load: { session.loadState(slot: slot) },
-                         delete: { slotToDelete = state })
-                    .id(slot)
-                    .onHover { if $0, pointer.hasMoved { focusedSlot = slot } }
+        VStack(spacing: AppSpacing.m) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppSpacing.m, alignment: .top), count: 3),
+                      spacing: AppSpacing.m) {
+                ForEach(1...9, id: \.self) { slot in
+                    let state = slotState(slot)
+                    SlotView(slot: slot, state: state, issues: state.map(session.issues(for:)) ?? [],
+                             isFocused: focusedSlot == slot, showsFocus: showsFocus,
+                             save: { session.saveState(slot: slot) },
+                             load: { session.loadState(slot: slot) },
+                             rename: { state.map(startRenaming) },
+                             delete: { slotToDelete = state })
+                        .id(slot)
+                        .onHover { if $0, pointer.hasMoved { focusedSlot = slot } }
+                }
+            }
+            if !session.history.isEmpty {
+                MenuRow(title: "Recently Replaced (\(session.history.count))", symbol: "clock.arrow.circlepath",
+                        hint: .chevron, isDestructive: false,
+                        isFocused: showsFocus && focusedSlot == Self.historySlot) { openHistory() }
+                    .id(Self.historySlot)
+                    .onHover { if $0, pointer.hasMoved { focusedSlot = Self.historySlot } }
             }
         }
         // Room for the focus ring, which the scroll view would clip.
         .padding(6)
+    }
+
+    /// States replaced by newer ones or deleted, newest first.
+    private var historyPage: some View {
+        VStack(spacing: 0) {
+            Text("Saving into a slot or deleting a state keeps the previous state here for a while.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, AppSpacing.s)
+            ForEach(Array(session.history.enumerated()), id: \.element.id) { index, entry in
+                HistoryRow(entry: entry, issues: session.issues(for: entry),
+                           isFocused: showsFocus && focusedRow == .history(index),
+                           load: { session.loadState(entry) },
+                           restore: { session.restoreState(entry) },
+                           delete: { slotToDelete = entry })
+                    .id(Row.history(index))
+                    .onHover { if $0, pointer.hasMoved { focusedRow = .history(index) } }
+            }
+        }
+    }
+
+    private func openHistory() {
+        focusedRow = .history(0)
+        show(.history)
+    }
+
+    private func startRenaming(_ state: SaveStateSlot) {
+        newStateName = state.name ?? ""
+        stateToRename = state
     }
 
     private func slotState(_ slot: Int) -> SaveStateSlot? {
@@ -253,7 +335,7 @@ struct PauseMenuView: View {
             return true
         }
         switch page {
-        case .main, .discs:
+        case .main, .discs, .history:
             switch command {
             case .up, .down:
                 if let next = PauseMenuFocus.row(after: focusedRow, by: command == .up ? -1 : 1, in: rows.filter(isEnabled)) {
@@ -265,13 +347,23 @@ struct PauseMenuView: View {
                 return false
             }
         case .states:
-            if command == .confirm {
+            if focusedSlot == Self.historySlot {
+                switch command {
+                case .confirm: openHistory()
+                case .up: focusedSlot = 8
+                default: return false
+                }
+            } else if command == .confirm {
                 // Return loads an occupied slot and saves into an empty one.
                 if slotState(focusedSlot) != nil {
                     session.loadState(slot: focusedSlot)
                 } else {
                     session.saveState(slot: focusedSlot)
                 }
+            } else if command == .secondary, let state = slotState(focusedSlot), state.canRename {
+                startRenaming(state)
+            } else if command == .down, focusedSlot > 6, !session.history.isEmpty {
+                focusedSlot = Self.historySlot
             } else {
                 focusedSlot = PauseMenuFocus.slot(from: focusedSlot, moving: command)
             }
@@ -297,8 +389,12 @@ struct PauseMenuView: View {
     /// Main page: resume. Sub-page: back to the row that opened it.
     private func back() {
         guard page != .main else { return resume() }
-        focusedRow = page.opener
-        show(.main)
+        if page == .history {
+            focusedSlot = Self.historySlot
+        } else {
+            focusedRow = page.opener
+        }
+        show(page.parent)
         isFocused = true
     }
 
@@ -454,6 +550,7 @@ private struct SlotView: View {
     let showsFocus: Bool
     let save: () -> Void
     let load: () -> Void
+    let rename: () -> Void
     let delete: () -> Void
 
     private let radius = AppMetrics.artworkRadius
@@ -462,8 +559,10 @@ private struct SlotView: View {
         VStack(alignment: .leading, spacing: AppSpacing.xxs) {
             thumbnail
                 .padding(.bottom, AppSpacing.xs)
-            Text("Slot \(slot)")
+            (state?.name.map { Text(verbatim: $0) } ?? Text("Slot \(slot)"))
                 .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .help(state?.name.map { String(localized: "Slot \(slot): \($0)") } ?? "")
             HStack(spacing: AppSpacing.xxs) {
                 if !issues.isEmpty {
                     Image(systemName: StatusKind.warning.defaultSymbol)
@@ -484,6 +583,10 @@ private struct SlotView: View {
                 Button("Load", action: load)
                     .disabled(state == nil)
                 Spacer(minLength: 0)
+                Button("Rename…", systemImage: "pencil", action: rename)
+                    .labelStyle(.iconOnly)
+                    .disabled(state?.canRename != true)
+                    .help("Rename…")
                 Button("Delete…", systemImage: "trash", action: delete)
                     .labelStyle(.iconOnly)
                     .disabled(state == nil)
@@ -499,12 +602,14 @@ private struct SlotView: View {
             Button("Save", action: save)
             Button("Load", action: load)
                 .disabled(state == nil)
+            Button("Rename…", action: rename)
+                .disabled(state?.canRename != true)
             Divider()
             Button("Delete…", role: .destructive, action: delete)
                 .disabled(state == nil)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("Slot \(slot)"))
+        .accessibilityLabel(state?.name.map { Text("Slot \(slot): \($0)") } ?? Text("Slot \(slot)"))
     }
 
     private var issueText: String? {
@@ -534,6 +639,81 @@ private struct SlotView: View {
                         .padding(-inset)
                 }
             }
+    }
+}
+
+// MARK: - History
+
+/// A replaced or deleted state: thumbnail, where it was, when it was
+/// replaced, and Load / Restore / Delete on the focused row.
+private struct HistoryRow: View {
+    let entry: SaveStateSlot
+    let issues: [SaveStateIssue]
+    let isFocused: Bool
+    let load: () -> Void
+    let restore: () -> Void
+    let delete: () -> Void
+
+    var body: some View {
+        HStack(spacing: AppSpacing.m) {
+            RoundedRectangle(cornerRadius: AppMetrics.smallArtworkRadius, style: .continuous)
+                .fill(.white.opacity(0.06))
+                .frame(width: 64, height: 48)
+                .overlay {
+                    ArtworkImage(url: entry.thumbnailURL, maxPixel: 160, contentMode: .fill) { Color.clear }
+                }
+                .clipShape(.rect(cornerRadius: AppMetrics.smallArtworkRadius, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                Text(verbatim: [entry.slotTitle, entry.name].compactMap { $0 }.joined(separator: " · "))
+                    .font(.body)
+                    .lineLimit(1)
+                HStack(spacing: AppSpacing.xxs) {
+                    if !issues.isEmpty {
+                        Image(systemName: StatusKind.warning.defaultSymbol)
+                            .foregroundStyle(StatusKind.warning.color)
+                            .accessibilityHidden(true)
+                    }
+                    Text("Replaced \((entry.replaced ?? entry.date).formatted(.relative(presentation: .named)))")
+                }
+                .font(.caption)
+                .foregroundStyle(isFocused ? AnyShapeStyle(.white.opacity(0.8)) : AnyShapeStyle(.secondary))
+                .help(Text("Saved \(entry.date.formatted(date: .abbreviated, time: .shortened))"))
+            }
+            Spacer(minLength: AppSpacing.s)
+            HStack(spacing: AppSpacing.s) {
+                Button("Load", action: load)
+                Button(restoreTitle, action: restore)
+                Button("Delete…", systemImage: "trash", action: delete)
+                    .labelStyle(.iconOnly)
+                    .help("Delete…")
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .opacity(isFocused ? 1 : 0)
+        }
+        .foregroundStyle(isFocused ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background {
+            if isFocused {
+                RoundedRectangle(cornerRadius: AppMetrics.rowHighlightRadius, style: .continuous)
+                    .fill(Color.accentColor)
+            }
+        }
+        .contentShape(.rect)
+        .contextMenu {
+            Button("Load", action: load)
+            Button(restoreTitle, action: restore)
+            Divider()
+            Button("Delete…", role: .destructive, action: delete)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(verbatim: [entry.slotTitle, entry.name].compactMap { $0 }.joined(separator: ", ")))
+    }
+
+    private var restoreTitle: LocalizedStringKey {
+        entry.slot == 0 ? "Restore as Quick Save" : "Restore to Slot \(entry.slot)"
     }
 }
 

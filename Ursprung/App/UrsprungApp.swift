@@ -13,6 +13,7 @@ import SwiftUI
 
 @main
 struct UrsprungApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var metadata: MetadataService
     @State private var library: LibraryStore
     @State private var cores = CoreManager()

@@ -3,6 +3,8 @@
 Stand: 30. September 2026. Bewertet wurde der aktuelle lokale Arbeitsstand einschließlich geänderter und noch unversionierter Dateien.
 
 > **Umsetzungsstand 3. Oktober 2026:** Alle Must-haves sind umgesetzt: M1, M2 und M6 (P0) in `d7c33f0`, danach M3, M4, M5, M7, M8 und M9 (P1) sowie der Distributionsablauf (`make dist`, docs/RELEASE.md) und „Nach Updates suchen …“. Offen ist nur die erste notarisierte Veröffentlichung: Sie braucht ein „Developer ID Application“-Zertifikat aus dem Apple Developer Program. Details zu Spielständen, Identität und Backups: docs/SAVES.md. Die folgende Bewertung beschreibt den Stand vom 30. September.
+>
+> **Etappe C, 3. Oktober 2026:** Die Nice-to-haves 1–7 sind umgesetzt (Bibliotheksschema V4): Collections, Spielstatus und strukturierte Filter; Mehrfachauswahl mit Stapelaktionen und Listenansicht; Drag-and-drop, „Spiele hinzufügen …“ und Öffnen aus dem Finder; Varianten-Gruppierung mit bevorzugter Version; Controller-Navigation in der Bibliothek; Disc-Playlists erstellen und bearbeiten (Beschriftung, Reihenfolge, Vollständigkeit); benannte States, Verlauf ersetzter oder gelöschter States und eine States-Übersicht in der Bibliothek. Details: README, docs/SAVES.md.
 
 ## Bewertungsrahmen
 

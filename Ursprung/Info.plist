@@ -25,6 +25,104 @@
 		<string>en</string>
 		<string>de</string>
 	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<!-- “Open With” and drops on the Dock icon add games to the library.
+		     Alternate: Ursprung never takes over these files. The list
+		     matches SystemCatalog (checked by a test) except archives and
+		     extensions other files commonly use (.md, .o, .dmg, .iso,
+		     .img, .bin, .toc); those can still be dropped on the window. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Game</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>nes</string>
+				<string>unf</string>
+				<string>unif</string>
+				<string>fds</string>
+				<string>sfc</string>
+				<string>smc</string>
+				<string>swc</string>
+				<string>fig</string>
+				<string>bs</string>
+				<string>n64</string>
+				<string>z64</string>
+				<string>v64</string>
+				<string>gcm</string>
+				<string>gcz</string>
+				<string>rvz</string>
+				<string>wbfs</string>
+				<string>wad</string>
+				<string>gb</string>
+				<string>gbc</string>
+				<string>gba</string>
+				<string>agb</string>
+				<string>nds</string>
+				<string>dsi</string>
+				<string>ids</string>
+				<string>vb</string>
+				<string>vboy</string>
+				<string>min</string>
+				<string>sg</string>
+				<string>sms</string>
+				<string>gen</string>
+				<string>smd</string>
+				<string>mdx</string>
+				<string>68k</string>
+				<string>sgd</string>
+				<string>32x</string>
+				<string>gg</string>
+				<string>cdi</string>
+				<string>gdi</string>
+				<string>cso</string>
+				<string>pce</string>
+				<string>sgx</string>
+				<string>a26</string>
+				<string>a52</string>
+				<string>a78</string>
+				<string>lnx</string>
+				<string>lyx</string>
+				<string>j64</string>
+				<string>jag</string>
+				<string>ngp</string>
+				<string>ngc</string>
+				<string>ngpc</string>
+				<string>ws</string>
+				<string>wsc</string>
+				<string>col</string>
+				<string>int</string>
+				<string>vec</string>
+				<string>mx1</string>
+				<string>mx2</string>
+				<string>dsk</string>
+				<string>cas</string>
+				<string>cue</string>
+				<string>chd</string>
+				<string>m3u</string>
+				<string>rom</string>
+				<string>mdf</string>
+				<string>ccd</string>
+				<string>pbp</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Folder</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.folder</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.games</string>
 	<key>LSMinimumSystemVersion</key>

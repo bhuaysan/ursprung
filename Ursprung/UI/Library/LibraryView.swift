@@ -6,6 +6,7 @@ import SwiftUI
 nonisolated enum LibrarySelection: Hashable {
     case all, favorites, recent, hidden
     case system(String)
+    case collection(String)
 }
 
 /// What the content column shows. See docs/DESIGN_SPEC.md, section H.
@@ -15,12 +16,14 @@ nonisolated enum LibraryState: Equatable {
     case scanning
     case noGames
     case noResults(query: String)
+    case noFilterResults
     case noFavorites
     case nothingPlayed
+    case emptyCollection
     case games
 
     init(hasFolders: Bool, isScanning: Bool, libraryCount: Int, visibleCount: Int, searchText: String,
-         selection: LibrarySelection) {
+         selection: LibrarySelection, isFiltered: Bool = false) {
         if !hasFolders {
             self = .welcome
         } else if visibleCount > 0 {
@@ -30,10 +33,13 @@ nonisolated enum LibraryState: Equatable {
             self = isScanning ? .scanning : .noGames
         } else if !searchText.isEmpty {
             self = .noResults(query: searchText)
+        } else if isFiltered {
+            self = .noFilterResults
         } else {
             switch selection {
             case .favorites: self = .noFavorites
             case .recent: self = .nothingPlayed
+            case .collection: self = .emptyCollection
             // A system without games has no sidebar row; LibraryView falls back to All Games.
             case .all, .system, .hidden: self = .games
             }
@@ -42,7 +48,7 @@ nonisolated enum LibraryState: Equatable {
 }
 
 enum LibrarySort: String, CaseIterable, Identifiable {
-    case title, recentlyAdded, recentlyPlayed, releaseYear
+    case title, recentlyAdded, recentlyPlayed, releaseYear, system, playTime
     var id: String { rawValue }
 
     var label: LocalizedStringKey {
@@ -51,6 +57,25 @@ enum LibrarySort: String, CaseIterable, Identifiable {
         case .recentlyAdded: "Recently Added"
         case .recentlyPlayed: "Recently Played"
         case .releaseYear: "Release Year"
+        case .system: "System"
+        case .playTime: "Play Time"
+        }
+    }
+
+    /// Dates and play time list the latest and longest first.
+    var isDescendingByDefault: Bool {
+        self == .recentlyAdded || self == .recentlyPlayed || self == .playTime
+    }
+
+    /// `games` in this order; `games` comes sorted by title, which breaks ties.
+    func sorted(_ games: [Game]) -> [Game] {
+        switch self {
+        case .title: games
+        case .recentlyAdded: games.sorted { $0.dateAdded > $1.dateAdded }
+        case .recentlyPlayed: games.sorted { ($0.lastPlayed ?? .distantPast) > ($1.lastPlayed ?? .distantPast) }
+        case .releaseYear: games.sorted { ($0.releaseDate ?? "9999") < ($1.releaseDate ?? "9999") }
+        case .system: games.sorted { ($0.system?.name ?? $0.systemID) < ($1.system?.name ?? $1.systemID) }
+        case .playTime: games.sorted { $0.playTime > $1.playTime }
         }
     }
 }
@@ -59,6 +84,7 @@ struct LibraryView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.appearsActive) private var appearsActive
     @Environment(LibraryStore.self) private var library
     @Environment(MetadataService.self) private var metadata
     @Environment(EmulationSession.self) private var session
@@ -68,22 +94,40 @@ struct LibraryView: View {
     @Query(sort: \Game.title) private var games: [Game]
 
     @State private var selection: LibrarySelection? = .all
-    @State private var selectedGameID: PersistentIdentifier?
+    @State private var gameSelection = GameSelection<PersistentIdentifier>()
     @State private var searchText = ""
+    @State private var filter = LibraryFilter()
+    @State private var isSortReversed = false
     @State private var columns = ColumnLayoutState()
-    @State private var gamePendingRemoval: Game?
+    @State private var gamesPendingRemoval: [Game] = []
     @State private var isConfirmingRefetch = false
     @State private var unavailableGame: UnavailableGame?
     @State private var editingGame: Game?
     @State private var matchingGame: Game?
     @State private var isShowingScanReport = false
+    @State private var collectionPrompt: CollectionPrompt?
+    @State private var collectionName = ""
+    @State private var collectionPendingDeletion: String?
+    /// Bumped when collections change without any game changing (a new
+    /// empty collection, a new order), so the sidebar redraws.
+    @State private var collectionsRevision = 0
+    @State private var discEditor: DiscPlaylistRequest?
+    @State private var statesGame: Game?
+    @State private var isDropTargeted = false
+    @State private var externalOpen = ExternalOpen.shared
     @AppStorage(PrefKey.librarySort) private var sort: LibrarySort = .title
     @AppStorage(PrefKey.gridSize) private var gridSize = AppMetrics.defaultCoverStep
     @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
+    @AppStorage(PrefKey.libraryViewMode) private var viewMode: LibraryViewMode = .grid
+    @AppStorage(PrefKey.groupsVariants) private var groupsVariants = true
 
     var body: some View {
+        let shelf = makeShelf()
         NavigationSplitView(columnVisibility: sidebarVisibility) {
-            SidebarView(games: libraryGames, hiddenCount: games.count - libraryGames.count, selection: $selection,
+            // With versions grouped, the counts are games, not files, as in the grid.
+            SidebarView(games: sidebarGames(shelf),
+                        hiddenCount: games.count - libraryGames.count, selection: $selection,
+                        collections: collections, collectionActions: collectionActions,
                         retryMetadata: fetchMissingMetadata)
                 .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
                     columns.update { $0.measure(sidebar: width) }
@@ -92,125 +136,206 @@ struct LibraryView: View {
                 .navigationSplitViewColumnWidth(min: AppMetrics.sidebarWidth.min, ideal: AppMetrics.sidebarWidth.ideal,
                                                 max: AppMetrics.sidebarWidth.max)
         } detail: {
-            content
+            content(shelf)
+                .overlay { dropHighlight }
+                .dropDestination(for: URL.self) { urls, _ in
+                    importItems(urls, playsSingleGame: false)
+                    return !urls.isEmpty
+                } isTargeted: { isDropTargeted = $0 }
                 .navigationTitle(title)
-                .navigationSubtitle(subtitle)
+                .navigationSubtitle(subtitle(shelf))
                 .inspector(isPresented: inspectorPresented) {
-                    Group {
-                        if let game = selectedGame {
-                            GameInspector(game: game, actions: actions(for: game))
-                        } else {
-                            ContentUnavailableView("No Game Selected", systemImage: "square.stack",
-                                                   description: Text("Select a game to see its details."))
+                    inspector(shelf)
+                        .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
+                            columns.update { $0.measure(inspector: width) }
                         }
-                    }
-                    .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
-                        columns.update { $0.measure(inspector: width) }
-                    }
-                    // Must come after onGeometryChange, which otherwise hides the
-                    // width from AppKit: the column then opened at its 270 pt default.
-                    .inspectorColumnWidth(min: AppMetrics.inspectorWidth.min, ideal: AppMetrics.inspectorWidth.ideal,
-                                          max: AppMetrics.inspectorWidth.max)
+                        // Must come after onGeometryChange, which otherwise hides the
+                        // width from AppKit: the column then opened at its 270 pt default.
+                        .inspectorColumnWidth(min: AppMetrics.inspectorWidth.min, ideal: AppMetrics.inspectorWidth.ideal,
+                                              max: AppMetrics.inspectorWidth.max)
                 }
         }
         .background {
             WindowSizeReader { size in columns.update { $0.resize(to: size.width) } }
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search Games")
-        .toolbar { toolbar }
+        .toolbar { toolbar(shelf) }
         .focusedSceneValue(\.libraryActions, libraryActions)
         .focusedSceneValue(\.isShowingRecentlyPlayed, selection == .recent)
         .focusedSceneValue(\.inspectorToggle, InspectorToggle(isShown: columns.showsInspector, toggle: toggleInspector))
-        .focusedSceneValue(\.gameActions, selectedGame.map(actions(for:)))
-        .confirmationDialog(Text("Remove “\(gamePendingRemoval?.title ?? "")” from the library?"),
-                            isPresented: Binding(get: { gamePendingRemoval != nil },
-                                                 set: { if !$0 { gamePendingRemoval = nil } }),
-                            presenting: gamePendingRemoval) { game in
-            Button("Remove", role: .destructive) { remove(game) }
-            // No .defaultAction here: a button has one key equivalent, and Return would replace Escape.
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("Play time and favorite status are lost. Saves stay on disk.")
+        .focusedSceneValue(\.gameActions, singleSelectedGame(shelf).map { actions(for: $0, shelf: shelf) })
+        .focusedSceneValue(\.batchActions, selectedGames(shelf).count > 1 ? batchActions(for: selectedGames(shelf)) : nil)
+        .focusedSceneValue(\.libraryFilter, LibraryFilterControl(filter: $filter, options: shelf.filterOptions))
+        .modifier(DialogsModifier(view: self))
+        .modifier(ObserversModifier(view: self, shelf: shelf))
+    }
+
+    // MARK: Dialogs and observers
+
+    /// The library's sheets, alerts and confirmations. Apart from `body`,
+    /// which is otherwise too large to type-check.
+    private struct DialogsModifier: ViewModifier {
+        let view: LibraryView
+
+        func body(content: Content) -> some View {
+            view.dialogs(content)
         }
-        .sheet(item: $editingGame) { game in
-            GameInfoEditor(game: game)
+    }
+
+    private struct ObserversModifier: ViewModifier {
+        let view: LibraryView
+        let shelf: Shelf
+
+        func body(content: Content) -> some View {
+            view.observers(content, shelf: shelf)
         }
-        .sheet(item: $matchingGame) { game in
-            MatchPicker(game: game)
-        }
-        .sheet(isPresented: $isShowingScanReport) {
-            ScanReportView()
-        }
-        .alert(Text(unavailableGame?.title ?? ""),
-               isPresented: Binding(get: { unavailableGame != nil }, set: { if !$0 { unavailableGame = nil } }),
-               presenting: unavailableGame) { item in
-            if item.volume == nil {
-                Button("Locate…") {
-                    // After the alert has gone, so the open panel is not stacked on it.
-                    Task { library.presentLocatePanel(for: item.game, context: context) }
-                }
+    }
+
+    private func dialogs(_ content: some View) -> some View {
+        content
+            .confirmationDialog(removalTitle, isPresented: Binding(get: { !gamesPendingRemoval.isEmpty },
+                                                                   set: { if !$0 { gamesPendingRemoval = [] } })) {
+                Button("Remove", role: .destructive) { remove(gamesPendingRemoval) }
+                // No .defaultAction here: a button has one key equivalent, and Return would replace Escape.
                 Button("Cancel", role: .cancel) {}
-            } else {
-                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Play time and favorite status are lost. Saves stay on disk.")
             }
-        } message: { item in
-            if let volume = item.volume {
-                Text("Connect “\(volume)” to play this game.")
-            } else {
-                Text("The file was moved, renamed or deleted. Locate it to keep favorites, play time and saves with the game.")
+            .confirmationDialog(Text("Delete the collection “\(collectionPendingDeletion ?? "")”?"),
+                                isPresented: Binding(get: { collectionPendingDeletion != nil },
+                                                     set: { if !$0 { collectionPendingDeletion = nil } }),
+                                presenting: collectionPendingDeletion) { collection in
+                Button("Delete Collection", role: .destructive) { deleteCollection(collection) }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("The games stay in the library.")
             }
-        }
-        .confirmationDialog("Refetch metadata for all games?", isPresented: $isConfirmingRefetch) {
-            // Destructive: it overwrites existing metadata. Cancel keeps Escape.
-            Button("Refetch All", role: .destructive) { metadata.enqueue(games, force: true, context: context) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Titles, descriptions and artwork of every game are replaced with the data from ScreenScraper. Details you edited yourself are kept.")
-        }
-        .onChange(of: library.isScanning) { _, isScanning in
-            if !isScanning, let summary = library.lastScanSummary { announce(summary) }
-        }
-        .onChange(of: metadata.isRunning) { _, isRunning in
-            if !isRunning, metadata.lastError == nil { announce(String(localized: "Metadata fetched")) }
-        }
-        .onChange(of: metadata.lastError) { _, error in
-            if let error { announce(String(localized: "Metadata couldn't be fetched. \(error.message)")) }
-        }
-        .onChange(of: librarySystems.map(\.id)) { _, systemIDs in
-            // The sidebar row of a system disappears with its last game.
-            if case .system(let id) = selection, !systemIDs.contains(id) { selection = .all }
-        }
-        .onChange(of: games.count - libraryGames.count) { _, hidden in
-            // So does Hidden once nothing is hidden.
-            if hidden == 0, selection == .hidden { selection = .all }
-        }
-        .task(id: librarySystems.map(\.id)) {
-            if Preferences.autoScrape { await systemMedia.fetchMissing(for: librarySystems) }
-        }
-        .task {
-            // The inspector shows missing BIOS files; their status must be known.
-            await bios.refresh()
-            if !library.folders.isEmpty { await library.rescan(context: context) }
-            library.startWatching(context: context)
-            #if DEBUG
-            // Development aid: URSPRUNG_AUTOPLAY=<title substring> starts a game on launch.
-            if let query = ProcessInfo.processInfo.environment["URSPRUNG_AUTOPLAY"],
-               let game = games.first(where: { $0.title.localizedStandardContains(query) || $0.fileName.localizedStandardContains(query) }) {
-                play(game)
+            .alert(collectionPrompt?.title ?? "", isPresented: Binding(get: { collectionPrompt != nil },
+                                                                         set: { if !$0 { collectionPrompt = nil } }),
+                   presenting: collectionPrompt) { prompt in
+                TextField("Name", text: $collectionName)
+                Button(prompt.confirmTitle) { commit(prompt) }
+                    .disabled(LibraryCollections.validName(collectionName, existing: collections,
+                                                           renaming: prompt.renaming) == nil)
+                Button("Cancel", role: .cancel) {}
+            } message: { prompt in
+                Text(prompt.message)
             }
-            if let systemID = ProcessInfo.processInfo.environment["URSPRUNG_SYSTEM"] {
-                selection = .system(systemID)
+            .sheet(item: $editingGame) { game in
+                GameInfoEditor(game: game)
             }
-            if let query = ProcessInfo.processInfo.environment["URSPRUNG_SELECT"] {
-                selectedGameID = games.first { $0.title.localizedStandardContains(query) }?.persistentModelID
+            .sheet(item: $matchingGame) { game in
+                MatchPicker(game: game)
             }
-            // Shows the activity footer's error row.
-            if let message = ProcessInfo.processInfo.environment["URSPRUNG_METADATA_ERROR"] {
-                metadata.lastError = message == "quota" ? MetadataFailure(ScreenScraperError.quotaExceeded)
-                    : MetadataFailure(reason: message, message: message)
+            .sheet(isPresented: $isShowingScanReport) {
+                ScanReportView()
             }
-            #endif
-        }
+            .sheet(item: $discEditor) { request in
+                DiscPlaylistEditor(request: request) { game in
+                    if let game { gameSelection.select(game.persistentModelID) }
+                }
+            }
+            .sheet(item: $statesGame) { game in
+                SaveStatesBrowser(game: game) { state in play(game, from: state) }
+            }
+            .alert(Text(unavailableGame?.title ?? ""),
+                   isPresented: Binding(get: { unavailableGame != nil }, set: { if !$0 { unavailableGame = nil } }),
+                   presenting: unavailableGame) { item in
+                if item.volume == nil {
+                    Button("Locate…") {
+                        // After the alert has gone, so the open panel is not stacked on it.
+                        Task { library.presentLocatePanel(for: item.game, context: context) }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } else {
+                    Button("OK", role: .cancel) {}
+                }
+            } message: { item in
+                if let volume = item.volume {
+                    Text("Connect “\(volume)” to play this game.")
+                } else {
+                    Text("The file was moved, renamed or deleted. Locate it to keep favorites, play time and saves with the game.")
+                }
+            }
+            .confirmationDialog("Refetch metadata for all games?", isPresented: $isConfirmingRefetch) {
+                // Destructive: it overwrites existing metadata. Cancel keeps Escape.
+                Button("Refetch All", role: .destructive) { metadata.enqueue(games, force: true, context: context) }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Titles, descriptions and artwork of every game are replaced with the data from ScreenScraper. Details you edited yourself are kept.")
+            }
+    }
+
+    private func observers(_ content: some View, shelf: Shelf) -> some View {
+        content
+            .onChange(of: library.isScanning) { _, isScanning in
+                if !isScanning, let summary = library.lastScanSummary { announce(summary) }
+            }
+            .onChange(of: metadata.isRunning) { _, isRunning in
+                if !isRunning, metadata.lastError == nil { announce(String(localized: "Metadata fetched")) }
+            }
+            .onChange(of: metadata.lastError) { _, error in
+                if let error { announce(String(localized: "Metadata couldn't be fetched. \(error.message)")) }
+            }
+            .onChange(of: librarySystems.map(\.id)) { _, systemIDs in
+                // The sidebar row of a system disappears with its last game.
+                if case .system(let id) = selection, !systemIDs.contains(id) { selection = .all }
+            }
+            .onChange(of: collections) { _, collections in
+                if case .collection(let name) = selection, !collections.contains(name) { selection = .all }
+            }
+            .onChange(of: games.count - libraryGames.count) { _, hidden in
+                // So does Hidden once nothing is hidden.
+                if hidden == 0, selection == .hidden { selection = .all }
+            }
+            .onChange(of: shelf.games.map(\.persistentModelID)) { _, ids in
+                // Games that leave the view (hidden, filtered, removed) leave the selection.
+                gameSelection.keep(only: Set(ids))
+            }
+            .onChange(of: sort) { isSortReversed = false }
+            .onChange(of: controllersDriveLibrary, initial: true) { _, drives in
+                session.input.routesToLibrary = drives
+            }
+            .onChange(of: session.input.libraryEvent) { _, event in
+                if let event { handleController(event.command) }
+            }
+            .onChange(of: externalOpen.requests) { _, requests in
+                guard let request = requests.first else { return }
+                externalOpen.requests.removeFirst()
+                importItems(request, playsSingleGame: true)
+            }
+            .task(id: librarySystems.map(\.id)) {
+                if Preferences.autoScrape { await systemMedia.fetchMissing(for: librarySystems) }
+            }
+            .task {
+                // The inspector shows missing BIOS files; their status must be known.
+                await bios.refresh()
+                if !library.folders.isEmpty { await library.rescan(context: context) }
+                library.startWatching(context: context)
+                // Files opened from the Finder before the library was ready.
+                if let request = externalOpen.requests.first {
+                    externalOpen.requests.removeFirst()
+                    importItems(request, playsSingleGame: true)
+                }
+                #if DEBUG
+                // Development aid: URSPRUNG_AUTOPLAY=<title substring> starts a game on launch.
+                if let query = ProcessInfo.processInfo.environment["URSPRUNG_AUTOPLAY"],
+                   let game = games.first(where: { $0.title.localizedStandardContains(query) || $0.fileName.localizedStandardContains(query) }) {
+                    play(game)
+                }
+                if let systemID = ProcessInfo.processInfo.environment["URSPRUNG_SYSTEM"] {
+                    selection = .system(systemID)
+                }
+                if let query = ProcessInfo.processInfo.environment["URSPRUNG_SELECT"] {
+                    gameSelection.select(games.first { $0.title.localizedStandardContains(query) }?.persistentModelID)
+                }
+                // Shows the activity footer's error row.
+                if let message = ProcessInfo.processInfo.environment["URSPRUNG_METADATA_ERROR"] {
+                    metadata.lastError = message == "quota" ? MetadataFailure(ScreenScraperError.quotaExceeded)
+                        : MetadataFailure(reason: message, message: message)
+                }
+                #endif
+            }
     }
 
     // MARK: Columns
@@ -235,20 +360,74 @@ struct LibraryView: View {
 
     // MARK: Content
 
+    /// The games in view and what the views around them need to know.
+    private struct Shelf {
+        /// Sidebar selection, search, filter and sort applied; one game per
+        /// group when versions are grouped.
+        let games: [Game]
+        let groups: VariantGroups
+        let filterOptions: LibraryFilterOptions
+        let isGrouped: Bool
+    }
+
+    private func makeShelf() -> Shelf {
+        let scope = scopeGames
+        let groups = VariantGroups(selection == .hidden ? games.filter(\.isHidden) : libraryGames)
+        var result = scope
+        if !searchText.isEmpty {
+            result = result.filter {
+                $0.title.localizedStandardContains(searchText)
+                    || ($0.developer?.localizedStandardContains(searchText) ?? false)
+                    || ($0.genre?.localizedStandardContains(searchText) ?? false)
+                    || $0.collections.contains { $0.localizedStandardContains(searchText) }
+            }
+        }
+        if filter.isActive { result = result.filter(filter.matches) }
+        if selection == .recent {
+            result = LibrarySort.recentlyPlayed.sorted(result)
+        } else {
+            result = sort.sorted(result)
+            if isSortReversed { result.reverse() }
+        }
+        // Hidden lists every hidden file; elsewhere one card stands for all versions.
+        let isGrouped = groupsVariants && selection != .hidden
+        if isGrouped { result = groups.collapse(result) }
+        return Shelf(games: result, groups: groups, filterOptions: LibraryFilter.options(for: scope), isGrouped: isGrouped)
+    }
+
+    /// The games the sidebar counts: one per group when versions are grouped.
+    private func sidebarGames(_ shelf: Shelf) -> [Game] {
+        guard groupsVariants else { return libraryGames }
+        // Under Hidden the shelf groups hidden games; the sidebar counts the others.
+        let groups = selection == .hidden ? VariantGroups(libraryGames) : shelf.groups
+        return groups.collapse(libraryGames)
+    }
+
     @ViewBuilder
-    private var content: some View {
-        let visibleGames = filteredGames
-        switch LibraryState(hasFolders: !library.folders.isEmpty, isScanning: library.isScanning,
+    private func content(_ shelf: Shelf) -> some View {
+        let visibleGames = shelf.games
+        switch LibraryState(hasFolders: !library.folders.isEmpty || !games.isEmpty, isScanning: library.isScanning,
                             libraryCount: games.count, visibleCount: visibleGames.count, searchText: searchText,
-                            selection: selection ?? .all) {
+                            selection: selection ?? .all, isFiltered: filter.isActive) {
         case .games:
-            GameGridView(games: visibleGames, selectedGameID: $selectedGameID, coverStep: CoverSize.snapped(gridSize),
-                         system: selectedSystem, actions: actions(for:))
+            switch viewMode {
+            case .grid:
+                GameGridView(games: visibleGames, selection: $gameSelection, coverStep: CoverSize.snapped(gridSize),
+                             system: selectedSystem, actions: { actions(for: $0, shelf: shelf) },
+                             batchActions: selectedGames(shelf).count > 1 ? batchActions(for: selectedGames(shelf)) : nil,
+                             versionCount: { shelf.isGrouped ? shelf.groups.versionCount(of: $0) : 1 },
+                             controllerEvent: session.input.libraryEvent)
+            case .list:
+                GameTableView(games: visibleGames, selection: $gameSelection, sort: $sort, isSortReversed: $isSortReversed,
+                              actions: { actions(for: $0, shelf: shelf) }, batchActions: batchActions(for:),
+                              versionCount: { shelf.isGrouped ? shelf.groups.versionCount(of: $0) : 1 },
+                              controllerEvent: session.input.libraryEvent)
+            }
         case .welcome:
             ContentUnavailableView {
                 Label("Welcome to Ursprung", systemImage: "gamecontroller")
             } description: {
-                Text("Add a folder with your games. Ursprung detects the system and fetches covers from ScreenScraper.")
+                Text("Add a folder with your games, or drop games here. Ursprung detects the system and fetches covers from ScreenScraper.")
             } actions: {
                 Button("Add Folder…", action: libraryActions.addFolder)
                     .buttonStyle(.glassProminent)
@@ -280,10 +459,22 @@ struct LibraryView: View {
             } description: {
                 Text("Check the spelling or try a new search.")
             } actions: {
-                if selection != .all {
-                    Button("Search All Games") { selection = .all }
-                        .buttonStyle(.glass)
+                if selection != .all || filter.isActive {
+                    Button("Search All Games") {
+                        selection = .all
+                        filter = LibraryFilter()
+                    }
+                    .buttonStyle(.glass)
                 }
+            }
+        case .noFilterResults:
+            ContentUnavailableView {
+                Label("No Games Match the Filter", systemImage: "line.3.horizontal.decrease.circle")
+            } description: {
+                Text("Try other filter settings.")
+            } actions: {
+                Button("Clear Filters") { filter = LibraryFilter() }
+                    .buttonStyle(.glass)
             }
         case .noFavorites:
             ContentUnavailableView("No Favorites Yet", systemImage: "heart",
@@ -291,6 +482,44 @@ struct LibraryView: View {
         case .nothingPlayed:
             ContentUnavailableView("Nothing Played Yet", systemImage: "clock",
                                    description: Text("Games you play appear here."))
+        case .emptyCollection:
+            ContentUnavailableView("This Collection Is Empty", systemImage: "rectangle.stack",
+                                   description: Text("Add games with Collections in their context menu or info panel."))
+        }
+    }
+
+    @ViewBuilder
+    private func inspector(_ shelf: Shelf) -> some View {
+        let selected = selectedGames(shelf)
+        if selected.count > 1 {
+            MultiGameInspector(actions: batchActions(for: selected))
+        } else if let game = singleSelectedGame(shelf) {
+            GameInspector(game: game, actions: actions(for: game, shelf: shelf),
+                          versions: shelf.groups.versions(of: game),
+                          showsGroupedVersions: shelf.isGrouped,
+                          versionActions: versionActions(shelf))
+        } else {
+            ContentUnavailableView("No Game Selected", systemImage: "square.stack",
+                                   description: Text("Select a game to see its details."))
+        }
+    }
+
+    /// Shown over the content while files are dragged over it.
+    @ViewBuilder
+    private var dropHighlight: some View {
+        if isDropTargeted {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.accentColor, lineWidth: 3)
+                .background(Color.accentColor.opacity(0.08), in: .rect(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    Label("Add to Library", systemImage: "plus.circle")
+                        .font(.title3.weight(.semibold))
+                        .padding(.horizontal, AppSpacing.l)
+                        .padding(.vertical, AppSpacing.s)
+                        .glassEffect(.regular, in: .capsule)
+                }
+                .padding(AppSpacing.s)
+                .allowsHitTesting(false)
         }
     }
 
@@ -299,32 +528,29 @@ struct LibraryView: View {
         games.filter { !$0.isHidden }
     }
 
-    private var filteredGames: [Game] {
-        var result: [Game]
+    /// The games of the sidebar selection, before search and filters.
+    private var scopeGames: [Game] {
         let games = libraryGames
-        switch selection ?? .all {
-        case .all: result = games
-        case .favorites: result = games.filter(\.isFavorite)
-        case .recent: result = games.filter { $0.lastPlayed != nil }
-        case .hidden: result = self.games.filter(\.isHidden)
-        case .system(let id): result = games.filter { $0.systemID == id }
+        return switch selection ?? .all {
+        case .all: games
+        case .favorites: games.filter(\.isFavorite)
+        case .recent: games.filter { $0.lastPlayed != nil }
+        case .hidden: self.games.filter(\.isHidden)
+        case .system(let id): games.filter { $0.systemID == id }
+        case .collection(let name): games.filter { $0.collections.contains(name) }
         }
-        if !searchText.isEmpty {
-            result = result.filter {
-                $0.title.localizedStandardContains(searchText)
-                    || ($0.developer?.localizedStandardContains(searchText) ?? false)
-                    || ($0.genre?.localizedStandardContains(searchText) ?? false)
-            }
-        }
-        if selection == .recent {
-            return result.sorted { ($0.lastPlayed ?? .distantPast) > ($1.lastPlayed ?? .distantPast) }
-        }
-        switch sort {
-        case .title: return result
-        case .recentlyAdded: return result.sorted { $0.dateAdded > $1.dateAdded }
-        case .recentlyPlayed: return result.sorted { ($0.lastPlayed ?? .distantPast) > ($1.lastPlayed ?? .distantPast) }
-        case .releaseYear: return result.sorted { ($0.releaseDate ?? "9999") < ($1.releaseDate ?? "9999") }
-        }
+    }
+
+    private func selectedGames(_ shelf: Shelf) -> [Game] {
+        guard !gameSelection.isEmpty else { return [] }
+        let visible = shelf.games.filter { gameSelection.contains($0.persistentModelID) }
+        // A game selected from outside the view (e.g. after an import) still has an inspector.
+        return visible.isEmpty ? games.filter { gameSelection.contains($0.persistentModelID) } : visible
+    }
+
+    private func singleSelectedGame(_ shelf: Shelf) -> Game? {
+        let selected = selectedGames(shelf)
+        return selected.count == 1 ? selected[0] : nil
     }
 
     private var selectedSystem: GameSystem? {
@@ -337,9 +563,9 @@ struct LibraryView: View {
         return SystemCatalog.all.filter { ids.contains($0.id) }
     }
 
-    private var selectedGame: Game? {
-        guard let selectedGameID else { return nil }
-        return games.first { $0.persistentModelID == selectedGameID }
+    private var collections: [String] {
+        _ = collectionsRevision
+        return LibraryCollections().all(in: games)
     }
 
     private var title: String {
@@ -349,18 +575,20 @@ struct LibraryView: View {
         case .recent: String(localized: "Recently Played")
         case .hidden: String(localized: "Hidden")
         case .system(let id): SystemCatalog.system(withID: id)?.name ?? id
+        case .collection(let name): name
         }
     }
 
-    private var subtitle: String {
-        let count = filteredGames.count
-        return count == 1 ? String(localized: "1 game") : String(localized: "\(count) games")
+    private func subtitle(_ shelf: Shelf) -> String {
+        let count = shelf.games.count
+        let games = count == 1 ? String(localized: "1 game") : String(localized: "\(count) games")
+        return filter.isActive ? String(localized: "\(games), filtered") : games
     }
 
     // MARK: Toolbar
 
-    /// [Activity] · View · Add Folder · Library Actions · Inspector, then search.
-    /// See docs/DESIGN_SPEC.md, section D.
+    /// [Activity] · View · Filter · Add Folder · Library Actions · Inspector,
+    /// then search. See docs/DESIGN_SPEC.md, section D.
     ///
     /// The spec asks for separate glass capsules and the inspector toggle after
     /// the search field. `ToolbarSpacer` only separates capsules when the toolbar
@@ -369,7 +597,7 @@ struct LibraryView: View {
     /// search field always stays at the trailing edge. So one toolbar on the
     /// split view, without spacers.
     @ToolbarContentBuilder
-    private var toolbar: some ToolbarContent {
+    private func toolbar(_ shelf: Shelf) -> some ToolbarContent {
         // Progress lives in the sidebar footer; only a collapsed sidebar needs a stand-in.
         if !columns.showsSidebar, Activity.isPending(library: library, metadata: metadata, systemMedia: systemMedia) {
             ToolbarItem {
@@ -377,17 +605,31 @@ struct LibraryView: View {
             }
         }
 
-        ToolbarItem {
+        ToolbarItemGroup {
             Menu {
+                LibraryViewModeItems()
+                Divider()
                 LibrarySortPicker(isFixedToRecentlyPlayed: selection == .recent)
                     .pickerStyle(.inline)
-                Divider()
-                CoverSizeItems()
+                if viewMode == .grid {
+                    Divider()
+                    CoverSizeItems()
+                }
             } label: {
-                Label("View Options", systemImage: "square.grid.2x2")
+                Label("View Options", systemImage: viewMode == .grid ? "square.grid.2x2" : "list.bullet")
             }
             .menuIndicator(.hidden)
             .help("View Options")
+
+            Menu {
+                LibraryFilterItems(control: LibraryFilterControl(filter: $filter, options: shelf.filterOptions))
+            } label: {
+                Label("Filter", systemImage: filter.isActive ? "line.3.horizontal.decrease.circle.fill"
+                                                             : "line.3.horizontal.decrease.circle")
+            }
+            .menuIndicator(.hidden)
+            .help(filter.isActive ? Text("Filter (\(filter.activeCount) active)") : Text("Filter"))
+            .accessibilityValue(filter.isActive ? Text("\(filter.activeCount) active") : Text("Off"))
         }
 
         ToolbarItemGroup {
@@ -423,6 +665,23 @@ struct LibraryView: View {
             showLibraryFolders: {
                 settingsTab = .general
                 openSettings()
+            },
+            newCollection: { promptForCollection(with: []) },
+            addGames: presentAddGamesPanel
+        )
+    }
+
+    private var collectionActions: CollectionActions {
+        CollectionActions(
+            create: { promptForCollection(with: []) },
+            rename: { name in
+                collectionName = name
+                collectionPrompt = CollectionPrompt(kind: .rename(name))
+            },
+            delete: { collectionPendingDeletion = $0 },
+            move: { offsets, destination in
+                LibraryCollections().move(fromOffsets: offsets, toOffset: destination, library: games)
+                collectionsRevision += 1
             }
         )
     }
@@ -442,9 +701,12 @@ struct LibraryView: View {
         AccessibilityNotification.Announcement(message).post()
     }
 
-    /// `resume` nil follows the setting: continue from the automatic state if there is one.
-    private func play(_ game: Game, resume: Bool? = nil) {
-        selectedGameID = game.persistentModelID
+    /// `resume` nil follows the setting: continue from the automatic state if
+    /// there is one. `state` starts from a save state instead.
+    private func play(_ game: Game, resume: Bool? = nil, from state: SaveStateSlot? = nil) {
+        if !gameSelection.contains(game.persistentModelID) || gameSelection.count > 1 {
+            gameSelection.select(game.persistentModelID)
+        }
         guard FileManager.default.fileExists(atPath: game.path) else {
             if let folder = library.offlineFolder(containing: game) {
                 unavailableGame = UnavailableGame(game: game, volume: LibraryPaths.volumeName(of: folder))
@@ -464,10 +726,10 @@ struct LibraryView: View {
         }
         openWindow(id: WindowID.player)
         let resume = resume ?? Preferences.resumeAutomatically
-        Task { await session.launch(game, context: context, resume: resume) }
+        Task { await session.launch(game, context: context, resume: resume, state: state) }
     }
 
-    private func actions(for game: Game) -> GameActions {
+    private func actions(for game: Game, shelf: Shelf) -> GameActions {
         let resumes = Preferences.resumeAutomatically
         return GameActions(
             game: game,
@@ -486,32 +748,195 @@ struct LibraryView: View {
             chooseMatch: { matchingGame = game },
             showInFinder: { NSWorkspace.shared.activateFileViewerSelecting([game.fileURL]) },
             locate: { library.presentLocatePanel(for: game, context: context) },
-            toggleHidden: { toggleHidden(game) },
+            toggleHidden: { setHidden([game], !game.isHidden) },
             importBatterySave: { library.presentBatterySaveImport(for: game) },
             canImportBatterySave: !(session.isActive && session.gameID == game.persistentModelID),
             setCore: { coreID in
                 game.coreID = coreID
                 try? context.save()
             },
-            requestRemoval: { gamePendingRemoval = game }
+            requestRemoval: { gamesPendingRemoval = [game] },
+            organize: organizeActions(for: [game]),
+            showSaveStates: { statesGame = game },
+            discs: discAction(for: game)
         )
     }
 
-    private func toggleHidden(_ game: Game) {
-        game.isHidden.toggle()
+    private func organizeActions(for games: [Game]) -> OrganizeActions {
+        OrganizeActions(
+            games: games,
+            collections: collections,
+            setStatus: { status in
+                for game in games { game.playStatus = status }
+                try? context.save()
+            },
+            setCollection: { name, isMember in
+                if isMember {
+                    LibraryCollections.add(games, to: name)
+                } else {
+                    LibraryCollections.remove(games, from: name)
+                }
+                try? context.save()
+            },
+            newCollection: { promptForCollection(with: games) }
+        )
+    }
+
+    private func batchActions(for games: [Game]) -> BatchActions {
+        BatchActions(
+            games: games,
+            organize: organizeActions(for: games),
+            setFavorite: { favorite in
+                for game in games { game.isFavorite = favorite }
+                try? context.save()
+            },
+            refetchMetadata: { metadata.enqueue(games, force: true, context: context) },
+            setHidden: { setHidden(games, $0) },
+            requestRemoval: { gamesPendingRemoval = games.filter(\.isMissing) }
+        )
+    }
+
+    private func versionActions(_ shelf: Shelf) -> VersionActions {
+        VersionActions(
+            play: { play($0) },
+            prefer: { game in
+                shelf.groups.prefer(game)
+                try? context.save()
+                gameSelection.select(game.persistentModelID)
+            }
+        )
+    }
+
+    private func discAction(for game: Game) -> DiscAction? {
+        if game.fileURL.pathExtension.lowercased() == "m3u" {
+            return DiscAction(kind: .edit) { discEditor = .edit(game) }
+        }
+        let set = DiscSets.set(containing: game, in: libraryGames)
+        guard set.count > 1 else { return nil }
+        return DiscAction(kind: .create) { discEditor = .create(set) }
+    }
+
+    private func setHidden(_ games: [Game], _ hidden: Bool) {
+        for game in games { game.isHidden = hidden }
         try? context.save()
-        if game.isHidden {
-            // The game leaves the grid; its inspector goes with it.
-            if selection != .hidden, selectedGameID == game.persistentModelID { selectedGameID = nil }
+        guard hidden, selection != .hidden else { return }
+        // The games leave the view; the selection follows by itself.
+        if games.count == 1, let game = games.first {
             announce(String(localized: "“\(game.title)” is hidden. Find it under Hidden in the sidebar."))
-        } else if selection == .hidden, selectedGameID == game.persistentModelID {
-            selectedGameID = nil
+        } else {
+            announce(String(localized: "\(games.count) games are hidden. Find them under Hidden in the sidebar."))
         }
     }
 
-    private func remove(_ game: Game) {
-        if selectedGameID == game.persistentModelID { selectedGameID = nil }
-        library.remove(game, context: context)
+    private var removalTitle: Text {
+        if gamesPendingRemoval.count == 1, let game = gamesPendingRemoval.first {
+            Text("Remove “\(game.title)” from the library?")
+        } else {
+            Text("Remove \(gamesPendingRemoval.count) games from the library?")
+        }
+    }
+
+    private func remove(_ games: [Game]) {
+        for game in games {
+            gameSelection.keep(only: gameSelection.ids.subtracting([game.persistentModelID]))
+            library.remove(game, context: context)
+        }
+    }
+
+    // MARK: Collections
+
+    private func promptForCollection(with games: [Game]) {
+        collectionName = ""
+        collectionPrompt = CollectionPrompt(kind: .new(games))
+    }
+
+    private func commit(_ prompt: CollectionPrompt) {
+        switch prompt.kind {
+        case .new(let members):
+            guard let name = LibraryCollections().create(collectionName, with: members, library: games) else { return }
+            if members.isEmpty { selection = .collection(name) }
+        case .rename(let old):
+            guard let name = LibraryCollections().rename(old, to: collectionName, library: games) else { return }
+            if selection == .collection(old) { selection = .collection(name) }
+        }
+        try? context.save()
+        collectionsRevision += 1
+    }
+
+    private func deleteCollection(_ name: String) {
+        LibraryCollections().delete(name, library: games)
+        try? context.save()
+        collectionsRevision += 1
+    }
+
+    // MARK: Importing
+
+    /// Imports dropped or opened files and folders and selects the games.
+    /// Opening a single game from the Finder starts it.
+    private func importItems(_ urls: [URL], playsSingleGame: Bool) {
+        Task {
+            let result = await library.importItems(urls, context: context)
+            let ids = result.games.map(\.persistentModelID)
+            guard !ids.isEmpty else {
+                if result.unrecognized > 0 { isShowingScanReport = true }
+                return
+            }
+            if let first = result.games.first, !scopeGames.contains(where: { $0 === first }) {
+                selection = .all
+                filter = LibraryFilter()
+                searchText = ""
+            }
+            gameSelection.replace(with: Set(ids), order: ids)
+            if playsSingleGame, result.games.count == 1, let game = result.games.first {
+                play(game)
+            } else if result.unrecognized > 0 {
+                isShowingScanReport = true
+            }
+        }
+    }
+
+    private func presentAddGamesPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = String(localized: "Add to Library")
+        panel.message = String(localized: "Choose games or folders. Games outside your library folders are added one by one.")
+        guard panel.runModal() == .OK else { return }
+        importItems(panel.urls, playsSingleGame: false)
+    }
+
+    // MARK: Controllers
+
+    /// Controllers move through the library while its window is key and no
+    /// game runs.
+    private var controllersDriveLibrary: Bool {
+        appearsActive && !session.isActive
+    }
+
+    /// The sidebar's lists in order, for the shoulder buttons.
+    private var sidebarEntries: [LibrarySelection] {
+        var entries: [LibrarySelection] = [.all, .favorites, .recent]
+        if games.count != libraryGames.count { entries.append(.hidden) }
+        entries += collections.map(LibrarySelection.collection)
+        entries += librarySystems.map { .system($0.id) }
+        return entries
+    }
+
+    private func handleController(_ command: MenuCommand) {
+        switch command {
+        case .previousPage, .nextPage:
+            let entries = sidebarEntries
+            let index = entries.firstIndex(of: selection ?? .all) ?? 0
+            let next = (index + (command == .nextPage ? 1 : -1) + entries.count) % entries.count
+            selection = entries[next]
+            gameSelection.select(nil)
+        case .back:
+            if !gameSelection.isEmpty { gameSelection.select(nil) }
+        default:
+            // Moving and playing are up to the grid or list.
+            break
+        }
     }
 }
 
@@ -525,5 +950,48 @@ private struct UnavailableGame: Identifiable {
     var title: String {
         volume == nil ? String(localized: "“\(game.title)” can't be found")
                       : String(localized: "“\(game.title)” is on a drive that isn't connected")
+    }
+}
+
+/// Naming a new collection or renaming one.
+private struct CollectionPrompt: Identifiable {
+    enum Kind {
+        /// A new collection with these games in it.
+        case new([Game])
+        case rename(String)
+    }
+
+    let id = UUID()
+    let kind: Kind
+
+    var renaming: String? {
+        if case .rename(let name) = kind { name } else { nil }
+    }
+
+    var title: String {
+        switch kind {
+        case .new: String(localized: "New Collection")
+        case .rename: String(localized: "Rename Collection")
+        }
+    }
+
+    var confirmTitle: LocalizedStringKey {
+        switch kind {
+        case .new: "Create"
+        case .rename: "Rename"
+        }
+    }
+
+    var message: String {
+        switch kind {
+        case .new(let games) where games.count == 1:
+            String(localized: "“\(games[0].title)” is added to it.")
+        case .new(let games) where games.count > 1:
+            String(localized: "The \(games.count) selected games are added to it.")
+        case .new:
+            String(localized: "Add games with Collections in their context menu.")
+        case .rename:
+            String(localized: "Enter a new name.")
+        }
     }
 }

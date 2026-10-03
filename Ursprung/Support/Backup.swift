@@ -50,6 +50,10 @@ nonisolated struct GameRecord: Codable, Sendable, Hashable {
     var isHidden: Bool?
     var coreOptions: Data?
     var inputProfile: Data?
+    // Added with schema version 4.
+    var collections: [String]?
+    var playStatus: String?
+    var isPreferredVariant: Bool?
 
     var saveBaseName: String { (fileName as NSString).deletingPathExtension }
 }

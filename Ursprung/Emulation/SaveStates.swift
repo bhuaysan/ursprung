@@ -15,6 +15,8 @@ nonisolated struct SaveStateManifest: Codable, Sendable, Hashable {
     var gameFileName: String
     var gameFileSize: Int64
     var created: Date
+    /// A name the user gave the state, e.g. “Before the final boss”.
+    var name: String?
 }
 
 /// What the running game looks like now, to compare a state's manifest with.
@@ -41,7 +43,8 @@ nonisolated enum SaveStateIssue: Sendable, Hashable {
     case differentGameFile
 }
 
-/// A save state slot on disk.
+/// A save state on disk: in a slot, the automatic state, or one that a
+/// newer state replaced (history).
 nonisolated struct SaveStateSlot: Identifiable, Hashable, Sendable {
     let slot: Int
     let date: Date
@@ -52,7 +55,24 @@ nonisolated struct SaveStateSlot: Identifiable, Hashable, Sendable {
     var manifest: SaveStateManifest?
     /// Found in the game's folder instead of the core's (earlier versions).
     var isLegacy = false
-    var id: Int { slot }
+    /// For states in the history: when they were replaced or deleted.
+    var replaced: Date?
+    var id: String { stateURL.path(percentEncoded: false) }
+
+    var name: String? { manifest?.name }
+    var isAutosave: Bool { slot == SaveStateStore.autosaveSlot }
+    var isHistory: Bool { replaced != nil }
+    /// Only states with a manifest can be named; others are of unknown origin.
+    var canRename: Bool { manifest != nil && !isLegacy }
+
+    /// “Slot 3”, “Quick Save” or “Automatic State”, for lists.
+    var slotTitle: String {
+        switch slot {
+        case SaveStateStore.autosaveSlot: String(localized: "Automatic State")
+        case 0: String(localized: "Quick Save")
+        default: String(localized: "Slot \(slot)")
+        }
+    }
 
     func issues(for context: SaveStateContext) -> [SaveStateIssue] {
         guard let manifest else { return [.unknownOrigin] }
@@ -106,18 +126,23 @@ nonisolated enum SaveStateStore {
         directory(in: states, gameID: gameID, coreID: coreID).appending(path: "slot\(slot).state")
     }
 
-    /// Writes a state and its manifest. The state is written atomically, so
-    /// a failed write leaves the previous state of the slot intact.
-    static func write(_ data: Data, manifest: SaveStateManifest, slot: Int, in directory: URL) throws {
-        try write(data, manifest: manifest, name: "slot\(slot)", in: directory)
+    /// Writes a state and its manifest. The state it replaces goes into the
+    /// history, but only once the new one is safely on disk: a failed write
+    /// leaves the slot as it was.
+    static func write(_ data: Data, manifest: SaveStateManifest, slot: Int, in directory: URL, date: Date = .now) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let pending = directory.appending(path: ".slot\(slot)-\(UUID().uuidString).state")
+        defer { try? FileManager.default.removeItem(at: pending) }
+        try data.write(to: pending)
+        try archive(slot: slot, in: directory, date: date)
+        let name = "slot\(slot)"
+        try FileManager.default.moveItem(at: pending, to: directory.appending(path: "\(name).state"))
+        try encoder.encode(manifest).write(to: directory.appending(path: "\(name).json"), options: .atomic)
     }
 
     private static func write(_ data: Data, manifest: SaveStateManifest, name: String, in directory: URL) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: directory.appending(path: "\(name).state"), options: .atomic)
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(manifest).write(to: directory.appending(path: "\(name).json"), options: .atomic)
     }
 
@@ -137,10 +162,149 @@ nonisolated enum SaveStateStore {
         try write(data, manifest: manifest, name: "autosave", in: directory)
     }
 
+    /// Removes a state for good.
     static func delete(_ slot: SaveStateSlot) {
         for url in [slot.stateURL, slot.thumbnailURL, slot.manifestURL] {
             try? FileManager.default.removeItem(at: url)
         }
+    }
+
+    /// Deletes a state the way the user does: a slot's state goes into the
+    /// history, where it can be restored; a state in the history is removed.
+    static func discard(_ state: SaveStateSlot, date: Date = .now) {
+        guard !state.isHistory, !state.isLegacy, !state.isAutosave else { return delete(state) }
+        let directory = state.stateURL.deletingLastPathComponent()
+        if (try? archive(slot: state.slot, in: directory, date: date)) == nil { delete(state) }
+    }
+
+    /// Names a state, or removes its name with nil or an empty name.
+    static func rename(_ state: SaveStateSlot, to name: String?) throws {
+        guard var manifest = state.manifest else { return }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        manifest.name = trimmed?.isEmpty == false ? trimmed : nil
+        try encoder.encode(manifest).write(to: state.manifestURL, options: .atomic)
+    }
+
+    // MARK: History
+
+    /// States replaced or deleted per game and core that are kept; older ones go.
+    static let historyLimit = 20
+
+    static func historyDirectory(_ coreDirectory: URL) -> URL {
+        coreDirectory.appending(path: "History", directoryHint: .isDirectory)
+    }
+
+    /// Moves the state in `slot` (if any) into the history as
+    /// `History/<time>-slotN.*`.
+    static func archive(slot: Int, in directory: URL, date: Date = .now) throws {
+        let name = "slot\(slot)"
+        let state = directory.appending(path: "\(name).state")
+        guard FileManager.default.fileExists(atPath: state.path(percentEncoded: false)) else { return }
+        let history = historyDirectory(directory)
+        try FileManager.default.createDirectory(at: history, withIntermediateDirectories: true)
+        let stamp = historyStamp(date)
+        for ext in ["state", "png", "json"] {
+            let source = directory.appending(path: "\(name).\(ext)")
+            guard FileManager.default.fileExists(atPath: source.path(percentEncoded: false)) else { continue }
+            let destination = history.appending(path: "\(stamp)-\(name).\(ext)")
+            try? FileManager.default.removeItem(at: destination)
+            try FileManager.default.moveItem(at: source, to: destination)
+        }
+        pruneHistory(in: directory)
+    }
+
+    /// The replaced and deleted states of a game for a core, newest first.
+    static func history(in states: URL, gameID: UUID, coreID: String) -> [SaveStateSlot] {
+        history(inCoreDirectory: directory(in: states, gameID: gameID, coreID: coreID))
+    }
+
+    static func history(inCoreDirectory directory: URL) -> [SaveStateSlot] {
+        let history = historyDirectory(directory)
+        let files = (try? FileManager.default.contentsOfDirectory(at: history, includingPropertiesForKeys: nil)) ?? []
+        return files.filter { $0.pathExtension == "state" }.compactMap { url -> SaveStateSlot? in
+            let base = url.deletingPathExtension().lastPathComponent
+            guard let dash = base.lastIndex(of: "-"),
+                  let replaced = historyDate(String(base[..<dash])),
+                  let slot = Int(base[base.index(after: dash)...].dropFirst("slot".count)),
+                  var found = slotFile(named: base, slot: slot, in: history) else { return nil }
+            found.manifest = readManifest(found.manifestURL)
+            found.replaced = replaced
+            return found
+        }
+        .sorted { $0.replaced! > $1.replaced! }
+    }
+
+    /// Puts a state from the history back into `slot`. The state there now
+    /// goes into the history in turn.
+    static func restore(_ entry: SaveStateSlot, toSlot slot: Int, in directory: URL, date: Date = .now) throws {
+        let data = try Data(contentsOf: entry.stateURL)
+        try archive(slot: slot, in: directory, date: date)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try data.write(to: directory.appending(path: "slot\(slot).state"), options: .atomic)
+        for (source, ext) in [(entry.thumbnailURL, "png"), (entry.manifestURL, "json")] {
+            let destination = directory.appending(path: "slot\(slot).\(ext)")
+            try? FileManager.default.removeItem(at: destination)
+            try? FileManager.default.copyItem(at: source, to: destination)
+        }
+        delete(entry)
+    }
+
+    private static func pruneHistory(in directory: URL) {
+        for entry in history(inCoreDirectory: directory).dropFirst(historyLimit) { delete(entry) }
+    }
+
+    private static func historyStamp(_ date: Date) -> String {
+        String(Int64((date.timeIntervalSince1970 * 1000).rounded()))
+    }
+
+    private static func historyDate(_ stamp: String) -> Date? {
+        Int64(stamp).map { Date(timeIntervalSince1970: Double($0) / 1000) }
+    }
+
+    // MARK: All states of a game
+
+    /// The states of one core, for the library's save state browser.
+    struct CoreStates: Identifiable, Sendable {
+        /// nil for states of unknown origin (earlier versions).
+        let coreID: String?
+        var autosave: SaveStateSlot?
+        var slots: [SaveStateSlot]
+        var history: [SaveStateSlot]
+        var id: String { coreID ?? "" }
+        var isEmpty: Bool { autosave == nil && slots.isEmpty && history.isEmpty }
+    }
+
+    /// Every state of a game, per core; states of unknown origin last.
+    static func allStates(in states: URL, gameID: UUID) -> [CoreStates] {
+        let gameDirectory = gameDirectory(in: states, gameID: gameID)
+        let entries = (try? FileManager.default.contentsOfDirectory(at: gameDirectory, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+        var result: [CoreStates] = []
+        for entry in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
+        where (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            let coreID = entry.lastPathComponent
+            let slots = slotRange.compactMap { slot -> SaveStateSlot? in
+                guard var found = slotFile(slot, in: entry) else { return nil }
+                found.manifest = readManifest(found.manifestURL)
+                return found
+            }
+            let core = CoreStates(coreID: coreID, autosave: autosave(in: states, gameID: gameID, coreID: coreID),
+                                  slots: slots, history: history(inCoreDirectory: entry))
+            if !core.isEmpty { result.append(core) }
+        }
+        let legacy = slotRange.compactMap { slot -> SaveStateSlot? in
+            guard var found = slotFile(slot, in: gameDirectory) else { return nil }
+            found.isLegacy = true
+            return found
+        }
+        if !legacy.isEmpty { result.append(CoreStates(coreID: nil, slots: legacy, history: [])) }
+        return result
+    }
+
+    private static var encoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
     }
 
     static func readManifest(_ url: URL) -> SaveStateManifest? {

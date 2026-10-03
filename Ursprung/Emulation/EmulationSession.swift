@@ -53,6 +53,10 @@ final class EmulationSession {
     private(set) var isFastForwarding = false
     private(set) var toasts: [Toast] = []
     private(set) var slots: [SaveStateSlot] = []
+    /// States of the running game and core that newer ones replaced or that were deleted.
+    private(set) var history: [SaveStateSlot] = []
+    /// Labels of the discs from the game's playlist; empty when it has none.
+    private(set) var discLabels: [String?] = []
     /// Whether core option changes apply to the running game only.
     private(set) var usesGameCoreOptions = false
     private(set) var diskCount = 0
@@ -119,8 +123,9 @@ final class EmulationSession {
     // MARK: - Launch
 
     /// Starts `game`. With `resume`, it continues from the automatic state
-    /// saved when it last stopped, if the core can.
-    func launch(_ game: Game, context: ModelContext, resume: Bool = false) async {
+    /// saved when it last stopped, if the core can; with `state`, from that
+    /// save state.
+    func launch(_ game: Game, context: ModelContext, resume: Bool = false, state: SaveStateSlot? = nil) async {
         // Switch straight to "preparing" so the player window stays open while
         // a previous game shuts down.
         generation += 1
@@ -216,7 +221,8 @@ final class EmulationSession {
             let writeAutosave: (@Sendable (LibretroCore) -> Void)? = Preferences.autosaveOnQuit
                 ? { @Sendable core in Self.writeAutosave(of: core, context: stateContext, in: autosaveDirectory) }
                 : nil
-            let resumeState = resume ? SaveStateStore.autosave(in: AppPaths.states, gameID: game.id, coreID: definition.id) : nil
+            let resumeState = state
+                ?? (resume ? SaveStateStore.autosave(in: AppPaths.states, gameID: game.id, coreID: definition.id) : nil)
             if resumeState == nil { runner.willUnloadHandler = writeAutosave }
             runner.terminationHandler = { [weak self] in
                 MainActor.assumeIsolated { self?.handleUnexpectedTermination() }
@@ -247,6 +253,8 @@ final class EmulationSession {
             game.playCount += 1
             try? context.save()
             reloadSlots()
+            discLabels = game.fileURL.pathExtension.lowercased() == "m3u"
+                ? (DiscPlaylist.read(game.fileURL)?.entries.map(\.label) ?? []) : []
             refreshDiskInfo()
             startFPSTimer()
             applyPause()
@@ -474,7 +482,9 @@ final class EmulationSession {
         if let context = stateContext, state.issues(for: context).contains(.differentGameFile) {
             // A state of another revision may crash the core or corrupt the game.
             armAutosave(writeAutosave)
-            showToast(String(localized: "The automatic state belongs to a different version of the game file, so the game starts from the beginning."),
+            showToast(state.isAutosave
+                      ? String(localized: "The automatic state belongs to a different version of the game file, so the game starts from the beginning.")
+                      : String(localized: "The save state belongs to a different version of the game file, so the game starts from the beginning."),
                       kind: .warning, duration: 6)
             return
         }
@@ -486,7 +496,8 @@ final class EmulationSession {
                     guard let self, generation == self.generation, self.runner === runner else { return }
                     if success {
                         self.armAutosave(writeAutosave)
-                        self.showToast(String(localized: "Continued where you left off"), kind: .loaded)
+                        self.showToast(state.isAutosave ? String(localized: "Continued where you left off")
+                                                        : String(localized: "State loaded"), kind: .loaded)
                     } else if attempt < Self.resumeAttempts {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             MainActor.assumeIsolated {
@@ -496,7 +507,9 @@ final class EmulationSession {
                         }
                     } else {
                         self.armAutosave(writeAutosave)
-                        self.showToast(String(localized: "The game couldn't continue where you left off, so it starts from the beginning."),
+                        self.showToast(state.isAutosave
+                                       ? String(localized: "The game couldn't continue where you left off, so it starts from the beginning.")
+                                       : String(localized: "The save state couldn't be loaded, so the game starts from the beginning."),
                                        kind: .warning, duration: 5)
                     }
                 }
@@ -514,8 +527,13 @@ final class EmulationSession {
     // MARK: - Save states
 
     func reloadSlots() {
-        guard let gameUUID, let coreID else { slots = []; return }
+        guard let gameUUID, let coreID else {
+            slots = []
+            history = []
+            return
+        }
         slots = SaveStateStore.slots(in: AppPaths.states, gameID: gameUUID, coreID: coreID)
+        history = SaveStateStore.history(in: AppPaths.states, gameID: gameUUID, coreID: coreID)
     }
 
     /// Why the state in `slot` may not load or may belong to another file.
@@ -555,8 +573,17 @@ final class EmulationSession {
     }
 
     func loadState(slot: Int) {
+        guard let state = slots.first(where: { $0.slot == slot }) else {
+            showToast(String(localized: "No saved state in this slot"))
+            return
+        }
+        loadState(state)
+    }
+
+    /// Loads any state of the running game and core, e.g. one from the history.
+    func loadState(_ state: SaveStateSlot) {
         guard let runner else { return }
-        guard let state = slots.first(where: { $0.slot == slot }), let data = try? Data(contentsOf: state.stateURL) else {
+        guard let data = try? Data(contentsOf: state.stateURL) else {
             showToast(String(localized: "No saved state in this slot"))
             return
         }
@@ -583,8 +610,33 @@ final class EmulationSession {
         }
     }
 
+    /// A deleted slot's state goes into the history.
     func deleteState(slot: SaveStateSlot) {
-        SaveStateStore.delete(slot)
+        SaveStateStore.discard(slot)
+        reloadSlots()
+    }
+
+    func renameState(_ state: SaveStateSlot, to name: String?) {
+        do {
+            try SaveStateStore.rename(state, to: name)
+        } catch {
+            showToast(String(localized: "The state couldn't be renamed. \(error.localizedDescription)"), kind: .warning, duration: 5)
+        }
+        reloadSlots()
+    }
+
+    /// Puts a state from the history back into its slot (or `slot`).
+    func restoreState(_ entry: SaveStateSlot, toSlot slot: Int? = nil) {
+        guard let gameUUID, let coreID else { return }
+        let target = slot ?? entry.slot
+        do {
+            try SaveStateStore.restore(entry, toSlot: target,
+                                       in: SaveStateStore.directory(in: AppPaths.states, gameID: gameUUID, coreID: coreID))
+            showToast(target == 0 ? String(localized: "Restored as Quick Save") : String(localized: "Restored to slot \(target)"),
+                      kind: .saved)
+        } catch {
+            showToast(String(localized: "The state couldn't be restored. \(error.localizedDescription)"), kind: .warning, duration: 5)
+        }
         reloadSlots()
     }
 

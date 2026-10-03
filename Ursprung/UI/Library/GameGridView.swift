@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import AppKit
 import SwiftData
 import SwiftUI
 
@@ -7,12 +8,18 @@ import SwiftUI
 /// in all four directions. See docs/DESIGN_SPEC.md, section E.
 struct GameGridView: View {
     let games: [Game]
-    @Binding var selectedGameID: PersistentIdentifier?
+    @Binding var selection: GameSelection<PersistentIdentifier>
     /// One of `AppMetrics.coverSteps`.
     let coverStep: Double
     /// Shows the system's logo above the grid.
     var system: GameSystem?
     let actions: (Game) -> GameActions
+    /// The selected games' actions while more than one is selected.
+    var batchActions: BatchActions?
+    /// How many versions a card stands for (1 when versions are not grouped).
+    var versionCount: (Game) -> Int = { _ in 1 }
+    /// The latest controller press while the library has the controllers.
+    var controllerEvent: MenuEvent?
 
     @Environment(\.appearsActive) private var appearsActive
     @FocusState private var focused: Bool
@@ -59,7 +66,7 @@ struct GameGridView: View {
                 .focusEffectDisabled()
                 .onChange(of: focused) { _, isFocused in
                     // Tabbing into the grid selects the first visible game.
-                    if isFocused, !isFocusingByClick, selectedGameID == nil, let index = firstVisibleIndex {
+                    if isFocused, !isFocusingByClick, selection.isEmpty, let index = firstVisibleIndex {
                         select(index, columns: metrics.layout.columns, proxy: proxy)
                     }
                     isFocusingByClick = false
@@ -72,7 +79,19 @@ struct GameGridView: View {
                 .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .home, .end, .pageUp, .pageDown]) { press in
                     guard press.modifiers.isDisjoint(with: [.command, .option, .control]),
                           let move = GridMove(press.key) else { return .ignored }
-                    return perform(move, columns: metrics.layout.columns, proxy: proxy)
+                    return perform(move, extending: press.modifiers.contains(.shift), columns: metrics.layout.columns,
+                                   proxy: proxy)
+                }
+                // Edit › Select All (⌘A) while the grid has focus.
+                .onCommand(#selector(NSResponder.selectAll(_:))) {
+                    selection.selectAll(games.map(\.persistentModelID))
+                }
+                .onExitCommand {
+                    if selection.count > 1 { selection.select(selection.focus) }
+                }
+                .onChange(of: controllerEvent) { _, event in
+                    guard let event else { return }
+                    handle(event.command, columns: metrics.layout.columns, proxy: proxy)
                 }
                 .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters).union(.whitespaces), phases: .down) { press in
                     guard press.modifiers.isDisjoint(with: [.command, .option, .control]) else { return .ignored }
@@ -82,7 +101,7 @@ struct GameGridView: View {
                     // Clicking empty space clears the selection.
                     Color.clear.contentShape(Rectangle()).onTapGesture {
                         focusByClick()
-                        selectedGameID = nil
+                        selection.select(nil)
                     }
                 }
             }
@@ -97,9 +116,10 @@ struct GameGridView: View {
             ForEach(games, id: \.persistentModelID) { game in
                 let id = game.persistentModelID
                 let actions = actions(game)
+                let isSelected = selection.contains(id)
                 GameCard(game: game, slotWidth: layout.slotWidth, showsSystem: system == nil,
-                         selection: id == selectedGameID ? (isActive ? .focused : .unfocused) : nil,
-                         actions: actions, select: { selectedGameID = id })
+                         selection: isSelected ? (isActive ? .focused : .unfocused) : nil,
+                         versionCount: versionCount(game), actions: actions, select: { selection.select(id) })
                     .id(id)
                     .background {
                         // The card plus room for the toolbar above and a margin below:
@@ -112,9 +132,16 @@ struct GameGridView: View {
                     .onTapGesture(count: 2, perform: actions.play)
                     .simultaneousGesture(TapGesture().onEnded {
                         focusByClick()
-                        selectedGameID = id
+                        click(id)
                     })
-                    .contextMenu { GameActionItems(actions: actions, placement: .contextMenu) }
+                    .contextMenu {
+                        // A menu on one of several selected games acts on all of them.
+                        if isSelected, let batchActions {
+                            BatchActionItems(actions: batchActions)
+                        } else {
+                            GameActionItems(actions: actions, placement: .contextMenu)
+                        }
+                    }
             }
         }
         .scrollTargetLayout()
@@ -123,12 +150,24 @@ struct GameGridView: View {
         .accessibilityValue(games.count == 1 ? String(localized: "1 game") : String(localized: "\(games.count) games"))
     }
 
+    /// The selected game when exactly one is selected.
     private var selectedGame: Game? {
-        games.first { $0.persistentModelID == selectedGameID }
+        guard let id = selection.single else { return nil }
+        return games.first { $0.persistentModelID == id }
     }
 
-    private var selectedIndex: Int? {
-        games.firstIndex { $0.persistentModelID == selectedGameID }
+    /// Where the keyboard moves from.
+    private var focusIndex: Int? {
+        guard let focus = selection.focus else { return nil }
+        return games.firstIndex { $0.persistentModelID == focus }
+    }
+
+    /// A click, with ⌘ adding or removing the game and ⇧ selecting a range.
+    private func click(_ id: PersistentIdentifier) {
+        let flags = NSEvent.modifierFlags
+        let modifier: GameSelection<PersistentIdentifier>.Modifier =
+            flags.contains(.command) ? .toggle : flags.contains(.shift) ? .extend : .none
+        selection.click(id, modifier: modifier, order: games.map(\.persistentModelID))
     }
 
     private var firstVisibleIndex: Int? {
@@ -142,12 +181,25 @@ struct GameGridView: View {
         focused = true
     }
 
-    private func perform(_ move: GridMove, columns: Int, proxy: ScrollViewProxy) -> KeyPress.Result {
-        guard let index = GridNavigation.target(of: move, from: selectedIndex, count: games.count, columns: columns,
+    private func perform(_ move: GridMove, extending: Bool = false, columns: Int, proxy: ScrollViewProxy) -> KeyPress.Result {
+        guard let index = GridNavigation.target(of: move, from: focusIndex, count: games.count, columns: columns,
                                                 pageRows: visible.ids.count / columns,
                                                 entry: firstVisibleIndex ?? 0) else { return .ignored }
-        select(index, columns: columns, proxy: proxy)
+        select(index, extending: extending && focusIndex != nil, columns: columns, proxy: proxy)
         return .handled
+    }
+
+    /// Controller presses: the D-pad moves, confirm plays.
+    private func handle(_ command: MenuCommand, columns: Int, proxy: ScrollViewProxy) {
+        switch command {
+        case .up: _ = perform(.up, columns: columns, proxy: proxy)
+        case .down: _ = perform(.down, columns: columns, proxy: proxy)
+        case .left: _ = perform(.left, columns: columns, proxy: proxy)
+        case .right: _ = perform(.right, columns: columns, proxy: proxy)
+        case .confirm: selectedGame.map { actions($0).play() }
+        case .secondary: selectedGame.map { actions($0).toggleFavorite() }
+        case .back, .previousPage, .nextPage: break
+        }
     }
 
     private func handleTypeSelect(_ characters: String, columns: Int, proxy: ScrollViewProxy) -> KeyPress.Result {
@@ -158,10 +210,15 @@ struct GameGridView: View {
         return .handled
     }
 
-    /// Selects a game and scrolls it into view without animation, so key repeat stays fluid.
-    private func select(_ index: Int, columns: Int, proxy: ScrollViewProxy) {
+    /// Selects a game (or extends the range to it) and scrolls it into view
+    /// without animation, so key repeat stays fluid.
+    private func select(_ index: Int, extending: Bool = false, columns: Int, proxy: ScrollViewProxy) {
         let id = games[index].persistentModelID
-        selectedGameID = id
+        if extending {
+            selection.extend(to: id, order: games.map(\.persistentModelID))
+        } else {
+            selection.select(id)
+        }
         if index < columns {
             // The first row also shows the header and top padding.
             proxy.scrollTo(ScrollAnchor.top)
@@ -295,6 +352,8 @@ struct GameCard: View {
     /// Inside a system the header already names it, so the metadata line shows the developer instead.
     let showsSystem: Bool
     let selection: Selection?
+    /// More than 1 when the card stands for several versions of the game.
+    var versionCount = 1
     let actions: GameActions
     /// VoiceOver's default action selects, as in Finder.
     let select: () -> Void
@@ -318,6 +377,17 @@ struct GameCard: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                if versionCount > 1 {
+                    Label {
+                        Text(verbatim: "\(versionCount)")
+                    } icon: {
+                        Image(systemName: "square.stack")
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .imageScale(.small)
+                    .fixedSize()
+                    .help(Text("\(versionCount) versions"))
+                }
                 if game.isFavorite {
                     Image(systemName: "heart.fill")
                         .imageScale(.small)
@@ -340,15 +410,18 @@ struct GameCard: View {
     }
 
     /// “SNES · 1992”, or “1992 · Developer” inside a system.
+    /// Loose discs of one game share a title; the disc number tells them apart.
     private var metadataLine: String {
-        let parts = showsSystem ? [game.system?.shortName ?? game.systemID, game.releaseYear]
-                                : [game.releaseYear, game.developer]
+        let disc = game.variantInfo.disc.map { String(localized: "Disc \($0)") }
+        let parts = showsSystem ? [game.system?.shortName ?? game.systemID, disc, game.releaseYear]
+                                : [disc, game.releaseYear, game.developer]
         return parts.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private var accessibilityValue: String {
         [game.isMissing ? String(localized: "File Missing") : nil,
-         game.system?.name, game.releaseYear, game.isFavorite ? String(localized: "Favorite") : nil]
+         game.system?.name, game.releaseYear, game.isFavorite ? String(localized: "Favorite") : nil,
+         game.playStatus?.title, versionCount > 1 ? String(localized: "\(versionCount) versions") : nil]
             .compactMap { $0 }
             .joined(separator: ", ")
     }

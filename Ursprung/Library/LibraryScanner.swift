@@ -94,6 +94,29 @@ nonisolated enum LibraryScanner {
         scan(folders: [root]).roms
     }
 
+    /// Identifies single files, e.g. games dropped on the window. The
+    /// folder a file is in may name its system; files that another of the
+    /// files references (a cue sheet's tracks) are not games of their own.
+    static func scan(files: [URL]) -> LibraryScan {
+        var scan = LibraryScan()
+        let files = files.map(\.standardizedFileURL)
+        let referenced = discReferences(in: files).referenced
+        for url in files where !referenced.contains(normalized(url)) {
+            let folderSystem = SystemCatalog.system(forFolderName: url.deletingLastPathComponent().lastPathComponent)
+            do {
+                if var rom = try identify(url, folderSystem: folderSystem) {
+                    rom.missingTracks = missingTracks(of: url)
+                    scan.roms.append(rom)
+                } else if mayBeGame(url) {
+                    scan.unrecognized.append(url)
+                }
+            } catch {
+                scan.unreadable.append(url)
+            }
+        }
+        return scan
+    }
+
     /// The regular files below `root`. Directories and files that cannot be
     /// read are added to `unreadable` instead of being skipped silently.
     private static func enumerateFiles(in root: URL, unreadable: inout [URL]) -> [URL] {
@@ -278,11 +301,9 @@ nonisolated enum LibraryScanner {
         url.standardizedFileURL.path(percentEncoded: false).lowercased()
     }
 
+    /// The discs a playlist lists, without their labels.
     static func parseM3U(_ url: URL) -> [String] {
-        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-        return text.split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+        DiscPlaylist.read(url)?.entries.map(\.path) ?? []
     }
 
     static func parseGDI(_ url: URL) -> [String] {

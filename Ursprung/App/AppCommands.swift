@@ -10,6 +10,8 @@ struct AppCommands: Commands {
     @FocusedValue(\.libraryActions) private var libraryActions
     @FocusedValue(\.isShowingRecentlyPlayed) private var isShowingRecentlyPlayed
     @FocusedValue(\.gameActions) private var gameActions
+    @FocusedValue(\.batchActions) private var batchActions
+    @FocusedValue(\.libraryFilter) private var libraryFilter
     @FocusedValue(\.isGridFocused) private var isGridFocused
     @FocusedValue(\.inspectorToggle) private var inspectorToggle
     @FocusedValue(\.saveStateSlot) private var saveStateSlot
@@ -34,9 +36,20 @@ struct AppCommands: Commands {
         }
 
         CommandGroup(after: .toolbar) {
+            Group {
+                LibraryViewModeItems(showsShortcuts: true)
+            }
+            .disabled(libraryActions == nil)
+            Divider()
             LibrarySortPicker(isFixedToRecentlyPlayed: isShowingRecentlyPlayed ?? false)
                 .pickerStyle(.menu)
                 .disabled(isShowingRecentlyPlayed == nil)
+            Menu("Filter") {
+                if let libraryFilter {
+                    LibraryFilterItems(control: libraryFilter)
+                }
+            }
+            .disabled(libraryFilter == nil)
             Divider()
             CoverSizeItems(showsShortcuts: true)
                 .disabled(libraryActions == nil)
@@ -50,7 +63,9 @@ struct AppCommands: Commands {
 
         CommandMenu("Game") {
             // The selected game in the library; disabled while another window is key.
-            if let gameActions {
+            if let batchActions {
+                BatchActionItems(actions: batchActions, showsShortcuts: true, removesWithDeleteKey: isGridFocused == true)
+            } else if let gameActions {
                 GameActionItems(actions: gameActions, placement: .menuBar, removesWithDeleteKey: isGridFocused == true)
             } else {
                 Button("Play") {}.disabled(true)

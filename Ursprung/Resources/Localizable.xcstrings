@@ -4994,6 +4994,1356 @@
           }
         }
       }
+    },
+    "%@, filtered": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, gefiltert"
+          }
+        }
+      }
+    },
+    "%@s": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@er"
+          }
+        }
+      }
+    },
+    "%lld Games Selected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Spiele ausgewählt"
+          }
+        }
+      }
+    },
+    "%lld active": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld aktiv"
+          }
+        }
+      }
+    },
+    "%lld disc files are missing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Disc-Dateien fehlen"
+          }
+        }
+      }
+    },
+    "%lld games are hidden. Find them under Hidden in the sidebar.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Spiele sind ausgeblendet. Du findest sie unter „Ausgeblendet“ in der Seitenleiste."
+          }
+        }
+      }
+    },
+    "%lld systems": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Systeme"
+          }
+        }
+      }
+    },
+    "%lld versions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Versionen"
+          }
+        }
+      }
+    },
+    "4 or More Players": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4 oder mehr Spieler"
+          }
+        }
+      }
+    },
+    "A disc file is missing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Disc-Datei fehlt"
+          }
+        }
+      }
+    },
+    "A file named “%@” already exists.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Datei namens „%@“ ist bereits vorhanden."
+          }
+        }
+      }
+    },
+    "A name for the state in %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Name für den Spielstand in %@."
+          }
+        }
+      }
+    },
+    "Abandoned": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abgebrochen"
+          }
+        }
+      }
+    },
+    "Actions for %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktionen für %@"
+          }
+        }
+      }
+    },
+    "Add": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinzufügen"
+          }
+        }
+      }
+    },
+    "Add Disc…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disc hinzufügen …"
+          }
+        }
+      }
+    },
+    "Add Games…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele hinzufügen …"
+          }
+        }
+      }
+    },
+    "Add a folder with your games, or drop games here. Ursprung detects the system and fetches covers from ScreenScraper.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füge einen Ordner mit deinen Spielen hinzu oder zieh Spiele hierher. Ursprung erkennt das System und lädt Cover von ScreenScraper."
+          }
+        }
+      }
+    },
+    "Add games with Collections in their context menu or info panel.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füge Spiele über „Sammlungen“ in ihrem Kontextmenü oder Infofenster hinzu."
+          }
+        }
+      }
+    },
+    "Add games with Collections in their context menu.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füge Spiele über „Sammlungen“ in ihrem Kontextmenü hinzu."
+          }
+        }
+      }
+    },
+    "All discs are there": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Discs sind vorhanden"
+          }
+        }
+      }
+    },
+    "Alternate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternative"
+          }
+        }
+      }
+    },
+    "Any Availability": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beliebige Verfügbarkeit"
+          }
+        }
+      }
+    },
+    "Any Decade": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beliebiges Jahrzehnt"
+          }
+        }
+      }
+    },
+    "Any Genre": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beliebiges Genre"
+          }
+        }
+      }
+    },
+    "Any Metadata": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beliebige Metadaten"
+          }
+        }
+      }
+    },
+    "Any Number of Players": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beliebige Spielerzahl"
+          }
+        }
+      }
+    },
+    "Any Status": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beliebiger Status"
+          }
+        }
+      }
+    },
+    "Asia": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asien"
+          }
+        }
+      }
+    },
+    "Automatic State": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatischer Spielstand"
+          }
+        }
+      }
+    },
+    "Availability": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verfügbarkeit"
+          }
+        }
+      }
+    },
+    "Available": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verfügbar"
+          }
+        }
+      }
+    },
+    "Bad Dump": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlerhafter Dump"
+          }
+        }
+      }
+    },
+    "Beta": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta"
+          }
+        }
+      }
+    },
+    "Choose disc images (.cue, .chd, .iso …). Discs next to the playlist are easiest to move along with it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle Disc-Images (.cue, .chd, .iso …). Discs neben der Playlist lassen sich am einfachsten mit ihr verschieben."
+          }
+        }
+      }
+    },
+    "Choose games or folders. Games outside your library folders are added one by one.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle Spiele oder Ordner. Spiele außerhalb deiner Bibliotheksordner werden einzeln hinzugefügt."
+          }
+        }
+      }
+    },
+    "Clear Filters": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter zurücksetzen"
+          }
+        }
+      }
+    },
+    "Collections": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sammlungen"
+          }
+        }
+      }
+    },
+    "Complete Metadata": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vollständige Metadaten"
+          }
+        }
+      }
+    },
+    "Completed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durchgespielt"
+          }
+        }
+      }
+    },
+    "Create": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstellen"
+          }
+        }
+      }
+    },
+    "Create Disc Playlist": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disc-Playlist erstellen"
+          }
+        }
+      }
+    },
+    "Create Disc Playlist…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disc-Playlist erstellen …"
+          }
+        }
+      }
+    },
+    "Decade": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jahrzehnt"
+          }
+        }
+      }
+    },
+    "Delete Collection": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sammlung löschen"
+          }
+        }
+      }
+    },
+    "Delete Collection…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sammlung löschen …"
+          }
+        }
+      }
+    },
+    "Delete the collection “%@”?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sammlung „%@“ löschen?"
+          }
+        }
+      }
+    },
+    "Delete this replaced state?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diesen ersetzten Spielstand löschen?"
+          }
+        }
+      }
+    },
+    "Delete this save state?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diesen Spielstand löschen?"
+          }
+        }
+      }
+    },
+    "Demo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demo"
+          }
+        }
+      }
+    },
+    "Disc %@ isn't in the playlist": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disc %@ fehlt in der Playlist"
+          }
+        }
+      }
+    },
+    "Disc %lld: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disc %1$lld: %2$@"
+          }
+        }
+      }
+    },
+    "Discs": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discs"
+          }
+        }
+      }
+    },
+    "Edit Discs": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discs bearbeiten"
+          }
+        }
+      }
+    },
+    "Edit Discs…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discs bearbeiten …"
+          }
+        }
+      }
+    },
+    "Enter a new name.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib einen neuen Namen ein."
+          }
+        }
+      }
+    },
+    "File Name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateiname"
+          }
+        }
+      }
+    },
+    "Filter (%lld active)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter (%lld aktiv)"
+          }
+        }
+      }
+    },
+    "Fixed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Korrigiert"
+          }
+        }
+      }
+    },
+    "Group Versions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versionen gruppieren"
+          }
+        }
+      }
+    },
+    "Hack": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hack"
+          }
+        }
+      }
+    },
+    "Identical File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identische Datei"
+          }
+        }
+      }
+    },
+    "Incomplete Metadata": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unvollständige Metadaten"
+          }
+        }
+      }
+    },
+    "Label": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beschriftung"
+          }
+        }
+      }
+    },
+    "Label (optional)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beschriftung (optional)"
+          }
+        }
+      }
+    },
+    "Move Down": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach unten"
+          }
+        }
+      }
+    },
+    "Move Up": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach oben"
+          }
+        }
+      }
+    },
+    "Multiplayer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehrspieler"
+          }
+        }
+      }
+    },
+    "Name Save State": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielstand benennen"
+          }
+        }
+      }
+    },
+    "New Collection": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Sammlung"
+          }
+        }
+      }
+    },
+    "New Collection…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Sammlung …"
+          }
+        }
+      }
+    },
+    "No Games Match the Filter": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Spiele passen zum Filter"
+          }
+        }
+      }
+    },
+    "No Save States": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Spielstände"
+          }
+        }
+      }
+    },
+    "No Status": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Status"
+          }
+        }
+      }
+    },
+    "Open the pause menu to save or load while the game runs.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffne das Pausemenü, um während des Spiels zu sichern oder zu laden."
+          }
+        }
+      }
+    },
+    "Organize": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organisieren"
+          }
+        }
+      }
+    },
+    "Overdump": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overdump"
+          }
+        }
+      }
+    },
+    "Pirate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raubkopie"
+          }
+        }
+      }
+    },
+    "Play from Here": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hier weiterspielen"
+          }
+        }
+      }
+    },
+    "Playing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele ich"
+          }
+        }
+      }
+    },
+    "Prototype": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prototyp"
+          }
+        }
+      }
+    },
+    "Put them next to the playlist, or remove them from it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leg sie neben die Playlist oder entferne sie daraus."
+          }
+        }
+      }
+    },
+    "Recently Replaced (%lld)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zuletzt ersetzt (%lld)"
+          }
+        }
+      }
+    },
+    "Remove %lld games from the library?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Spiele aus der Bibliothek entfernen?"
+          }
+        }
+      }
+    },
+    "Remove Name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Namen entfernen"
+          }
+        }
+      }
+    },
+    "Rename": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umbenennen"
+          }
+        }
+      }
+    },
+    "Rename Collection": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sammlung umbenennen"
+          }
+        }
+      }
+    },
+    "Rename…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umbenennen …"
+          }
+        }
+      }
+    },
+    "Replaced %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ersetzt %@"
+          }
+        }
+      }
+    },
+    "Restore as Quick Save": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Schnellspeicherung wiederherstellen"
+          }
+        }
+      }
+    },
+    "Restore to Slot %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Slot %lld wiederherstellen"
+          }
+        }
+      }
+    },
+    "Restored as Quick Save": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Schnellspeicherung wiederhergestellt"
+          }
+        }
+      }
+    },
+    "Restored to slot %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Slot %lld wiederhergestellt"
+          }
+        }
+      }
+    },
+    "Rev %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rev. %@"
+          }
+        }
+      }
+    },
+    "Running": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft"
+          }
+        }
+      }
+    },
+    "Save States": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielstände"
+          }
+        }
+      }
+    },
+    "Save states you make in the pause menu appear here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielstände, die du im Pausemenü sicherst, erscheinen hier."
+          }
+        }
+      }
+    },
+    "Saved %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesichert %@"
+          }
+        }
+      }
+    },
+    "Saving into a slot or deleting a state keeps the previous state here for a while.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn du in einen Slot sicherst oder einen Spielstand löschst, bleibt der vorherige eine Weile hier erhalten."
+          }
+        }
+      }
+    },
+    "Scandinavia": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skandinavien"
+          }
+        }
+      }
+    },
+    "Show This Version": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Version zeigen"
+          }
+        }
+      }
+    },
+    "Show regions, revisions and translations of a game as one entry.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regionen, Revisionen und Übersetzungen eines Spiels als einen Eintrag zeigen."
+          }
+        }
+      }
+    },
+    "Shown in Library": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In der Bibliothek gezeigt"
+          }
+        }
+      }
+    },
+    "Show…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigen …"
+          }
+        }
+      }
+    },
+    "Single Player": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einzelspieler"
+          }
+        }
+      }
+    },
+    "Slot %lld: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slot %1$lld: %2$@"
+          }
+        }
+      }
+    },
+    "Sort by Disc Number": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Disc-Nummer sortieren"
+          }
+        }
+      }
+    },
+    "Status": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        }
+      }
+    },
+    "The %lld selected games are added to it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die %lld ausgewählten Spiele werden hinzugefügt."
+          }
+        }
+      }
+    },
+    "The discs become one game that changes discs from the pause menu. Ursprung writes an .m3u file next to them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Discs werden zu einem Spiel, das die Disc im Pausemenü wechselt. Ursprung legt dazu eine .m3u-Datei neben sie."
+          }
+        }
+      }
+    },
+    "The game uses another core now. Choose this core in the inspector to load these states.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Spiel nutzt inzwischen einen anderen Core. Wähle diesen Core im Infofenster, um diese Spielstände zu laden."
+          }
+        }
+      }
+    },
+    "The games stay in the library.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Spiele bleiben in der Bibliothek."
+          }
+        }
+      }
+    },
+    "The order is the order of the discs in the pause menu. Labels help tell the discs apart.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In dieser Reihenfolge erscheinen die Discs im Pausemenü. Beschriftungen helfen, sie auseinanderzuhalten."
+          }
+        }
+      }
+    },
+    "The playlist couldn't be saved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Playlist konnte nicht gesichert werden"
+          }
+        }
+      }
+    },
+    "The save state belongs to a different version of the game file, so the game starts from the beginning.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand gehört zu einer anderen Version der Spieldatei, daher beginnt das Spiel von vorn."
+          }
+        }
+      }
+    },
+    "The save state couldn't be loaded, so the game starts from the beginning.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand konnte nicht geladen werden, daher beginnt das Spiel von vorn."
+          }
+        }
+      }
+    },
+    "The state couldn't be renamed. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand konnte nicht umbenannt werden. %@"
+          }
+        }
+      }
+    },
+    "The state couldn't be restored. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand konnte nicht wiederhergestellt werden. %@"
+          }
+        }
+      }
+    },
+    "This Collection Is Empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Sammlung ist leer"
+          }
+        }
+      }
+    },
+    "This disc has no playlist yet, so each disc is a game of its own. A playlist lets you change discs from the pause menu.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für diese Disc gibt es noch keine Playlist, daher ist jede Disc ein eigenes Spiel. Mit einer Playlist wechselst du die Disc im Pausemenü."
+          }
+        }
+      }
+    },
+    "Trainer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trainer"
+          }
+        }
+      }
+    },
+    "Translation": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Übersetzung"
+          }
+        }
+      }
+    },
+    "Translation (%@)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Übersetzung (%@)"
+          }
+        }
+      }
+    },
+    "Try other filter settings.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versuch es mit anderen Filtereinstellungen."
+          }
+        }
+      }
+    },
+    "Unknown Core": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbekannter Core"
+          }
+        }
+      }
+    },
+    "Unlicensed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlizenziert"
+          }
+        }
+      }
+    },
+    "Up Next": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Nächstes"
+          }
+        }
+      }
+    },
+    "Version Actions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versionsaktionen"
+          }
+        }
+      }
+    },
+    "Versions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versionen"
+          }
+        }
+      }
+    },
+    "View": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Darstellung"
+          }
+        }
+      }
+    },
+    "Year": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jahr"
+          }
+        }
+      }
+    },
+    "You can restore it from Recently Replaced.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du kannst ihn unter „Zuletzt ersetzt“ wiederherstellen."
+          }
+        }
+      }
+    },
+    "as Covers": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "als Cover"
+          }
+        }
+      }
+    },
+    "as List": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "als Liste"
+          }
+        }
+      }
+    },
+    "“%@” is added to it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wird hinzugefügt."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

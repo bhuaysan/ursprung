@@ -7,6 +7,9 @@ struct SidebarView: View {
     let games: [Game]
     let hiddenCount: Int
     @Binding var selection: LibrarySelection?
+    /// Every collection, in sidebar order.
+    let collections: [String]
+    let collectionActions: CollectionActions
     /// Retries a failed metadata fetch from the activity footer.
     let retryMetadata: () -> Void
     @Environment(LibraryStore.self) private var library
@@ -14,6 +17,7 @@ struct SidebarView: View {
     @Environment(SystemMediaStore.self) private var systemMedia
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("sidebarSystemsExpanded") private var systemsExpanded = true
+    @AppStorage("sidebarCollectionsExpanded") private var collectionsExpanded = true
 
     var body: some View {
         List(selection: $selection) {
@@ -24,6 +28,27 @@ struct SidebarView: View {
                 row("Recently Played", symbol: "clock", count: nil, tag: .recent)
                 if hiddenCount > 0 {
                     row("Hidden", symbol: "eye.slash", count: hiddenCount, tag: .hidden)
+                }
+            }
+
+            if !collections.isEmpty {
+                Section("Collections", isExpanded: $collectionsExpanded) {
+                    ForEach(collections, id: \.self) { collection in
+                        Label(collection, systemImage: "rectangle.stack")
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                            .help(collection)
+                            .badge(collectionCounts[collection] ?? 0)
+                            .tag(LibrarySelection.collection(collection))
+                            .contextMenu {
+                                Button("Rename…") { collectionActions.rename(collection) }
+                                Button("Delete Collection…", role: .destructive) { collectionActions.delete(collection) }
+                                Divider()
+                                Button("New Collection…", action: collectionActions.create)
+                            }
+                    }
+                    .onMove(perform: collectionActions.move)
                 }
             }
 
@@ -67,6 +92,14 @@ struct SidebarView: View {
             .tag(tag)
     }
 
+    private var collectionCounts: [String: Int] {
+        var counts: [String: Int] = [:]
+        for game in games {
+            for collection in game.collections { counts[collection, default: 0] += 1 }
+        }
+        return counts
+    }
+
     private var systems: [(system: GameSystem, count: Int)] {
         let counts = Dictionary(grouping: games, by: \.systemID).mapValues(\.count)
         return SystemCatalog.all.compactMap { system in
@@ -84,6 +117,15 @@ struct SidebarView: View {
                 .padding(.vertical, 10)
         }
     }
+}
+
+/// Creating, renaming, deleting and ordering collections from the sidebar.
+struct CollectionActions {
+    let create: () -> Void
+    let rename: (String) -> Void
+    /// Asks first; the games stay in the library.
+    let delete: (String) -> Void
+    let move: (IndexSet, Int) -> Void
 }
 
 /// Flat system identity dot, centred in the sidebar's icon slot. Decorative:
