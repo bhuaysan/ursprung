@@ -34,16 +34,6 @@
         }
       }
     },
-    "%lld games found, %lld new, %lld removed.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld Spiele gefunden, %2$lld neu, %3$lld entfernt."
-          }
-        }
-      }
-    },
     "%lld of %lld": {
       "localizations": {
         "de": {
@@ -1740,16 +1730,6 @@
         }
       }
     },
-    "The state could not be loaded": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Spielstand konnte nicht geladen werden"
-          }
-        }
-      }
-    },
     "This build has no ScreenScraper developer credentials. Add them to .env and rebuild.": {
       "localizations": {
         "de": {
@@ -3231,6 +3211,896 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kopieren fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "%lld games found, %lld new.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld Spiele gefunden, %2$lld neu."
+          }
+        }
+      }
+    },
+    "%lld renamed or moved games were recognized.": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld umbenanntes oder verschobenes Spiel wurde erkannt."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld umbenannte oder verschobene Spiele wurden erkannt."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld renamed or moved game was recognized."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld renamed or moved games were recognized."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld games are missing.": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Spiel fehlt."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Spiele fehlen."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld game is missing."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld games are missing."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "This file is not a %@ game.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datei ist kein %@-Spiel."
+          }
+        }
+      }
+    },
+    "Locate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswählen"
+          }
+        }
+      }
+    },
+    "Choose the file of “%@”. Favorites, play time and saves stay with the game.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle die Datei von „%@“. Favorit, Spielzeit und Spielstände bleiben beim Spiel."
+          }
+        }
+      }
+    },
+    "The file couldn't be used": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei konnte nicht verwendet werden"
+          }
+        }
+      }
+    },
+    "before merging %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vor dem Zusammenführen %@"
+          }
+        }
+      }
+    },
+    "merged %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "zusammengeführt %@"
+          }
+        }
+      }
+    },
+    "Choose a battery save (.srm or .sav) for “%@”. The current save is kept as a copy.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle einen SRAM-Spielstand (.srm oder .sav) für „%@“. Der aktuelle Spielstand bleibt als Kopie erhalten."
+          }
+        }
+      }
+    },
+    "before import %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vor dem Import %@"
+          }
+        }
+      }
+    },
+    "The battery save couldn't be imported": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der SRAM-Spielstand konnte nicht importiert werden"
+          }
+        }
+      }
+    },
+    "The file is not a battery save.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei ist kein SRAM-Spielstand."
+          }
+        }
+      }
+    },
+    "The battery save couldn't be written. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der SRAM-Spielstand konnte nicht geschrieben werden. %@"
+          }
+        }
+      }
+    },
+    "The state couldn't be saved. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand konnte nicht gesichert werden. %@"
+          }
+        }
+      }
+    },
+    "The core couldn't create a save state right now. Try again in a moment.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Core konnte gerade keinen Spielstand erstellen. Versuche es gleich noch einmal."
+          }
+        }
+      }
+    },
+    "The state could not be loaded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand konnte nicht geladen werden."
+          }
+        }
+      }
+    },
+    "Saved by an earlier version of Ursprung, possibly with another core.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von einer früheren Version von Ursprung gesichert, eventuell mit einem anderen Core."
+          }
+        }
+      }
+    },
+    "Saved with core version %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Core-Version %@ gesichert."
+          }
+        }
+      }
+    },
+    "Saved from a different version of the game file.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus einer anderen Version der Spieldatei gesichert."
+          }
+        }
+      }
+    },
+    "State loaded. %@ If the game misbehaves, restart it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielstand geladen. %@ Wenn sich das Spiel seltsam verhält, starte es neu."
+          }
+        }
+      }
+    },
+    "It was probably made with another core.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Er wurde wahrscheinlich mit einem anderen Core erstellt."
+          }
+        }
+      }
+    },
+    "It was saved with core version %@; the installed version can't read it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Er wurde mit Core-Version %@ gesichert; die installierte Version kann ihn nicht lesen."
+          }
+        }
+      }
+    },
+    "It was saved from a different version of the game file.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Er wurde aus einer anderen Version der Spieldatei gesichert."
+          }
+        }
+      }
+    },
+    "Locate File…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei suchen …"
+          }
+        }
+      }
+    },
+    "Import Battery Save…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SRAM-Spielstand importieren …"
+          }
+        }
+      }
+    },
+    "File Missing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei fehlt"
+          }
+        }
+      }
+    },
+    "File missing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei fehlt"
+          }
+        }
+      }
+    },
+    "Favorites, play time and saves are kept.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorit, Spielzeit und Spielstände bleiben erhalten."
+          }
+        }
+      }
+    },
+    "Locate…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchen …"
+          }
+        }
+      }
+    },
+    "Last Location": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letzter Ort"
+          }
+        }
+      }
+    },
+    "Play time and favorite status are lost. Saves stay on disk.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielzeit und Favoritenstatus gehen verloren. Spielstände bleiben auf der Festplatte."
+          }
+        }
+      }
+    },
+    "Connect “%@” to play this game.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinde „%@“, um dieses Spiel zu spielen."
+          }
+        }
+      }
+    },
+    "The file was moved, renamed or deleted. Locate it to keep favorites, play time and saves with the game.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei wurde verschoben, umbenannt oder gelöscht. Suche sie, damit Favorit, Spielzeit und Spielstände beim Spiel bleiben."
+          }
+        }
+      }
+    },
+    "“%@” can't be found": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wurde nicht gefunden"
+          }
+        }
+      }
+    },
+    "“%@” is on a drive that isn't connected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ liegt auf einem Laufwerk, das nicht verbunden ist"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "The file is not an Ursprung backup.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei ist kein Ursprung-Backup."
+          }
+        }
+      }
+    },
+    "The backup was made by a newer version of Ursprung. Update Ursprung to restore it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backup stammt von einer neueren Version von Ursprung. Aktualisiere Ursprung, um es wiederherzustellen."
+          }
+        }
+      }
+    },
+    "The backup is incomplete: %lld files are missing or have the wrong size. Nothing was restored.": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Das Backup ist unvollständig: %lld Datei fehlt oder hat die falsche Größe. Es wurde nichts wiederhergestellt."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Das Backup ist unvollständig: %lld Dateien fehlen oder haben die falsche Größe. Es wurde nichts wiederhergestellt."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "The backup is incomplete: %lld file is missing or has the wrong size. Nothing was restored."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "The backup is incomplete: %lld files are missing or have the wrong size. Nothing was restored."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "The backup is damaged. Nothing was restored. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backup ist beschädigt. Es wurde nichts wiederhergestellt. %@"
+          }
+        }
+      }
+    },
+    "before restore %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vor der Wiederherstellung %@"
+          }
+        }
+      }
+    },
+    "from backup %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aus Backup %@"
+          }
+        }
+      }
+    },
+    "The backup contains your library, battery saves, save states, artwork and settings.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backup enthält deine Bibliothek, SRAM-Spielstände, Spielstände, Artwork und Einstellungen."
+          }
+        }
+      }
+    },
+    "Back Up": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern"
+          }
+        }
+      }
+    },
+    "The backup couldn't be created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backup konnte nicht erstellt werden"
+          }
+        }
+      }
+    },
+    "Backing up…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gesichert …"
+          }
+        }
+      }
+    },
+    "Backup complete": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup abgeschlossen"
+          }
+        }
+      }
+    },
+    "The backup was saved as “%@”.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backup wurde als „%@“ gesichert."
+          }
+        }
+      }
+    },
+    "Choose an Ursprung backup.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle ein Ursprung-Backup."
+          }
+        }
+      }
+    },
+    "Restore": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederherstellen"
+          }
+        }
+      }
+    },
+    "Checking backup…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup wird geprüft …"
+          }
+        }
+      }
+    },
+    "The backup can't be restored": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backup kann nicht wiederhergestellt werden"
+          }
+        }
+      }
+    },
+    "Restoring…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird wiederhergestellt …"
+          }
+        }
+      }
+    },
+    "Backup restored": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup wiederhergestellt"
+          }
+        }
+      }
+    },
+    "The backup couldn't be restored completely": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backup konnte nicht vollständig wiederhergestellt werden"
+          }
+        }
+      }
+    },
+    "Restore the backup from %@?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup vom %@ wiederherstellen?"
+          }
+        }
+      }
+    },
+    "Games: %lld, save files: %lld, save states: %lld.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele: %1$lld, Speicherdateien: %2$lld, Spielstände: %3$lld."
+          }
+        }
+      }
+    },
+    "Games already in your library keep their data and gain the backup's favorites and play time. Where a save exists in both, the newer one is used and the other is kept next to it as a copy. Nothing is deleted.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele, die schon in deiner Bibliothek sind, behalten ihre Daten und übernehmen Favoriten und Spielzeit aus dem Backup. Gibt es einen Spielstand in beiden, wird der neuere verwendet und der andere als Kopie daneben aufbewahrt. Es wird nichts gelöscht."
+          }
+        }
+      }
+    },
+    "Also restore settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auch Einstellungen wiederherstellen"
+          }
+        }
+      }
+    },
+    "%lld games restored.": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Spiel wiederhergestellt."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Spiele wiederhergestellt."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld game restored."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld games restored."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld were added as new games.": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wurde als neues Spiel hinzugefügt."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wurden als neue Spiele hinzugefügt."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld was added as a new game."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld were added as new games."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld save files existed in both; the newer one is used and the other is kept as a copy.": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Speicherdatei gab es in beiden; die neuere wird verwendet, die andere bleibt als Kopie erhalten."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Speicherdateien gab es in beiden; die neuere wird jeweils verwendet, die andere bleibt als Kopie erhalten."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld save file existed in both; the newer one is used and the other is kept as a copy."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld save files existed in both; the newer one is used and the other is kept as a copy."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Quit the game first": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beende zuerst das Spiel"
+          }
+        }
+      }
+    },
+    "A running game keeps writing its saves. Close it, then try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein laufendes Spiel schreibt weiter seine Spielstände. Schließe es und versuche es dann noch einmal."
+          }
+        }
+      }
+    },
+    "Back Up Library…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliothek sichern …"
+          }
+        }
+      }
+    },
+    "Restore from Backup…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus Backup wiederherstellen …"
+          }
+        }
+      }
+    },
+    "Backup": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup"
+          }
+        }
+      }
+    },
+    "Back Up…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern …"
+          }
+        }
+      }
+    },
+    "Restore…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederherstellen …"
+          }
+        }
+      }
+    },
+    "A backup contains your library, battery saves, save states, artwork and settings. BIOS files, cores and your ScreenScraper password are not included.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Backup enthält deine Bibliothek, SRAM-Spielstände, Spielstände, Artwork und Einstellungen. BIOS-Dateien, Cores und dein ScreenScraper-Passwort sind nicht enthalten."
           }
         }
       }

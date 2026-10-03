@@ -8,15 +8,6 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// A save state slot on disk.
-nonisolated struct SaveStateSlot: Identifiable, Hashable, Sendable {
-    let slot: Int
-    let date: Date
-    let stateURL: URL
-    let thumbnailURL: URL
-    var id: Int { slot }
-}
-
 /// Controls the one game that is currently running.
 @Observable
 final class EmulationSession {
@@ -71,6 +62,8 @@ final class EmulationSession {
     private var runner: EmulationRunner?
     private var gameUUID: UUID?
     private var coreID: String?
+    /// The running core and game, recorded in every state's manifest.
+    private(set) var stateContext: SaveStateContext?
     private var startedAt: Date?
     private var userPaused = false
     private var appInactive = false
@@ -166,7 +159,14 @@ final class EmulationSession {
             try? FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
             core.systemDirectory = AppPaths.system.path(percentEncoded: false)
             core.saveDirectory = saveDirectory.path(percentEncoded: false)
-            core.saveRAMPath = batterySaveURL(for: game, systemID: system.id, context: context).path(percentEncoded: false)
+            let batterySave = batterySaveURL(for: game, systemID: system.id, context: context)
+            core.saveRAMPath = batterySave.path(percentEncoded: false)
+            core.rtcPath = BatterySave.rtcURL(forSave: batterySave).path(percentEncoded: false)
+            core.saveErrorHandler = { [weak self] reason in
+                MainActor.assumeIsolated {
+                    self?.showToast(String(localized: "The battery save couldn't be written. \(reason)"), kind: .warning, duration: 6)
+                }
+            }
             core.optionOverrides = definition.optionDefaults.merging(Preferences.coreOptions(for: definition.id)) { $1 }
             core.languageCode = Locale.current.language.languageCode?.identifier ?? "en"
             core.messageHandler = { [weak self] message, duration in
@@ -194,6 +194,8 @@ final class EmulationSession {
             }
 
             self.core = core
+            stateContext = SaveStateContext(coreID: definition.id, coreVersion: core.libraryVersion,
+                                            gameCRC32: game.crc32, gameFileName: game.fileName, gameFileSize: game.fileSize)
             input.core = core
             input.reloadMapping()
             startedAt = .now
@@ -227,6 +229,8 @@ final class EmulationSession {
         let saves = AppPaths.saves
         let baseName = game.saveBaseName
         let url = BatterySave.url(in: saves, systemID: systemID, gameID: game.id, baseName: baseName)
+        // After a rename the game's save still carries the old file name.
+        BatterySave.adoptRenamed(at: url)
         let siblings = ((try? context.fetch(FetchDescriptor<Game>(predicate: #Predicate { $0.systemID == systemID }))) ?? [])
             .filter { $0.saveBaseName == baseName }
         BatterySave.migrateLegacy(to: url,
@@ -305,6 +309,7 @@ final class EmulationSession {
         input.reset()
         runner = nil
         core = nil
+        stateContext = nil
         startedAt = nil
         isMenuVisible = false
         isFastForwarding = false
@@ -379,74 +384,100 @@ final class EmulationSession {
 
     // MARK: - Save states
 
-    private var statesDirectory: URL? {
-        gameUUID.map { AppPaths.states.appending(path: $0.uuidString, directoryHint: .isDirectory) }
+    func reloadSlots() {
+        guard let gameUUID, let coreID else { slots = []; return }
+        slots = SaveStateStore.slots(in: AppPaths.states, gameID: gameUUID, coreID: coreID)
     }
 
-    func reloadSlots() {
-        guard let directory = statesDirectory else { slots = []; return }
-        slots = (0...9).compactMap { slot in
-            let state = directory.appending(path: "slot\(slot).state")
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: state.path(percentEncoded: false)),
-                  let date = attributes[.modificationDate] as? Date else { return nil }
-            return SaveStateSlot(slot: slot, date: date, stateURL: state, thumbnailURL: directory.appending(path: "slot\(slot).png"))
-        }
+    /// Why the state in `slot` may not load or may belong to another file.
+    func issues(for slot: SaveStateSlot) -> [SaveStateIssue] {
+        stateContext.map { slot.issues(for: $0) } ?? []
     }
 
     func saveState(slot: Int) {
-        guard let runner, let directory = statesDirectory else { return }
-        let stateURL = directory.appending(path: "slot\(slot).state")
-        let thumbnailURL = directory.appending(path: "slot\(slot).png")
+        guard let runner, let gameUUID, let context = stateContext else { return }
+        let directory = SaveStateStore.directory(in: AppPaths.states, gameID: gameUUID, coreID: context.coreID)
         runner.performOnEmulationThread { [weak self] core in
-            let success: Bool
-            if let data = core.serializeState() {
-                try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                success = (try? data.write(to: stateURL, options: .atomic)) != nil
-                if success, let image = core.copyFrameImage() {
-                    Self.writePNG(image, to: thumbnailURL)
+            let message: String
+            var kind = Toast.Kind.warning
+            if !core.supportsSaveStates {
+                message = String(localized: "This core does not support save states")
+            } else if let data = core.serializeState() {
+                do {
+                    try SaveStateStore.write(data, manifest: context.manifest(), slot: slot, in: directory)
+                    if let image = core.copyFrameImage() {
+                        Self.writePNG(image, to: directory.appending(path: "slot\(slot).png"))
+                    }
+                    message = String(localized: "State saved")
+                    kind = .saved
+                } catch {
+                    message = String(localized: "The state couldn't be saved. \(error.localizedDescription)")
                 }
             } else {
-                success = false
+                message = String(localized: "The core couldn't create a save state right now. Try again in a moment.")
             }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self?.reloadSlots()
-                    if success {
-                        self?.showToast(String(localized: "State saved"), kind: .saved)
-                    } else {
-                        self?.showToast(String(localized: "This core does not support save states"), kind: .warning)
-                    }
+                    self?.showToast(message, kind: kind, duration: kind == .saved ? 2.5 : 5)
                 }
             }
         }
     }
 
     func loadState(slot: Int) {
-        guard let runner, let directory = statesDirectory else { return }
-        let stateURL = directory.appending(path: "slot\(slot).state")
-        guard let data = try? Data(contentsOf: stateURL) else {
+        guard let runner else { return }
+        guard let state = slots.first(where: { $0.slot == slot }), let data = try? Data(contentsOf: state.stateURL) else {
             showToast(String(localized: "No saved state in this slot"))
             return
         }
+        let issues = issues(for: state)
         runner.performOnEmulationThread { [weak self] core in
             let success = core.unserializeState(data)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
+                    guard let self else { return }
                     if success {
-                        self?.showToast(String(localized: "State loaded"), kind: .loaded)
+                        if let note = issues.first.map(Self.loadedNote) {
+                            self.showToast(note, kind: .warning, duration: 5)
+                        } else {
+                            self.showToast(String(localized: "State loaded"), kind: .loaded)
+                        }
+                        self.isMenuVisible = false
                     } else {
-                        self?.showToast(String(localized: "The state could not be loaded"), kind: .warning)
+                        let reason = issues.first.map(Self.failureReason) ?? ""
+                        self.showToast([String(localized: "The state could not be loaded."), reason].joined(separator: " ")
+                            .trimmingCharacters(in: .whitespaces), kind: .warning, duration: 6)
                     }
-                    if success { self?.isMenuVisible = false }
                 }
             }
         }
     }
 
     func deleteState(slot: SaveStateSlot) {
-        try? FileManager.default.removeItem(at: slot.stateURL)
-        try? FileManager.default.removeItem(at: slot.thumbnailURL)
+        SaveStateStore.delete(slot)
         reloadSlots()
+    }
+
+    /// A short description of an issue, e.g. for a slot's help text.
+    static func describe(_ issue: SaveStateIssue) -> String {
+        switch issue {
+        case .unknownOrigin: String(localized: "Saved by an earlier version of Ursprung, possibly with another core.")
+        case .coreVersion(let version): String(localized: "Saved with core version \(version).")
+        case .differentGameFile: String(localized: "Saved from a different version of the game file.")
+        }
+    }
+
+    private static func loadedNote(_ issue: SaveStateIssue) -> String {
+        String(localized: "State loaded. \(describe(issue)) If the game misbehaves, restart it.")
+    }
+
+    private static func failureReason(_ issue: SaveStateIssue) -> String {
+        switch issue {
+        case .unknownOrigin: String(localized: "It was probably made with another core.")
+        case .coreVersion(let version): String(localized: "It was saved with core version \(version); the installed version can't read it.")
+        case .differentGameFile: String(localized: "It was saved from a different version of the game file.")
+        }
     }
 
     nonisolated private static func writePNG(_ image: CGImage, to url: URL) {

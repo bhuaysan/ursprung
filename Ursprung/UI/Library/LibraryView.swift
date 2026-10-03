@@ -72,6 +72,7 @@ struct LibraryView: View {
     @State private var columns = ColumnLayoutState()
     @State private var gamePendingRemoval: Game?
     @State private var isConfirmingRefetch = false
+    @State private var unavailableGame: UnavailableGame?
     @AppStorage(PrefKey.librarySort) private var sort: LibrarySort = .title
     @AppStorage(PrefKey.gridSize) private var gridSize = AppMetrics.defaultCoverStep
     @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
@@ -123,8 +124,31 @@ struct LibraryView: View {
             Button("Remove", role: .destructive) { remove(game) }
             // No .defaultAction here: a button has one key equivalent, and Return would replace Escape.
             Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("The file stays on disk. Play time and favorite status are lost, and the next rescan adds the game again.")
+        } message: { game in
+            if game.isMissing {
+                Text("Play time and favorite status are lost. Saves stay on disk.")
+            } else {
+                Text("The file stays on disk. Play time and favorite status are lost, and the next rescan adds the game again.")
+            }
+        }
+        .alert(Text(unavailableGame?.title ?? ""),
+               isPresented: Binding(get: { unavailableGame != nil }, set: { if !$0 { unavailableGame = nil } }),
+               presenting: unavailableGame) { item in
+            if item.volume == nil {
+                Button("Locate…") {
+                    // After the alert has gone, so the open panel is not stacked on it.
+                    Task { library.presentLocatePanel(for: item.game, context: context) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } else {
+                Button("OK", role: .cancel) {}
+            }
+        } message: { item in
+            if let volume = item.volume {
+                Text("Connect “\(volume)” to play this game.")
+            } else {
+                Text("The file was moved, renamed or deleted. Locate it to keep favorites, play time and saves with the game.")
+            }
         }
         .confirmationDialog("Refetch metadata for all games?", isPresented: $isConfirmingRefetch) {
             // Destructive: it overwrites existing metadata. Cancel keeps Escape.
@@ -394,6 +418,23 @@ struct LibraryView: View {
 
     private func play(_ game: Game) {
         selectedGameID = game.persistentModelID
+        guard FileManager.default.fileExists(atPath: game.path) else {
+            if let folder = library.offlineFolder(containing: game) {
+                unavailableGame = UnavailableGame(game: game, volume: LibraryPaths.volumeName(of: folder))
+            } else {
+                if game.missingSince == nil {
+                    game.missingSince = .now
+                    try? context.save()
+                }
+                unavailableGame = UnavailableGame(game: game, volume: nil)
+            }
+            return
+        }
+        if game.missingSince != nil {
+            // The file is back before a rescan noticed it.
+            game.missingSince = nil
+            try? context.save()
+        }
         openWindow(id: WindowID.player)
         Task { await session.launch(game, context: context) }
     }
@@ -408,6 +449,9 @@ struct LibraryView: View {
             },
             refetchMetadata: { metadata.enqueue([game], force: true, context: context) },
             showInFinder: { NSWorkspace.shared.activateFileViewerSelecting([game.fileURL]) },
+            locate: { library.presentLocatePanel(for: game, context: context) },
+            importBatterySave: { library.presentBatterySaveImport(for: game) },
+            canImportBatterySave: !(session.isActive && session.gameID == game.persistentModelID),
             setCore: { coreID in
                 game.coreID = coreID
                 try? context.save()
@@ -419,5 +463,18 @@ struct LibraryView: View {
     private func remove(_ game: Game) {
         if selectedGameID == game.persistentModelID { selectedGameID = nil }
         library.remove(game, context: context)
+    }
+}
+
+/// A game whose file is not there when the user wants to play it.
+private struct UnavailableGame: Identifiable {
+    let game: Game
+    /// The disconnected drive that holds the file; nil when the file is missing.
+    let volume: String?
+    var id: PersistentIdentifier { game.persistentModelID }
+
+    var title: String {
+        volume == nil ? String(localized: "“\(game.title)” can't be found")
+                      : String(localized: "“\(game.title)” is on a drive that isn't connected")
     }
 }

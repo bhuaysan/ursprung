@@ -53,6 +53,7 @@ private struct VerticallyResizableWindow: NSViewRepresentable {
 
 struct GeneralSettingsView: View {
     @Environment(LibraryStore.self) private var library
+    @Environment(BackupService.self) private var backup
     @Environment(\.modelContext) private var context
     @State private var selection: URL?
     @State private var folderToRemove: FolderRemoval?
@@ -110,13 +111,29 @@ struct GeneralSettingsView: View {
                 .settingsFootnote()
             }
 
-            Section("Data") {
+            Section {
+                LabeledContent("Backup") {
+                    HStack(spacing: AppSpacing.s) {
+                        if let activity = backup.activity {
+                            ProgressView().controlSize(.small)
+                            Text(activity).foregroundStyle(.secondary)
+                        }
+                        Button("Back Up…") { backup.backUp() }
+                        Button("Restore…") { backup.restore() }
+                    }
+                    .disabled(backup.isWorking)
+                }
                 LabeledContent("Application Data") {
                     Button("Show in Finder") { NSWorkspace.shared.open(AppPaths.root) }
                 }
                 LabeledContent("Battery Saves") {
                     Button("Show in Finder") { NSWorkspace.shared.open(AppPaths.saves) }
                 }
+            } header: {
+                Text("Data")
+            } footer: {
+                Text("A backup contains your library, battery saves, save states, artwork and settings. BIOS files, cores and your ScreenScraper password are not included.")
+                    .settingsFootnote()
             }
         }
         .formStyle(.grouped)

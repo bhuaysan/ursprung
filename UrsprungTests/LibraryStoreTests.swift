@@ -41,9 +41,16 @@ private func makeContext() throws -> (ModelContainer, ModelContext) {
     return (container, ModelContext(container))
 }
 
-private func makeStore(folders: [URL], scanner: @escaping LibraryStore.Scanner = { _ in LibraryScan() }) -> LibraryStore {
+/// Saves and states go to a temporary folder: renames must never touch the real ones.
+private func makeStore(folders: [URL], scanner: @escaping LibraryStore.Scanner = { _ in LibraryScan() },
+                       data: URL = FileManager.default.temporaryDirectory.appending(path: "UrsprungTests-\(UUID().uuidString)")) -> LibraryStore {
     LibraryStore(metadata: MetadataService(), folders: folders, scanner: scanner,
-                 persistFolders: { _ in }, scrapesAutomatically: { false })
+                 persistFolders: { _ in }, scrapesAutomatically: { false },
+                 saves: data.appending(path: "Saves"), states: data.appending(path: "States"))
+}
+
+private func missingPaths(in context: ModelContext) throws -> [String] {
+    try context.fetch(FetchDescriptor<Game>()).filter(\.isMissing).map(\.path).sorted()
 }
 
 private func gamePaths(in context: ModelContext) throws -> [String] {
@@ -139,7 +146,9 @@ struct LibraryFolderTests {
 
         await store.rescan(context: context)
 
-        #expect(try gamePaths(in: context) == [kept])
+        // The vanished game stays, marked as missing; the unreachable one is untouched.
+        #expect(try gamePaths(in: context) == [kept, vanished].sorted())
+        #expect(try missingPaths(in: context) == [vanished])
         #expect(store.unreachableFolders == [unreachable])
 
         store.removeFolder(unreachable, context: context)
@@ -239,8 +248,9 @@ struct LibraryScanSafetyTests {
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: sub.path(percentEncoded: false))
         await store.rescan(context: context)
 
-        // The deleted ROM sits in a readable folder and goes; the unreadable one stays.
-        #expect(try gamePaths(in: context) == [sub.appending(path: "Kept.sfc").standardizedFileURL.path(percentEncoded: false)])
+        // The deleted ROM sits in a readable folder and is missing; the unreadable one is not.
+        #expect(try missingPaths(in: context) == [root.appending(path: "Deleted.sfc").standardizedFileURL.path(percentEncoded: false)])
+        #expect(try context.fetch(FetchDescriptor<Game>()).count == 2)
     }
 
     @Test func unreadableArchiveKeepsGameAndMedia() async throws {

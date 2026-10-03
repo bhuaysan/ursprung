@@ -8,6 +8,9 @@ nonisolated enum ScrapeState: String, Codable, Sendable {
 }
 
 /// A game in the library. Metadata and artwork come from ScreenScraper.
+///
+/// The current version of the model; earlier ones are in `LibrarySchema.swift`.
+/// Changing a stored property needs a new schema version there.
 @Model
 final class Game {
     @Attribute(.unique) var id: UUID
@@ -29,6 +32,10 @@ final class Game {
     var isFavorite: Bool
     /// Per-game core override (nil = system default).
     var coreID: String?
+    /// When a scan last found the file gone. The game stays in the library
+    /// with its favourite, play time and saves until the user locates the
+    /// file or removes the game; a later scan that finds it clears the date.
+    var missingSince: Date?
 
     // Metadata
     var scrapeStateRaw: String
@@ -69,6 +76,7 @@ final class Game {
         set { scrapeStateRaw = newValue.rawValue }
     }
 
+    var isMissing: Bool { missingSince != nil }
     var system: GameSystem? { SystemCatalog.system(withID: systemID) }
     var fileURL: URL { URL(filePath: path) }
     var mediaDirectory: URL { AppPaths.media.appending(path: id.uuidString, directoryHint: .isDirectory) }
@@ -108,6 +116,92 @@ final class Game {
     /// Base name used for battery saves and save states.
     var saveBaseName: String {
         (fileName as NSString).deletingPathExtension
+    }
+
+    /// Takes over the scraped metadata and artwork of `other`, which is about
+    /// to leave the library. Its artwork files move into this game's folder.
+    func adoptMetadata(of other: Game) {
+        title = other.title
+        scrapeState = other.scrapeState
+        screenScraperID = other.screenScraperID
+        overview = other.overview
+        developer = other.developer
+        publisher = other.publisher
+        genre = other.genre
+        releaseDate = other.releaseDate
+        players = other.players
+        rating = other.rating
+        let artwork: [ReferenceWritableKeyPath<Game, String?>] = [\.boxArtFile, \.screenshotFile, \.titleScreenFile, \.logoFile, \.fanartFile]
+        try? FileManager.default.createDirectory(at: mediaDirectory, withIntermediateDirectories: true)
+        for keyPath in artwork {
+            guard let file = other[keyPath: keyPath], let source = other.mediaURL(file) else { continue }
+            let destination = mediaDirectory.appending(path: file)
+            try? FileManager.default.removeItem(at: destination)
+            if (try? FileManager.default.moveItem(at: source, to: destination)) != nil { self[keyPath: keyPath] = file }
+        }
+    }
+}
+
+extension Game {
+    /// The game as written to a backup.
+    var record: GameRecord {
+        GameRecord(id: id, path: path, systemID: systemID, title: title, fileName: fileName, fileSize: fileSize,
+                   crc32: crc32, fileModified: fileModified, dateAdded: dateAdded, lastPlayed: lastPlayed,
+                   playCount: playCount, playTime: playTime, isFavorite: isFavorite, coreID: coreID,
+                   missingSince: missingSince, scrapeState: scrapeStateRaw, screenScraperID: screenScraperID,
+                   overview: overview, developer: developer, publisher: publisher, genre: genre,
+                   releaseDate: releaseDate, players: players, rating: rating, boxArtFile: boxArtFile,
+                   screenshotFile: screenshotFile, titleScreenFile: titleScreenFile, logoFile: logoFile,
+                   fanartFile: fanartFile)
+    }
+
+    /// A new library entry from a backup record.
+    convenience init(record: GameRecord, id: UUID) {
+        self.init(path: record.path, systemID: record.systemID, title: record.title, fileName: record.fileName,
+                  fileSize: record.fileSize, crc32: record.crc32)
+        self.id = id
+        fileModified = record.fileModified
+        dateAdded = record.dateAdded
+        lastPlayed = record.lastPlayed
+        playCount = record.playCount
+        playTime = record.playTime
+        isFavorite = record.isFavorite
+        coreID = record.coreID
+        missingSince = record.missingSince
+        adoptMetadata(of: record)
+    }
+
+    /// Adds a backup record's history to this game. Counters take the larger
+    /// value rather than the sum, so restoring the same backup twice changes
+    /// nothing. Metadata is taken only when this game has none.
+    func restore(_ record: GameRecord) {
+        isFavorite = isFavorite || record.isFavorite
+        playCount = max(playCount, record.playCount)
+        playTime = max(playTime, record.playTime)
+        lastPlayed = [lastPlayed, record.lastPlayed].compactMap { $0 }.max()
+        dateAdded = min(dateAdded, record.dateAdded)
+        if coreID == nil { coreID = record.coreID }
+        if scrapeState != .matched, record.scrapeState == ScrapeState.matched.rawValue {
+            adoptMetadata(of: record)
+        }
+    }
+
+    private func adoptMetadata(of record: GameRecord) {
+        title = record.title
+        scrapeStateRaw = record.scrapeState
+        screenScraperID = record.screenScraperID
+        overview = record.overview
+        developer = record.developer
+        publisher = record.publisher
+        genre = record.genre
+        releaseDate = record.releaseDate
+        players = record.players
+        rating = record.rating
+        boxArtFile = record.boxArtFile
+        screenshotFile = record.screenshotFile
+        titleScreenFile = record.titleScreenFile
+        logoFile = record.logoFile
+        fanartFile = record.fanartFile
     }
 }
 

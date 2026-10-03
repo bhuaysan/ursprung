@@ -199,4 +199,15 @@ struct ExtractedCacheTests {
         #expect(throws: ZipArchive.ZipError.self) { try ZipArchive.extractCached(entry, from: archive, into: cache) }
         #expect(!FileManager.default.fileExists(atPath: cache.appending(path: ".identity").path(percentEncoded: false)))
     }
+
+    @Test func extractsAnEmptyEntry() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = root.appending(path: "Empty.zip")
+        try makeZip(at: archive, containing: "empty.txt", bytes: Data())
+        let zip = try ZipArchive(url: archive)
+        let destination = root.appending(path: "out/empty.txt")
+        try zip.extract(try #require(zip.files.first), to: destination)
+        #expect(try Data(contentsOf: destination).isEmpty)
+    }
 }

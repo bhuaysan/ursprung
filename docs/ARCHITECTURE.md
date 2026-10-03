@@ -122,7 +122,12 @@ files referenced by `.cue`/`.gdi`/`.m3u`/`.ccd`, and identifies the system:
 2. Otherwise the file extension decides.
 3. Zips without a helpful folder name are identified by their largest entry.
 
-`LibraryStore` merges scan results into SwiftData and queues new games for
+`LibraryStore` merges scan results into SwiftData. Games whose file is gone
+stay as *missing*; `LibraryMatcher` recognises renamed and moved files by
+checksum or size and modification date, so the entry keeps its UUID and with
+it its saves (docs/SAVES.md). The SwiftData schema is versioned in
+`LibrarySchema.swift`; a change to `Game` needs a new version and migration
+stage. `LibraryStore` then queues new games for
 `MetadataService`, which scrapes one game at a time (the anonymous ScreenScraper
 quota allows a single thread). Media are downloaded into
 `Media/<game-id>/`; only file names are stored in the database, because

@@ -99,4 +99,43 @@ nonisolated enum Preferences {
     static func resetCoreOptions(for coreID: String) {
         defaults.removeObject(forKey: PrefKey.coreOptions(coreID))
     }
+
+    // MARK: Backup
+
+    /// Preferences a backup carries. Window state such as the last Settings
+    /// tab stays behind; passwords live in the keychain and never get here.
+    private static let backedUpKeys: Set<String> = [
+        PrefKey.libraryFolders, PrefKey.scraperLanguage, PrefKey.scraperRegion, PrefKey.scraperUsername,
+        PrefKey.autoScrape, PrefKey.videoFilter, PrefKey.integerScaling, PrefKey.volume, PrefKey.pauseInBackground,
+        PrefKey.showFPS, PrefKey.gridSize, PrefKey.keyboardMapping, PrefKey.librarySort,
+    ]
+    private static let backedUpPrefixes = ["coreChoice.", "coreOptions.", "hidGamepadMapping."]
+
+    private static func isBackedUp(_ key: String) -> Bool {
+        backedUpKeys.contains(key) || backedUpPrefixes.contains { key.hasPrefix($0) }
+    }
+
+    /// The backed-up preferences as a property list.
+    static func backupData() throws -> Data {
+        let values = defaults.persistentDomain(forName: Bundle.main.bundleIdentifier ?? "") ?? [:]
+        let selected = values.filter { isBackedUp($0.key) }
+        return try PropertyListSerialization.data(fromPropertyList: selected, format: .xml, options: 0)
+    }
+
+    /// Applies preferences from a backup and returns its library folders,
+    /// which the caller adds to the current ones instead of replacing them.
+    /// Keys a backup must not carry are ignored.
+    @discardableResult
+    static func restore(fromBackup data: Data) -> [URL] {
+        guard let values = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else { return [] }
+        var folders: [URL] = []
+        for (key, value) in values where isBackedUp(key) {
+            if key == PrefKey.libraryFolders {
+                folders = (value as? [String] ?? []).map { URL(filePath: $0, directoryHint: .isDirectory) }
+            } else {
+                defaults.set(value, forKey: key)
+            }
+        }
+        return folders
+    }
 }

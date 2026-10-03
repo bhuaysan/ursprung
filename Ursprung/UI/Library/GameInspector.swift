@@ -25,6 +25,9 @@ struct GameInspector: View {
                 actionRow
                     .padding(.top, AppSpacing.l)
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
+                    if game.isMissing {
+                        missingFileRow
+                    }
                     if let overview = game.overview, !overview.isEmpty {
                         overviewSection(overview)
                     }
@@ -234,6 +237,18 @@ struct GameInspector: View {
         .padding(.bottom, AppSpacing.xxs)
     }
 
+    /// The game's file is gone; it keeps its data until the file is located.
+    private var missingFileRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.s) {
+            StatusLabel("File missing", kind: .warning, prominent: true,
+                        detail: String(localized: "Favorites, play time and saves are kept."))
+            Spacer(minLength: AppSpacing.s)
+            Button("Locate…", action: actions.locate)
+                .buttonStyle(.link)
+        }
+        .font(.callout)
+    }
+
     private var activitySection: some View {
         InfoSection("Activity") {
             InfoRow("Last Played", game.lastPlayed.map { $0.formatted(.relative(presentation: .named)) } ?? String(localized: "Never"))
@@ -267,6 +282,9 @@ struct GameInspector: View {
     private var fileSection: some View {
         InfoSection("File") {
             InfoRow("Name", game.fileName, isCode: true)
+            if game.isMissing {
+                InfoRow("Last Location", game.fileURL.deletingLastPathComponent().path(percentEncoded: false), isCode: true)
+            }
             InfoRow("Size", ByteCountFormatter.string(fromByteCount: game.fileSize, countStyle: .file))
             InfoRow("CRC32", game.crc32, isCode: true)
         }

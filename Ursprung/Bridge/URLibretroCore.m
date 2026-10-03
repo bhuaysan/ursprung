@@ -133,6 +133,8 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 
     // Save RAM
     NSData *_lastSavedRAM;
+    NSData *_lastSavedRTC;
+    BOOL _saveFailing;
 
     // Misc callbacks
     struct retro_frame_time_callback _frameTimeCallback;
@@ -371,6 +373,10 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     if (gActiveCore == self) gActiveCore = nil;
 }
 
+- (BOOL)supportsSaveStates {
+    return _gameLoaded && _sym.serialize_size() > 0;
+}
+
 - (nullable NSData *)serializeState {
     if (!_gameLoaded) return nil;
     size_t size = _sym.serialize_size();
@@ -387,31 +393,61 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 
 #pragma mark - Save RAM
 
-- (void)loadSaveRAM {
-    if (!self.saveRAMPath) return;
-    void *memory = _sym.get_memory_data(RETRO_MEMORY_SAVE_RAM);
-    size_t size = _sym.get_memory_size(RETRO_MEMORY_SAVE_RAM);
-    if (!memory || size == 0) return;
-    NSData *file = [NSData dataWithContentsOfFile:self.saveRAMPath];
+/// Copies the file at `path` into the core's memory region `type` and returns
+/// a snapshot of the region, or nil when the core has no such region.
+- (nullable NSData *)loadMemory:(unsigned)type fromPath:(nullable NSString *)path {
+    if (!path) return nil;
+    void *memory = _sym.get_memory_data(type);
+    size_t size = _sym.get_memory_size(type);
+    if (!memory || size == 0) return nil;
+    NSData *file = [NSData dataWithContentsOfFile:path];
     if (file.length) {
         memcpy(memory, file.bytes, MIN(size, file.length));
     }
-    _lastSavedRAM = [NSData dataWithBytes:memory length:size];
+    return [NSData dataWithBytes:memory length:size];
+}
+
+- (void)loadSaveRAM {
+    _lastSavedRAM = [self loadMemory:RETRO_MEMORY_SAVE_RAM fromPath:self.saveRAMPath];
+    _lastSavedRTC = [self loadMemory:RETRO_MEMORY_RTC fromPath:self.rtcPath];
+}
+
+/// Writes memory region `type` to `path` if it differs from `*last`, and
+/// updates `*last` after a successful write. Returns NO with `error` set when
+/// the file could not be written.
+- (BOOL)writeMemory:(unsigned)type toPath:(nullable NSString *)path last:(NSData * __strong _Nullable *)last
+              error:(NSError **)error {
+    if (!path) return YES;
+    void *memory = _sym.get_memory_data(type);
+    size_t size = _sym.get_memory_size(type);
+    if (!memory || size == 0) return YES;
+    if ((*last).length == size && memcmp((*last).bytes, memory, size) == 0) return YES;
+
+    NSData *snapshot = [NSData dataWithBytes:memory length:size];
+    NSString *directory = path.stringByDeletingLastPathComponent;
+    if (![[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:error]
+        || ![snapshot writeToFile:path options:NSDataWritingAtomic error:error]) {
+        return NO;
+    }
+    *last = snapshot;
+    return YES;
 }
 
 - (void)writeSaveRAMIfChanged {
-    if (!_gameLoaded || !self.saveRAMPath) return;
-    void *memory = _sym.get_memory_data(RETRO_MEMORY_SAVE_RAM);
-    size_t size = _sym.get_memory_size(RETRO_MEMORY_SAVE_RAM);
-    if (!memory || size == 0) return;
-    if (_lastSavedRAM.length == size && memcmp(_lastSavedRAM.bytes, memory, size) == 0) return;
-
-    NSData *snapshot = [NSData dataWithBytes:memory length:size];
-    NSString *directory = self.saveRAMPath.stringByDeletingLastPathComponent;
-    [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
-    if ([snapshot writeToFile:self.saveRAMPath atomically:YES]) {
-        _lastSavedRAM = snapshot;
+    if (!_gameLoaded) return;
+    NSError *error = nil;
+    BOOL written = [self writeMemory:RETRO_MEMORY_SAVE_RAM toPath:self.saveRAMPath last:&_lastSavedRAM error:&error]
+        && [self writeMemory:RETRO_MEMORY_RTC toPath:self.rtcPath last:&_lastSavedRTC error:&error];
+    if (written) {
+        _saveFailing = NO;
+        return;
     }
+    // The next periodic write retries; the user hears about it once.
+    if (_saveFailing) return;
+    _saveFailing = YES;
+    void (^handler)(NSString *) = self.saveErrorHandler;
+    NSString *reason = error.localizedDescription ?: @"";
+    if (handler) dispatch_async(dispatch_get_main_queue(), ^{ handler(reason); });
 }
 
 #pragma mark - Disks

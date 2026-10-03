@@ -225,7 +225,8 @@ struct PauseMenuView: View {
                   spacing: AppSpacing.m) {
             ForEach(1...9, id: \.self) { slot in
                 let state = slotState(slot)
-                SlotView(slot: slot, state: state, isFocused: focusedSlot == slot, showsFocus: showsFocus,
+                SlotView(slot: slot, state: state, issues: state.map(session.issues(for:)) ?? [],
+                         isFocused: focusedSlot == slot, showsFocus: showsFocus,
                          save: { session.saveState(slot: slot) },
                          load: { session.loadState(slot: slot) },
                          delete: { slotToDelete = state })
@@ -447,6 +448,8 @@ private struct GroupDivider: View {
 private struct SlotView: View {
     let slot: Int
     let state: SaveStateSlot?
+    /// Why the state may not load as expected; shown as a warning.
+    let issues: [SaveStateIssue]
     let isFocused: Bool
     let showsFocus: Bool
     let save: () -> Void
@@ -461,9 +464,19 @@ private struct SlotView: View {
                 .padding(.bottom, AppSpacing.xs)
             Text("Slot \(slot)")
                 .font(.subheadline.weight(.semibold))
-            Text(state.map { $0.date.formatted(date: .abbreviated, time: .shortened) } ?? String(localized: "Empty"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: AppSpacing.xxs) {
+                if !issues.isEmpty {
+                    Image(systemName: StatusKind.warning.defaultSymbol)
+                        .foregroundStyle(StatusKind.warning.color)
+                        .accessibilityHidden(true)
+                }
+                Text(state.map { $0.date.formatted(date: .abbreviated, time: .shortened) } ?? String(localized: "Empty"))
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .help(issueText ?? "")
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(Text(verbatim: issueText ?? ""))
             // Shown on the focused slot (the pointer moves the focus), so
             // nothing is context-menu-only.
             HStack(spacing: AppSpacing.s) {
@@ -492,6 +505,10 @@ private struct SlotView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Slot \(slot)"))
+    }
+
+    private var issueText: String? {
+        issues.isEmpty ? nil : issues.map(EmulationSession.describe).joined(separator: " ")
     }
 
     private var thumbnail: some View {

@@ -310,8 +310,13 @@ struct GameCard: View {
                 .lineLimit(2)
                 .padding(.top, AppSpacing.s)
             HStack(spacing: AppSpacing.xs) {
-                Text(verbatim: metadataLine)
-                    .lineLimit(1)
+                if game.isMissing {
+                    StatusLabel("File Missing", kind: .warning)
+                        .lineLimit(1)
+                } else {
+                    Text(verbatim: metadataLine)
+                        .lineLimit(1)
+                }
                 Spacer(minLength: 0)
                 if game.isFavorite {
                     Image(systemName: "heart.fill")
@@ -342,7 +347,8 @@ struct GameCard: View {
     }
 
     private var accessibilityValue: String {
-        [game.system?.name, game.releaseYear, game.isFavorite ? String(localized: "Favorite") : nil]
+        [game.isMissing ? String(localized: "File Missing") : nil,
+         game.system?.name, game.releaseYear, game.isFavorite ? String(localized: "Favorite") : nil]
             .compactMap { $0 }
             .joined(separator: ", ")
     }
@@ -364,6 +370,8 @@ struct GameCard: View {
     private var artwork: some View {
         ArtworkImage(url: game.boxArtURL, maxPixel: 560) { placeholder }
             .artworkFrame(radius: radius)
+            // A missing game recedes; the word below says why.
+            .opacity(game.isMissing ? 0.45 : 1)
             .shadow(color: .black.opacity(isHovering ? 0.28 : 0.18), radius: isHovering ? 10 : 4, y: isHovering ? 5 : 2)
             .overlay(alignment: .bottomTrailing) {
                 // Permanent on the selected card, so Play is never hover-only.

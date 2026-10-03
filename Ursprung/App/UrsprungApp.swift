@@ -19,6 +19,7 @@ struct UrsprungApp: App {
     @State private var bios = BIOSManager()
     @State private var session: EmulationSession
     @State private var systemMedia = SystemMediaStore()
+    @State private var backup: BackupService
 
     private let container: ModelContainer
 
@@ -30,17 +31,19 @@ struct UrsprungApp: App {
         let metadata = MetadataService()
         let cores = CoreManager()
         let bios = BIOSManager()
+        let library = LibraryStore(metadata: metadata)
+        let session = EmulationSession(cores: cores, bios: bios)
         _metadata = State(initialValue: metadata)
-        _library = State(initialValue: LibraryStore(metadata: metadata))
+        _library = State(initialValue: library)
         _cores = State(initialValue: cores)
         _bios = State(initialValue: bios)
-        _session = State(initialValue: EmulationSession(cores: cores, bios: bios))
+        _session = State(initialValue: session)
 
         let storeURL = AppPaths.root.appending(path: "Library.store")
         do {
             container = try LibraryDatabase.open(
                 at: storeURL,
-                make: { try ModelContainer(for: Game.self, configurations: ModelConfiguration(url: $0)) },
+                make: { try ModelContainer.library(configuration: ModelConfiguration(url: $0)) },
                 recover: LibraryDatabase.askUser)
         } catch {
             // The library is never deleted here: without a usable store the app
@@ -48,6 +51,7 @@ struct UrsprungApp: App {
             LibraryDatabase.reportFailure(error)
             exit(EXIT_FAILURE)
         }
+        _backup = State(initialValue: BackupService(container: container, library: library, session: session))
     }
 
     var body: some Scene {
@@ -57,7 +61,7 @@ struct UrsprungApp: App {
         }
         .defaultSize(width: 1240, height: 800)
         .commands {
-            AppCommands(session: session)
+            AppCommands(session: session, backup: backup)
             SidebarCommands()
         }
         .environment(metadata)
@@ -92,6 +96,7 @@ struct UrsprungApp: App {
         .environment(cores)
         .environment(bios)
         .environment(session)
+        .environment(backup)
         .modelContainer(container)
     }
 }

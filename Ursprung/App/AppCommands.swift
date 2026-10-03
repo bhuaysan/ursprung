@@ -4,6 +4,7 @@ import SwiftUI
 
 struct AppCommands: Commands {
     let session: EmulationSession
+    let backup: BackupService
 
     @FocusedValue(\.libraryActions) private var libraryActions
     @FocusedValue(\.isShowingRecentlyPlayed) private var isShowingRecentlyPlayed
@@ -17,6 +18,13 @@ struct AppCommands: Commands {
         // the items are disabled while another window is key.
         CommandGroup(replacing: .newItem) {
             LibraryActionItems(actions: libraryActions, placement: .menuBar)
+        }
+
+        CommandGroup(replacing: .importExport) {
+            Button("Back Up Library…") { backup.backUp() }
+                .disabled(backup.isWorking)
+            Button("Restore from Backup…") { backup.restore() }
+                .disabled(backup.isWorking)
         }
 
         CommandGroup(after: .toolbar) {
@@ -44,6 +52,7 @@ struct AppCommands: Commands {
                 Divider()
                 Button("Refetch Metadata") {}.disabled(true)
                 Button("Show in Finder") {}.keyboardShortcut("r").disabled(true)
+                Button("Import Battery Save…") {}.disabled(true)
                 Divider()
                 Button("Remove from Library…") {}.disabled(true)
             }

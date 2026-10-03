@@ -35,6 +35,9 @@
   the libretro buildbot the first time you start a game — nothing to configure.
 - **Save states with thumbnails**, quick save/load, battery saves, fast forward,
   multi-disc games, per-core options.
+- **Your progress stays put.** Renamed or moved ROMs keep their favourites,
+  play time and saves; missing files can be located again. One-file backups
+  restore your library, saves, states and settings on another Mac.
 - **Controllers and keyboard.** Xbox, PlayStation, Switch Pro and MFi
   controllers via the GameController framework, Xbox 360 protocol (XInput)
   pads and receivers over USB (e.g. 8BitDo 2.4 GHz dongles) and other
@@ -130,10 +133,13 @@ Everything lives in `~/Library/Application Support/Ursprung/`:
 | `Cores/` | Downloaded libretro cores |
 | `System/` | BIOS files and core assets (the libretro system directory) |
 | `Saves/<system>/<game-id>/` | Battery saves (`.srm`), one folder per game. Memory cards and other core saves live in `Saves/<system>/` |
-| `States/<game>/` | Save states and their thumbnails |
+| `States/<game-id>/<core>/` | Save states with thumbnails and manifests, one folder per core |
 | `Media/<game>/` | Artwork from ScreenScraper |
 
-Your game files are only ever read, never modified.
+Your game files are only ever read, never modified. File › Back Up Library…
+writes all of this except cores and BIOS files into one zip file. See
+[docs/SAVES.md](docs/SAVES.md) for game identity, save state compatibility and
+the backup format.
 
 ## Legal
 

@@ -11,6 +11,11 @@ struct GameActions {
     let toggleFavorite: () -> Void
     let refetchMetadata: () -> Void
     let showInFinder: () -> Void
+    /// Chooses the file of a missing game.
+    let locate: () -> Void
+    let importBatterySave: () -> Void
+    /// False while the game runs: its next save would overwrite an import.
+    var canImportBatterySave = true
     /// `nil` selects the system's default core.
     let setCore: (String?) -> Void
     /// Asks for confirmation before the game leaves the library.
@@ -57,8 +62,14 @@ struct GameActionItems: View {
             Divider()
         }
         Button("Refetch Metadata", systemImage: "arrow.triangle.2.circlepath", action: actions.refetchMetadata)
-        Button("Show in Finder", systemImage: "folder", action: actions.showInFinder)
-            .keyboardShortcut(shortcut("r"))
+        if actions.game.isMissing {
+            Button("Locate File…", systemImage: "magnifyingglass", action: actions.locate)
+        } else {
+            Button("Show in Finder", systemImage: "folder", action: actions.showInFinder)
+                .keyboardShortcut(shortcut("r"))
+        }
+        Button("Import Battery Save…", systemImage: "square.and.arrow.down", action: actions.importBatterySave)
+            .disabled(!actions.canImportBatterySave)
         if placement == .contextMenu, (actions.game.system?.cores.count ?? 0) > 1 {
             GameCorePicker(actions: actions)
                 .pickerStyle(.menu)
@@ -98,7 +109,8 @@ extension View {
     func gameAccessibilityActions(_ actions: GameActions) -> some View {
         accessibilityAction(named: "Play", actions.play)
             .accessibilityAction(named: Text(actions.favoriteTitle), actions.toggleFavorite)
-            .accessibilityAction(named: "Show in Finder", actions.showInFinder)
+            .accessibilityAction(named: actions.game.isMissing ? "Locate File…" : "Show in Finder",
+                                 actions.game.isMissing ? actions.locate : actions.showInFinder)
             .accessibilityAction(named: "Refetch Metadata", actions.refetchMetadata)
             .accessibilityAction(named: "Remove from Library…", actions.requestRemoval)
     }

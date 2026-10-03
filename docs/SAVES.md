@@ -1,0 +1,155 @@
+# Saves, game identity and backups
+
+How Ursprung keeps progress safe: where saves live, how a game keeps its
+saves when its file moves, what a save state is compatible with, and what a
+backup contains.
+
+## Game identity
+
+Every library entry has a UUID. Battery saves, save states and artwork are
+stored under that UUID, so they belong to the entry, not to a file name.
+
+When a scan no longer finds a game's file, the entry is **not** removed. It is
+marked *missing* (`Game.missingSince`), keeps its favourite, play time,
+metadata and saves, and shows "File Missing" in the library. It becomes normal
+again when
+
+- a later scan finds the file at its old path,
+- a scan recognises the file under a new name or in another folder
+  (`LibraryMatcher`), or
+- the user locates it (Game menu › Locate File…, or Locate… in the inspector).
+
+A scan recognises a renamed or moved file when it belongs to the same system,
+has the same size and extension, and either matches the game's known CRC32 or,
+for games without a CRC32, still has the same modification date (Finder keeps
+it when renaming, moving and copying). A different CRC32 never matches, so
+other regions, revisions and hacks stay separate. When the evidence is
+ambiguous (several candidates and no identical file name), nothing is matched
+and the user decides.
+
+If the located file already has its own entry (it was found as a new game after
+the rename), the two entries are merged: favourites and play time are combined
+and both entries' saves are kept (see *Conflicts* below).
+
+Games on an unmounted volume or in a folder that could not be read are left as
+they are; playing one asks to connect the drive. Only "Remove from Library…"
+and removing a library folder delete entries.
+
+## Battery saves
+
+`Saves/<system>/<game id>/<ROM name>.srm` holds the cartridge save RAM
+(`RETRO_MEMORY_SAVE_RAM`). Cores that report a separate real-time clock
+(`RETRO_MEMORY_RTC`) also get `<ROM name>.rtc` next to it. Both are written
+when they change, every 10 seconds and when the game stops. A failed write is
+shown in the player once and retried with the next write.
+
+After a ROM is renamed, its save still carries the old name. When it is the
+only save in the folder it is renamed to match (`BatterySave.adoptRenamed`).
+
+Files that cores manage themselves (memory cards, backup RAM) are named after
+the game inside `Saves/<system>/`. They are renamed along with the game when
+no other game in the library uses the old name.
+
+Game menu › Import Battery Save… copies a `.srm`/`.sav` file from another
+emulator or installation into place. The previous save is kept as a copy.
+
+## Save states
+
+    States/<game id>/<core id>/slotN.state   the core's serialized state
+    States/<game id>/<core id>/slotN.png     thumbnail
+    States/<game id>/<core id>/slotN.json    manifest
+
+Slot 0 is Quick Save; slots 1–9 are in the pause menu.
+
+States are specific to a core, so every core has its own slots: switching a
+game to another core never overwrites the first core's states, and switching
+back finds them again.
+
+The manifest records the core ID, the core version (`library_version`), the
+ROM's CRC32, file name and size, and the date:
+
+```json
+{
+  "coreID" : "snes9x",
+  "coreVersion" : "1.62.3 46f8a6b",
+  "created" : "2026-10-03T12:00:00Z",
+  "format" : 1,
+  "gameCRC32" : "B19ED489",
+  "gameFileName" : "Super Mario World (USA).sfc",
+  "gameFileSize" : 524288
+}
+```
+
+### Compatibility
+
+A save state is a memory snapshot in a core-specific format. It is generally
+only readable by the same core, and core updates can change the format.
+Ursprung therefore compares the manifest with the running game:
+
+| Difference | What happens |
+|---|---|
+| Other core | Cannot happen: each core only sees its own states |
+| Other core version | The slot shows a warning; loading is attempted. If the core rejects it, the message names the version it was saved with |
+| Other ROM (CRC32 or size) | The slot shows a warning; loading is attempted, and a warning says the game may misbehave |
+| No manifest (saved before October 2026) | See below |
+
+States saved before states were kept per core lie directly in
+`States/<game id>/`. They are not moved, because the core that made them is
+unknown. A core sees such a state in every slot it has not used itself,
+marked as being of unknown origin. Saving into that slot writes the core's own
+state and leaves the old one untouched for other cores.
+
+Battery saves are the portable form of progress: unlike states, they work
+across cores and core versions of the same system.
+
+## Backups
+
+File › Back Up Library… (or Settings › General › Data) writes one zip file:
+
+    Ursprung Backup/
+      manifest.json    format "ursprung-backup", version, date, app version,
+                       and every file with its size
+      library.json     every library entry with its history and metadata
+      settings.plist   preferences (library folders, scraper language and
+                       region, video, controls, core choices and options)
+      Saves/           battery saves and core save folders
+      States/          save states with thumbnails and manifests
+      Media/           artwork
+
+Not included: BIOS files, cores (downloaded again on demand), and the
+ScreenScraper password, which stays in the keychain.
+
+File › Restore from Backup… first extracts and checks the backup. If it is not
+an Ursprung backup, comes from a newer version, or misses or garbles any file
+its manifest lists, nothing is restored. Otherwise a summary asks for
+confirmation (optionally including settings), and then
+
+- every backup entry joins the library entry with the same ID, the same path,
+  or the same game by unique CRC32 or unique file name and size. It adds its
+  favourite and takes the larger play time and play count, so restoring the
+  same backup twice changes nothing. Metadata is only taken over when the
+  library entry has none;
+- entries without a match are added. If their file is elsewhere on this Mac,
+  they are missing until the next scan recognises the file or the user
+  locates it;
+- saves and states are placed under the matching entry's ID, renamed to its
+  file name where needed;
+- library folders from the backup are added to the current ones.
+
+A game must not be running during a backup or restore.
+
+### Conflicts
+
+Wherever two files meet (restoring a backup, merging two entries), nothing is
+overwritten. Identical files are skipped. For files that differ, the newer one
+(by modification date) is used, and the older one is kept next to it as
+`<name> (before restore <date>).<ext>`, `<name> (from backup <date>).<ext>`,
+`<name> (before merging <date>).<ext>` or `<name> (merged <date>).<ext>`.
+Rename such a copy to the original name to use it instead.
+
+## Library database
+
+`Library.store` is a SwiftData store with an explicit schema history
+(`LibrarySchema.swift`). Every change to `Game` adds a schema version and a
+migration stage, so a library written by an earlier release opens in a newer
+one. The frozen versions keep an exact copy of the model as it shipped.

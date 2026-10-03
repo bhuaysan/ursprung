@@ -73,6 +73,8 @@ NS_SWIFT_SENDABLE
 @property (nonatomic, copy) NSString *systemDirectory;
 @property (nonatomic, copy) NSString *saveDirectory;
 @property (nonatomic, copy, nullable) NSString *saveRAMPath;
+/// Real-time clock data (RETRO_MEMORY_RTC), for cores that keep it apart from save RAM.
+@property (nonatomic, copy, nullable) NSString *rtcPath;
 /// Values forced for specific core options (frontend defaults + user choices).
 @property (nonatomic, copy) NSDictionary<NSString *, NSString *> *optionOverrides;
 /// Two-letter language code reported to the core (e.g. "de").
@@ -83,9 +85,13 @@ NS_SWIFT_SENDABLE
 - (void)runFrame;
 - (void)reset;
 - (void)unloadGame;
+/// Whether the loaded game can be saved as a state (the core reports a state size).
+@property (nonatomic, readonly) BOOL supportsSaveStates;
 - (nullable NSData *)serializeState;
 - (BOOL)unserializeState:(NSData *)state;
-/// Writes battery-backed save RAM if it changed since the last write.
+/// Writes battery-backed save RAM and RTC data if they changed since the last
+/// write. A failure is reported once through `saveErrorHandler` until a
+/// write succeeds again.
 - (void)writeSaveRAMIfChanged;
 
 // Multi-disc support — emulation thread.
@@ -130,6 +136,8 @@ NS_SWIFT_SENDABLE
 
 // Events — delivered on the main queue.
 @property (nonatomic, copy, nullable) void (^NS_SWIFT_SENDABLE messageHandler)(NSString *message, NSTimeInterval duration);
+/// A battery save or clock file could not be written; the reason is the system's description.
+@property (nonatomic, copy, nullable) void (^NS_SWIFT_SENDABLE saveErrorHandler)(NSString *reason);
 
 @end
 

@@ -65,7 +65,9 @@ nonisolated struct ZipArchive: Sendable {
         let dataOffset = entry.localHeaderOffset + 30 + UInt64(header.uint16(at: 26)) + UInt64(header.uint16(at: 28))
         guard dataOffset <= fileSize, fileSize - dataOffset >= entry.compressedSize else { throw ZipError.corrupt }
         try handle.seek(toOffset: dataOffset)
-        guard let compressed = try handle.read(upToCount: compressedSize), compressed.count == compressedSize else { throw ZipError.corrupt }
+        // Reading zero bytes returns nil; an empty entry is still valid.
+        let compressed = compressedSize == 0 ? Data() : try handle.read(upToCount: compressedSize) ?? Data()
+        guard compressed.count == compressedSize else { throw ZipError.corrupt }
 
         let output: Data
         switch entry.method {
