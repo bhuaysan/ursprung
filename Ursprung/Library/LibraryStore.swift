@@ -122,10 +122,12 @@ final class LibraryStore {
             if let game = byPath[path] {
                 if game.systemID != rom.systemID { game.systemID = rom.systemID }
                 // A file replaced at the same path may keep its size; its
-                // modification date still changes. A zip's CRC is read on
+                // modification date still changes. A checksum without a known
+                // date (older libraries, unreadable dates) may belong to an
+                // earlier file and is not trusted. A zip's CRC is read on
                 // every scan, so a new value always wins.
                 let isReplaced = game.fileSize != rom.fileSize
-                    || (game.fileModified != nil && game.fileModified != rom.modified)
+                    || game.fileModified == nil || game.fileModified != rom.modified
                 if isReplaced || (rom.crc32 != nil && rom.crc32 != game.crc32) { game.crc32 = rom.crc32 }
                 if game.fileSize != rom.fileSize { game.fileSize = rom.fileSize }
                 if game.fileModified != rom.modified { game.fileModified = rom.modified }

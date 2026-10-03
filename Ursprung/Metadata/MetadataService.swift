@@ -98,7 +98,7 @@ final class MetadataService {
            !["cue", "m3u", "gdi", "zip"].contains(url.pathExtension.lowercased()) {
             // The file may have been replaced since the last scan.
             let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-            if crc == nil || modified != game.fileModified {
+            if crc == nil || modified == nil || modified != game.fileModified {
                 crc = await Self.checksum(of: url)
                 game.crc32 = crc
                 game.fileModified = modified

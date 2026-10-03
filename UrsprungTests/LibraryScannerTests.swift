@@ -21,18 +21,18 @@ struct TitleFormatterTests {
 
 @Suite("System detection")
 struct SystemDetectionTests {
-    @Test func unambiguousExtensions() {
+    @Test func unambiguousExtensions() throws {
         let cases: [(String, String)] = [("game.sfc", "snes"), ("game.gba", "gba"), ("game.z64", "n64"), ("game.nds", "nds"), ("game.gbc", "gbc")]
         for (file, system) in cases {
-            #expect(LibraryScanner.detectSystem(for: URL(filePath: "/tmp/\(file)"), folderSystem: nil)?.id == system)
+            #expect(try LibraryScanner.detectSystem(for: URL(filePath: "/tmp/\(file)"), folderSystem: nil)?.id == system)
         }
     }
 
-    @Test func ambiguousExtensionsNeedFolder() {
+    @Test func ambiguousExtensionsNeedFolder() throws {
         let iso = URL(filePath: "/tmp/game.iso")
-        #expect(LibraryScanner.detectSystem(for: iso, folderSystem: nil) == nil)
-        #expect(LibraryScanner.detectSystem(for: iso, folderSystem: SystemCatalog.system(withID: "psp"))?.id == "psp")
-        #expect(LibraryScanner.detectSystem(for: URL(filePath: "/tmp/g.cue"), folderSystem: SystemCatalog.system(withID: "saturn"))?.id == "saturn")
+        #expect(try LibraryScanner.detectSystem(for: iso, folderSystem: nil) == nil)
+        #expect(try LibraryScanner.detectSystem(for: iso, folderSystem: SystemCatalog.system(withID: "psp"))?.id == "psp")
+        #expect(try LibraryScanner.detectSystem(for: URL(filePath: "/tmp/g.cue"), folderSystem: SystemCatalog.system(withID: "saturn"))?.id == "saturn")
     }
 
     @Test(arguments: [("PSX", "psx"), ("PlayStation", "psx"), ("Mega Drive", "megadrive"), ("Genesis", "megadrive"),
@@ -123,6 +123,45 @@ struct PlaylistScanTests {
         try "../Game.cue\n".write(to: root.appending(path: "PSX/Playlists/Game.m3u"), atomically: true, encoding: .utf8)
 
         #expect(LibraryScanner.scan(folder: root).map(\.fileName) == ["Game.m3u"])
+    }
+
+    @Test(arguments: ["Tracks/Track.bin", "Tracks\\Track.bin"])
+    func cueReferencePreservesItsSubdirectory(reference: String) throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appending(path: "PSX/Tracks"), withIntermediateDirectories: true)
+        try "FILE \"\(reference)\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n"
+            .write(to: root.appending(path: "PSX/Disc.cue"), atomically: true, encoding: .utf8)
+        try Data(repeating: 0, count: 2352).write(to: root.appending(path: "PSX/Tracks/Track.bin"))
+        // Same name, but not referenced: still a game of its own.
+        try Data(repeating: 0, count: 2352).write(to: root.appending(path: "PSX/Track.bin"))
+
+        let results = LibraryScanner.scan(folder: root)
+
+        #expect(results.map { $0.url.deletingLastPathComponent().lastPathComponent + "/" + $0.fileName }.sorted()
+                == ["PSX/Disc.cue", "PSX/Track.bin"])
+    }
+
+    @Test func cueParentReferenceResolves() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appending(path: "PSX/Cues"), withIntermediateDirectories: true)
+        try "FILE \"..\\Track.bin\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n"
+            .write(to: root.appending(path: "PSX/Cues/Disc.cue"), atomically: true, encoding: .utf8)
+        try Data(repeating: 0, count: 2352).write(to: root.appending(path: "PSX/Track.bin"))
+
+        #expect(LibraryScanner.scan(folder: root).map(\.fileName) == ["Disc.cue"])
+    }
+
+    @Test func absoluteWindowsCueReferenceMeansTheFileNextToIt() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appending(path: "PSX"), withIntermediateDirectories: true)
+        try "FILE \"C:\\Games\\Track.bin\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n"
+            .write(to: root.appending(path: "PSX/Disc.cue"), atomically: true, encoding: .utf8)
+        try Data(repeating: 0, count: 2352).write(to: root.appending(path: "PSX/Track.bin"))
+
+        #expect(LibraryScanner.scan(folder: root).map(\.fileName) == ["Disc.cue"])
     }
 
     @Test func nestedFoldersListEachFileOnce() throws {

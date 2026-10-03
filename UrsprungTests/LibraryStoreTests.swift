@@ -243,6 +243,72 @@ struct LibraryScanSafetyTests {
         #expect(try gamePaths(in: context) == [sub.appending(path: "Kept.sfc").standardizedFileURL.path(percentEncoded: false)])
     }
 
+    @Test func unreadableArchiveKeepsGameAndMedia() async throws {
+        let root = try makeTemporaryDirectory()
+        let archive = root.appending(path: "Game.zip")
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: archive.path(percentEncoded: false))
+            try? FileManager.default.removeItem(at: root)
+        }
+        // No system folder: the archive's contents decide the system.
+        try makeZip(at: archive, containing: "Game.sfc", bytes: Data([1, 2, 3]))
+
+        let (container, context) = try makeContext()
+        _ = container
+        let store = makeStore(folders: [root])
+        await store.rescan(context: context)
+        let game = try #require(try context.fetch(FetchDescriptor<Game>()).first)
+        let id = game.id
+        let media = game.mediaDirectory.appending(path: "box.png")
+        defer { try? FileManager.default.removeItem(at: game.mediaDirectory) }
+        try FileManager.default.createDirectory(at: game.mediaDirectory, withIntermediateDirectories: true)
+        try Data([0]).write(to: media)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: archive.path(percentEncoded: false))
+        #expect(LibraryScanner.scan(folders: [root]).unreadable == [archive.standardizedFileURL])
+        await store.rescan(context: context)
+
+        #expect(try context.fetch(FetchDescriptor<Game>()).map(\.id) == [id])
+        #expect(FileManager.default.fileExists(atPath: media.path(percentEncoded: false)))
+    }
+
+    @Test func invalidArchiveIsNotAGame() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("not a zip".utf8).write(to: root.appending(path: "Notes.zip"))
+
+        let scan = LibraryScanner.scan(folders: [root])
+
+        #expect(scan.roms.isEmpty)
+        #expect(scan.unreadable.isEmpty)
+    }
+
+    @Test func legacyGameDoesNotTrustUnversionedChecksum() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appending(path: "Game.sfc")
+        try Data([4, 5, 6]).write(to: file)
+
+        // A game from a library that predates `fileModified`, whose file was
+        // replaced by one of the same size since its checksum was computed.
+        let (container, context) = try makeContext()
+        _ = container
+        let game = Game(path: file.standardizedFileURL.path(percentEncoded: false), systemID: "snes", title: "Game",
+                        fileName: "Game.sfc", fileSize: 3, crc32: "55BC801D")
+        context.insert(game)
+        try context.save()
+        let metadata = MetadataService(client: { ScreenScraperClient(devID: "", devPassword: "") })
+        let store = LibraryStore(metadata: metadata, folders: [root], scanner: { LibraryScanner.scan(folders: $0) },
+                                 persistFolders: { _ in }, scrapesAutomatically: { false })
+
+        await store.rescan(context: context)
+        #expect(game.crc32 == nil)
+
+        metadata.enqueue([game], force: true, context: context)
+        while metadata.isRunning { await Task.yield() }
+        #expect(game.crc32 == Checksum.hex(Checksum.crc(of: Data([4, 5, 6]))))
+    }
+
     @Test func sameSizeReplacementInvalidatesTheChecksum() async throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

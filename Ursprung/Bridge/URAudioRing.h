@@ -7,6 +7,7 @@
 #define URAudioRing_h
 
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -36,5 +37,11 @@ size_t URAudioRingWrite(URAudioRing *ring, const int16_t *samples, size_t frames
 /// Reads up to `frames` frames, de-interleaving into float buffers. Missing
 /// frames are filled with silence. Returns frames actually read.
 size_t URAudioRingReadFloat(URAudioRing *ring, float *left, float *right, size_t frames, float volume);
+
+/// One audio render step: outputs silence until `primeFrames` are buffered,
+/// then reads; an underrun re-primes. `primed` belongs to the reader. Returns
+/// frames read (0 while priming).
+size_t URAudioRingRender(URAudioRing *ring, bool *primed, size_t primeFrames,
+                         float *left, float *right, size_t frames, float volume);
 
 #endif

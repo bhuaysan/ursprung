@@ -69,7 +69,13 @@ nonisolated enum LibraryScanner {
         let referenced = referencedPaths(in: files.map(\.url))
         for (url, root) in files where !referenced.contains(normalized(url)) {
             let folderSystem = system(forDirectory: url.deletingLastPathComponent(), root: root)
-            if let rom = identify(url, folderSystem: folderSystem) { scan.roms.append(rom) }
+            do {
+                if let rom = try identify(url, folderSystem: folderSystem) { scan.roms.append(rom) }
+            } catch {
+                // The file exists but could not be examined: its game may
+                // still be there.
+                scan.unreadable.append(url)
+            }
         }
         scan.roms.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         return scan
@@ -104,11 +110,13 @@ nonisolated enum LibraryScanner {
         return files
     }
 
-    private static func identify(_ url: URL, folderSystem: GameSystem?) -> ScannedROM? {
+    /// The game `url` holds, or nil if it holds none. Throws when the file
+    /// cannot be read, which is not the same as "no game".
+    private static func identify(_ url: URL, folderSystem: GameSystem?) throws -> ScannedROM? {
         let name = url.lastPathComponent
         let ext = url.pathExtension.lowercased()
         guard !ext.isEmpty, !ignoredExtensions.contains(ext) else { return nil }
-        guard let system = detectSystem(for: url, folderSystem: folderSystem) else { return nil }
+        guard let system = try detectSystem(for: url, folderSystem: folderSystem) else { return nil }
         if system.archivesAreNative, arcadeBIOSSets.contains(name.lowercased()) { return nil }
 
         let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
@@ -123,7 +131,9 @@ nonisolated enum LibraryScanner {
 
     // MARK: - System detection
 
-    static func detectSystem(for url: URL, folderSystem: GameSystem?) -> GameSystem? {
+    /// Throws when a zip whose contents decide the system cannot be read; a
+    /// readable file that is not a valid zip holds no game.
+    static func detectSystem(for url: URL, folderSystem: GameSystem?) throws -> GameSystem? {
         let ext = url.pathExtension.lowercased()
         let candidates = SystemCatalog.candidates(forExtension: ext)
         let isAmbiguous = SystemCatalog.ambiguousExtensions.contains(ext)
@@ -135,7 +145,12 @@ nonisolated enum LibraryScanner {
             return candidates[0]
         }
         if ext == "zip" {
-            guard let archive = try? ZipArchive(url: url) else { return nil }
+            let archive: ZipArchive
+            do {
+                archive = try ZipArchive(url: url)
+            } catch is ZipArchive.ZipError {
+                return nil
+            }
             for entry in archive.files.sorted(by: { $0.uncompressedSize > $1.uncompressedSize }) {
                 let inner = SystemCatalog.candidates(forExtension: entry.fileExtension)
                 if !SystemCatalog.ambiguousExtensions.contains(entry.fileExtension), let system = inner.first {
@@ -188,7 +203,10 @@ nonisolated enum LibraryScanner {
             default: references = []
             }
             for reference in references {
-                let path = reference.replacingOccurrences(of: "\\", with: "/")
+                var path = reference.replacingOccurrences(of: "\\", with: "/")
+                // An absolute Windows path ("C:/Games/Track.bin") cannot be
+                // resolved here; the file is expected next to the descriptor.
+                if path.count > 2, path.dropFirst().hasPrefix(":/") { path = (path as NSString).lastPathComponent }
                 let target = path.hasPrefix("/") ? URL(filePath: path) : directory.appending(path: path)
                 referenced.insert(normalized(target))
             }
@@ -225,7 +243,8 @@ nonisolated enum LibraryScanner {
 }
 
 nonisolated enum CueSheet {
-    /// File names referenced by `FILE "…" BINARY` lines.
+    /// Paths referenced by `FILE "…" BINARY` lines, as written: relative to
+    /// the cue sheet's folder.
     static func referencedFiles(in url: URL) -> [String] {
         guard let data = try? Data(contentsOf: url) else { return [] }
         let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? ""
@@ -240,7 +259,7 @@ nonisolated enum CueSheet {
                 files.append(String(name))
             }
         }
-        return files.map { ($0 as NSString).lastPathComponent }
+        return files
     }
 }
 

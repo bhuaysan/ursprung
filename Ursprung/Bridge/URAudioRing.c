@@ -59,10 +59,19 @@ size_t URAudioRingWrite(URAudioRing *ring, const int16_t *samples, size_t frames
     return frames;
 }
 
-size_t URAudioRingReadFloat(URAudioRing *ring, float *left, float *right, size_t frames, float volume) {
+/// Applies a pending clear and returns the read index afterwards. Reader only.
+static size_t URAudioRingApplyClear(URAudioRing *ring) {
     size_t r = atomic_load_explicit(&ring->readIndex, memory_order_relaxed);
     size_t target = atomic_exchange_explicit(&ring->clearTarget, URAudioRingNoClear, memory_order_acq_rel);
-    if (target != URAudioRingNoClear && target > r) r = target;
+    if (target != URAudioRingNoClear && target > r) {
+        r = target;
+        atomic_store_explicit(&ring->readIndex, r, memory_order_release);
+    }
+    return r;
+}
+
+size_t URAudioRingReadFloat(URAudioRing *ring, float *left, float *right, size_t frames, float volume) {
+    size_t r = URAudioRingApplyClear(ring);
     size_t w = atomic_load_explicit(&ring->writeIndex, memory_order_acquire);
     size_t available = w - r;
     size_t n = frames < available ? frames : available;
@@ -79,4 +88,22 @@ size_t URAudioRingReadFloat(URAudioRing *ring, float *left, float *right, size_t
     }
     atomic_store_explicit(&ring->readIndex, r + n, memory_order_release);
     return n;
+}
+
+size_t URAudioRingRender(URAudioRing *ring, bool *primed, size_t primeFrames,
+                         float *left, float *right, size_t frames, float volume) {
+    if (!*primed) {
+        // Cleared frames are dropped while priming too: otherwise they fill
+        // the buffer, the writer stops and the clear is never applied.
+        if (ring) URAudioRingApplyClear(ring);
+        if (!ring || URAudioRingAvailable(ring) < primeFrames) {
+            memset(left, 0, frames * sizeof(float));
+            if (right != left) memset(right, 0, frames * sizeof(float));
+            return 0;
+        }
+        *primed = true;
+    }
+    size_t read = URAudioRingReadFloat(ring, left, right, frames, volume);
+    if (read < frames) *primed = false; // underrun → re-prime
+    return read;
 }

@@ -10,7 +10,7 @@
 typedef struct {
     URAudioRing *ring;
     _Atomic size_t primeFrames; // start playback once this many frames are buffered
-    _Atomic bool primed;
+    bool primed; // render thread only, once playback starts
     _Atomic float volume;
 } URAudioState;
 
@@ -239,27 +239,15 @@ typedef struct {
     URAudioState *state = _audio;
     state->ring = self.core.audioRing;
     atomic_store(&state->primeFrames, (size_t)(sampleRate * 0.064)); // ~64 ms latency target
-    atomic_store(&state->primed, false);
+    state->primed = false;
 
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:sampleRate channels:2];
     _sourceNode = [[AVAudioSourceNode alloc] initWithFormat:format renderBlock:^OSStatus(BOOL *isSilence, const AudioTimeStamp *timestamp, AVAudioFrameCount frameCount, AudioBufferList *output) {
         float *left = output->mBuffers[0].mData;
         float *right = output->mNumberBuffers > 1 ? output->mBuffers[1].mData : left;
-        URAudioRing *ring = state->ring;
-
-        if (!atomic_load(&state->primed)) {
-            if (ring && URAudioRingAvailable(ring) >= atomic_load(&state->primeFrames)) {
-                atomic_store(&state->primed, true);
-            } else {
-                memset(left, 0, frameCount * sizeof(float));
-                if (right != left) memset(right, 0, frameCount * sizeof(float));
-                *isSilence = YES;
-                return noErr;
-            }
-        }
-
-        size_t read = URAudioRingReadFloat(ring, left, right, frameCount, atomic_load(&state->volume));
-        if (read < frameCount) atomic_store(&state->primed, false); // underrun → re-prime
+        size_t read = URAudioRingRender(state->ring, &state->primed, atomic_load(&state->primeFrames),
+                                        left, right, frameCount, atomic_load(&state->volume));
+        if (read == 0) *isSilence = YES;
         return noErr;
     }];
 
