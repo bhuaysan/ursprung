@@ -10,8 +10,12 @@ struct GameInspector: View {
     let actions: GameActions
 
     @Environment(EmulationSession.self) private var session
+    @Environment(BIOSManager.self) private var bios
+    @Environment(\.openSettings) private var openSettings
+    @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expandedOverview = false
+    @State private var isEditingControls = false
 
     /// How far the box art reaches below the hero.
     private static let boxArtOverlap: CGFloat = 32
@@ -131,7 +135,7 @@ struct GameInspector: View {
                             .controlSize(.small)
                         Text("Starting…")
                     } else {
-                        Label("Play", systemImage: "play.fill")
+                        Label(actions.playTitle, systemImage: "play.fill")
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -230,8 +234,13 @@ struct GameInspector: View {
                 StatusLabel("No match on ScreenScraper", systemImage: "questionmark.circle", kind: .neutral, prominent: true)
             }
             Spacer(minLength: AppSpacing.s)
-            Button("Refetch", action: actions.refetchMetadata)
-                .buttonStyle(.link)
+            if state == .notFound {
+                Button("Choose Match…", action: actions.chooseMatch)
+                    .buttonStyle(.link)
+            } else {
+                Button("Refetch", action: actions.refetchMetadata)
+                    .buttonStyle(.link)
+            }
         }
         .font(.callout)
         .padding(.bottom, AppSpacing.xxs)
@@ -262,6 +271,7 @@ struct GameInspector: View {
     private var emulationSection: some View {
         if let system = game.system {
             InfoSection("Emulation") {
+                readiness(system)
                 if system.cores.count > 1 {
                     InfoRowLayout("Core") {
                         GameCorePicker(actions: actions)
@@ -275,8 +285,49 @@ struct GameInspector: View {
                 } else {
                     InfoRow("Core", system.defaultCore.name)
                 }
+                InfoRowLayout("Controls") {
+                    HStack(spacing: AppSpacing.s) {
+                        Text(game.inputProfileData == nil ? "Same as System" : "Custom")
+                        Button("Edit…") { isEditingControls = true }
+                            .buttonStyle(.link)
+                    }
+                }
+            }
+            .sheet(isPresented: $isEditingControls) {
+                GameControlsEditor(game: game)
             }
         }
+    }
+
+    /// What keeps the game from starting, each with the action that fixes it.
+    /// "Recognized" is not "ready": a disc may lack tracks, a core a BIOS.
+    @ViewBuilder
+    private func readiness(_ system: GameSystem) -> some View {
+        let missingBIOS = bios.missingRequired(for: system, coreID: game.effectiveCore?.id)
+        if !game.missingTracks.isEmpty {
+            issueRow(StatusLabel("Disc files missing", kind: .warning, prominent: true,
+                                 detail: game.missingTracks.joined(separator: ", ")),
+                     action: "Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([game.fileURL]) }
+        }
+        if !missingBIOS.isEmpty {
+            issueRow(StatusLabel("BIOS missing", kind: .error, prominent: true,
+                                 detail: missingBIOS.map(\.fileName).joined(separator: ", ")),
+                     action: "Import…") {
+                settingsTab = .bios
+                openSettings()
+            }
+        }
+    }
+
+    private func issueRow(_ label: StatusLabel, action: LocalizedStringKey, perform: @escaping () -> Void) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.s) {
+            label
+            Spacer(minLength: AppSpacing.s)
+            Button(action, action: perform)
+                .buttonStyle(.link)
+        }
+        .font(.callout)
+        .padding(.bottom, AppSpacing.xxs)
     }
 
     private var fileSection: some View {

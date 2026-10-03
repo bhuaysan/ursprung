@@ -3,7 +3,9 @@
 import SwiftUI
 
 struct SidebarView: View {
+    /// The games that are not hidden.
     let games: [Game]
+    let hiddenCount: Int
     @Binding var selection: LibrarySelection?
     /// Retries a failed metadata fetch from the activity footer.
     let retryMetadata: () -> Void
@@ -20,6 +22,9 @@ struct SidebarView: View {
                 row("Favorites", symbol: "heart", count: games.filter(\.isFavorite).count, tag: .favorites)
                 // No badge: the number of played games says nothing about this list.
                 row("Recently Played", symbol: "clock", count: nil, tag: .recent)
+                if hiddenCount > 0 {
+                    row("Hidden", symbol: "eye.slash", count: hiddenCount, tag: .hidden)
+                }
             }
 
             if !systems.isEmpty {

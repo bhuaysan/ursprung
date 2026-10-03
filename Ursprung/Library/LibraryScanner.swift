@@ -13,6 +13,8 @@ nonisolated struct ScannedROM: Sendable, Hashable {
     /// Content modification date, so a file replaced at the same path and
     /// size is still noticed.
     var modified: Date? = nil
+    /// Files a disc descriptor (.cue, .gdi, .m3u, .ccd) references that do not exist.
+    var missingTracks: [String] = []
 }
 
 /// The outcome of scanning library folders.
@@ -21,6 +23,8 @@ nonisolated struct LibraryScan: Sendable {
     /// Files and directories that could not be read. Games inside them may
     /// still exist, so the library keeps them.
     var unreadable: [URL] = []
+    /// Files that may be games but whose system could not be identified.
+    var unrecognized: [URL] = []
 
     /// Whether `path` lies in a part of the folders that could not be read.
     func isUnreadable(_ path: String) -> Bool {
@@ -66,11 +70,16 @@ nonisolated enum LibraryScanner {
             }
         }
 
-        let referenced = referencedPaths(in: files.map(\.url))
-        for (url, root) in files where !referenced.contains(normalized(url)) {
+        let references = discReferences(in: files.map(\.url))
+        for (url, root) in files where !references.referenced.contains(normalized(url)) {
             let folderSystem = system(forDirectory: url.deletingLastPathComponent(), root: root)
             do {
-                if let rom = try identify(url, folderSystem: folderSystem) { scan.roms.append(rom) }
+                if var rom = try identify(url, folderSystem: folderSystem) {
+                    rom.missingTracks = references.missing[normalized(url)] ?? []
+                    scan.roms.append(rom)
+                } else if mayBeGame(url) {
+                    scan.unrecognized.append(url)
+                }
             } catch {
                 // The file exists but could not be examined: its game may
                 // still be there.
@@ -108,6 +117,17 @@ nonisolated enum LibraryScanner {
         }
         unreadable += failures.map(\.standardizedFileURL)
         return files
+    }
+
+    /// Whether a file that was not identified could still be a game, so the
+    /// scan report should mention it: not a known companion file (saves,
+    /// covers, notes, patches) and not an arcade BIOS set.
+    static func mayBeGame(_ url: URL) -> Bool {
+        let ext = url.pathExtension.lowercased()
+        return !ext.isEmpty && !ignoredExtensions.contains(ext) && !arcadeBIOSSets.contains(url.lastPathComponent.lowercased())
+            && !["mcr", "mcd", "srm", "rtc", "eep", "sra", "fla", "mpk", "bkr", "exe", "dll", "app", "dmg", "pkg", "mp3", "wav",
+                 "flac", "ogg", "mp4", "mkv", "avi", "webp", "heic", "tif", "tiff", "rar", "lnk", "url", "torrent", "nfo",
+                 "csv", "log", "sfv", "md5", "sha1", "cht", "pal", "lst", "m3u8"].contains(ext)
     }
 
     /// The game `url` holds, or nil if it holds none. Throws when the file
@@ -189,7 +209,16 @@ nonisolated enum LibraryScanner {
     /// separate games. References are resolved relative to the file that
     /// makes them, so a playlist can point into sub folders.
     static func referencedPaths(in files: [URL]) -> Set<String> {
+        discReferences(in: files).referenced
+    }
+
+    /// The files disc descriptors reference, and by descriptor (normalised
+    /// path) the references that do not exist. A playlist also counts the
+    /// missing tracks of its discs. `.sub` files are optional and never missing.
+    static func discReferences(in files: [URL]) -> (referenced: Set<String>, missing: [String: [String]]) {
         var referenced = Set<String>()
+        var missing: [String: [String]] = [:]
+        var playlists: [(descriptor: String, discs: [String])] = []
         for url in files {
             let directory = url.deletingLastPathComponent()
             let references: [String]
@@ -202,16 +231,45 @@ nonisolated enum LibraryScanner {
                 references = ["\(base).img", "\(base).sub"]
             default: references = []
             }
+            let descriptor = normalized(url)
+            var discs: [String] = []
             for reference in references {
-                var path = reference.replacingOccurrences(of: "\\", with: "/")
-                // An absolute Windows path ("C:/Games/Track.bin") cannot be
-                // resolved here; the file is expected next to the descriptor.
-                if path.count > 2, path.dropFirst().hasPrefix(":/") { path = (path as NSString).lastPathComponent }
-                let target = path.hasPrefix("/") ? URL(filePath: path) : directory.appending(path: path)
+                let target = resolve(reference, in: directory)
                 referenced.insert(normalized(target))
+                discs.append(normalized(target))
+                if target.pathExtension.lowercased() != "sub",
+                   !FileManager.default.fileExists(atPath: target.standardizedFileURL.path(percentEncoded: false)) {
+                    missing[descriptor, default: []].append(reference)
+                }
             }
+            if url.pathExtension.lowercased() == "m3u" { playlists.append((descriptor, discs)) }
         }
-        return referenced
+        for playlist in playlists {
+            let tracks = playlist.discs.flatMap { missing[$0] ?? [] }
+            if !tracks.isEmpty { missing[playlist.descriptor, default: []] += tracks }
+        }
+        return (referenced, missing)
+    }
+
+    /// The files of a disc descriptor that are missing right now, as the
+    /// descriptor names them; for a playlist, also those of its discs.
+    static func missingTracks(of url: URL) -> [String] {
+        let ext = url.pathExtension.lowercased()
+        guard ["cue", "gdi", "m3u", "ccd"].contains(ext) else { return [] }
+        var files = [url]
+        if ext == "m3u" {
+            files += parseM3U(url).map { resolve($0, in: url.deletingLastPathComponent()) }
+        }
+        return discReferences(in: files).missing[normalized(url)] ?? []
+    }
+
+    /// The file a descriptor's reference points to.
+    private static func resolve(_ reference: String, in directory: URL) -> URL {
+        var path = reference.replacingOccurrences(of: "\\", with: "/")
+        // An absolute Windows path ("C:/Games/Track.bin") cannot be
+        // resolved here; the file is expected next to the descriptor.
+        if path.count > 2, path.dropFirst().hasPrefix(":/") { path = (path as NSString).lastPathComponent }
+        return path.hasPrefix("/") ? URL(filePath: path) : directory.appending(path: path)
     }
 
     /// A path for comparing references: standardised and lower-cased, as

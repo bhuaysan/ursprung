@@ -21,8 +21,12 @@ The list shows a status for every file:
 | **Unknown Version** | Present, but the checksum differs — it may still work |
 | **Missing** | Not found (red if the system cannot start without it) |
 
-If a required BIOS is missing, starting a game shows which files are needed.
-For systems with regional BIOS variants (Sega CD, Saturn) one of them is enough.
+Which files are required depends on the core: some cores bring a built-in
+BIOS. The list shows "Required for …" for such files, and a game's inspector
+warns when the core it uses misses a BIOS, with a button to import it. If a
+required BIOS is missing, starting a game shows which files are needed. For
+systems with regional BIOS variants (Sega CD, Saturn, PlayStation) one of them
+is enough.
 
 ## Reference
 
@@ -40,10 +44,10 @@ For systems with regional BIOS variants (Sega CD, Saturn) one of them is enough.
 | Saturn | `mpr-17933.bin` (USA/Europe) | one of two | `3240872c70984b6cbfda1586cab68dbe` |
 | Dreamcast | `dc/dc_boot.bin` | no | `e10c53c2f8b90bab96ead2d368858623` |
 | Dreamcast | `dc/dc_flash.bin` | no | `0a93f7940c455905bea6e392dfde92a4` |
-| PlayStation | `scph5500.bin` (Japan) | no* | `8dd7d5296a650fac7319bce665a6a53c` |
-| PlayStation | `scph5501.bin` (USA) | no* | `490f666e1afb15b7362b406ed1cea246` |
-| PlayStation | `scph5502.bin` (Europe) | no* | `32736f17079d0b2b7024407c39bd3050` |
-| PlayStation | `scph1001.bin` (USA) | no* | `924e392ed05558ffdb115408c263dccf` |
+| PlayStation | `scph5500.bin` (Japan) | one of four* | `8dd7d5296a650fac7319bce665a6a53c` |
+| PlayStation | `scph5501.bin` (USA) | one of four* | `490f666e1afb15b7362b406ed1cea246` |
+| PlayStation | `scph5502.bin` (Europe) | one of four* | `32736f17079d0b2b7024407c39bd3050` |
+| PlayStation | `scph1001.bin` (USA) | one of four* | `924e392ed05558ffdb115408c263dccf` |
 | PC Engine CD | `syscard3.pce` | yes | `38179df8f4ac870017db21ebcbf53114` |
 | Atari 5200 | `5200.rom` | yes | `281f20ea4320404ec820fb7ec0693b38` |
 | Atari 7800 | `7800 BIOS (U).rom` | no | `0763f1ffb006ddbe32e52d497ee848ae` |
@@ -54,8 +58,8 @@ For systems with regional BIOS variants (Sega CD, Saturn) one of them is enough.
 | 3DO | `panafz10.bin` | yes | `51f2f43ae2f3508a14d9f56597e2d3ce` |
 | Arcade (Neo Geo) | `fbneo/neogeo.zip` | for Neo Geo games | – |
 
-\* PCSX ReARMed (the default PlayStation core) has a built-in HLE BIOS. The
-alternative cores SwanStation and Beetle PSX require a real one.
+\* Only for SwanStation and Beetle PSX. PCSX ReARMed (the default PlayStation
+core) has a built-in HLE BIOS.
 
 The authoritative source is `SystemCatalog.swift`; the checksums follow the
 [libretro documentation](https://docs.libretro.com/).

@@ -19,6 +19,14 @@ nonisolated enum PrefKey {
     static let keyboardMapping = "keyboardMapping"
     static let librarySort = "librarySort"
     static let settingsTab = "settingsTab"
+    static let autosaveOnQuit = "autosaveOnQuit"
+    static let periodicAutosave = "periodicAutosave"
+    static let resumeAutomatically = "resumeAutomatically"
+    static let controllerMapping = "controllerMapping"
+    static let hotkeys = "hotkeys"
+    static let portAssignments = "portAssignments"
+    static let stickDeadZone = "stickDeadZone"
+    static func inputProfile(_ systemID: String) -> String { "inputProfile.\(systemID)" }
     static func coreChoice(_ systemID: String) -> String { "coreChoice.\(systemID)" }
     static func coreOptions(_ coreID: String) -> String { "coreOptions.\(coreID)" }
     static func hidGamepadMapping(_ deviceKey: String) -> String { "hidGamepadMapping.\(deviceKey)" }
@@ -60,6 +68,10 @@ nonisolated enum Preferences {
             PrefKey.pauseInBackground: true,
             PrefKey.showFPS: false,
             PrefKey.gridSize: 180.0,
+            PrefKey.autosaveOnQuit: true,
+            PrefKey.periodicAutosave: false,
+            PrefKey.resumeAutomatically: true,
+            PrefKey.stickDeadZone: 0.15,
         ])
     }
 
@@ -76,6 +88,10 @@ nonisolated enum Preferences {
     static var integerScaling: Bool { defaults.bool(forKey: PrefKey.integerScaling) }
     static var volume: Double { defaults.double(forKey: PrefKey.volume) }
     static var pauseInBackground: Bool { defaults.bool(forKey: PrefKey.pauseInBackground) }
+    static var autosaveOnQuit: Bool { defaults.bool(forKey: PrefKey.autosaveOnQuit) }
+    static var periodicAutosave: Bool { defaults.bool(forKey: PrefKey.periodicAutosave) }
+    static var resumeAutomatically: Bool { defaults.bool(forKey: PrefKey.resumeAutomatically) }
+    static var stickDeadZone: Float { Float(defaults.double(forKey: PrefKey.stickDeadZone)) }
 
     static func coreChoice(for systemID: String) -> String? {
         defaults.string(forKey: PrefKey.coreChoice(systemID))
@@ -108,8 +124,10 @@ nonisolated enum Preferences {
         PrefKey.libraryFolders, PrefKey.scraperLanguage, PrefKey.scraperRegion, PrefKey.scraperUsername,
         PrefKey.autoScrape, PrefKey.videoFilter, PrefKey.integerScaling, PrefKey.volume, PrefKey.pauseInBackground,
         PrefKey.showFPS, PrefKey.gridSize, PrefKey.keyboardMapping, PrefKey.librarySort,
+        PrefKey.autosaveOnQuit, PrefKey.periodicAutosave, PrefKey.resumeAutomatically,
+        PrefKey.controllerMapping, PrefKey.hotkeys, PrefKey.portAssignments, PrefKey.stickDeadZone,
     ]
-    private static let backedUpPrefixes = ["coreChoice.", "coreOptions.", "hidGamepadMapping."]
+    private static let backedUpPrefixes = ["coreChoice.", "coreOptions.", "hidGamepadMapping.", "inputProfile."]
 
     private static func isBackedUp(_ key: String) -> Bool {
         backedUpKeys.contains(key) || backedUpPrefixes.contains { key.hasPrefix($0) }

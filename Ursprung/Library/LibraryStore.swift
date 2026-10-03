@@ -18,6 +18,11 @@ final class LibraryStore {
     private(set) var lastScanSummary: String?
     /// Library folders the last scan could not reach, e.g. on an unmounted volume.
     private(set) var unreachableFolders: [URL] = []
+    /// Files the last scan found but could not identify; the scan report
+    /// lets the user add them with a system of their choice.
+    private(set) var unrecognizedFiles: [URL] = []
+    /// Files and folders the last scan could not read.
+    private(set) var unreadableFiles: [URL] = []
 
     let metadata: MetadataService
 
@@ -30,6 +35,9 @@ final class LibraryStore {
     /// Bumped whenever the folder list changes, so a scan that started with an
     /// older list can tell that its result is stale.
     @ObservationIgnored private var folderRevision = 0
+    @ObservationIgnored private var watcher: LibraryWatcher?
+    @ObservationIgnored private var watchContext: ModelContext?
+    @ObservationIgnored private let scheduler = RescanScheduler()
 
     init(metadata: MetadataService,
          folders: [URL] = Preferences.libraryFolders,
@@ -49,14 +57,41 @@ final class LibraryStore {
         self.scrapesAutomatically = scrapesAutomatically
     }
 
+    // MARK: Watching
+
+    /// Rescans by itself whenever files in the library folders change (or a
+    /// drive with a library folder comes or goes), once the changes settle.
+    func startWatching(context: ModelContext) {
+        watchContext = context
+        if watcher == nil {
+            watcher = LibraryWatcher { [weak self] in self?.foldersChanged() }
+        }
+        watcher?.watch(folders)
+    }
+
+    private func foldersChanged() {
+        guard let context = watchContext else { return }
+        scheduler.request { [weak self] in
+            guard let self else { return true }
+            guard !isScanning else { return false }
+            await rescan(context: context)
+            return true
+        }
+    }
+
+    private func folderListChanged() {
+        folderRevision += 1
+        persistFolders(folders)
+        if watchContext != nil { watcher?.watch(folders) }
+    }
+
     // MARK: Folders
 
     func addFolder(_ url: URL, context: ModelContext) {
         let url = url.standardizedFileURL
         guard !folders.contains(url) else { return }
         folders.append(url)
-        folderRevision += 1
-        persistFolders(folders)
+        folderListChanged()
         Task { await rescan(context: context) }
     }
 
@@ -66,8 +101,7 @@ final class LibraryStore {
         let new = urls.map(\.standardizedFileURL).filter { !folders.contains($0) }
         guard !new.isEmpty else { return }
         folders += new
-        folderRevision += 1
-        persistFolders(folders)
+        folderListChanged()
     }
 
     func removeFolder(_ url: URL, context: ModelContext) {
@@ -75,8 +109,7 @@ final class LibraryStore {
         let leaving = games(leavingWith: url, context: context)
         folders.removeAll { $0.standardizedFileURL == url }
         unreachableFolders.removeAll { $0.standardizedFileURL == url }
-        folderRevision += 1
-        persistFolders(folders)
+        folderListChanged()
         for game in leaving {
             removeMedia(for: game)
             context.delete(game)
@@ -147,7 +180,8 @@ final class LibraryStore {
                                   context: ModelContext) -> ([GameFingerprint], [ScannedROM]) {
         let existing = (try? context.fetch(FetchDescriptor<Game>())) ?? []
         let known = Set(existing.map(\.path))
-        let scanned = Set(scan.roms.map { $0.url.standardizedFileURL.path(percentEncoded: false) })
+        // Unrecognized files may be games with a system the user chose.
+        let scanned = Set((scan.roms.map(\.url) + scan.unrecognized).map { $0.standardizedFileURL.path(percentEncoded: false) })
         let reachablePaths = reachable.map { $0.path(percentEncoded: false) }
         let folderPaths = folders.map { $0.path(percentEncoded: false) }
         let vanished = existing
@@ -172,7 +206,8 @@ final class LibraryStore {
             let path = rom.url.standardizedFileURL.path(percentEncoded: false)
             guard seen.insert(path).inserted else { continue }
             if let game = byPath[path] {
-                if game.systemID != rom.systemID { game.systemID = rom.systemID }
+                // A system the user chose wins over detection.
+                changeSystem(of: game, to: game.systemOverride ?? rom.systemID)
                 // A file replaced at the same path may keep its size; its
                 // modification date still changes. A checksum without a known
                 // date (older libraries, unreadable dates) may belong to an
@@ -184,6 +219,7 @@ final class LibraryStore {
                 if game.fileSize != rom.fileSize { game.fileSize = rom.fileSize }
                 if game.fileModified != rom.modified { game.fileModified = rom.modified }
                 if game.missingSince != nil { game.missingSince = nil }
+                if game.missingTracks != rom.missingTracks { game.missingTracks = rom.missingTracks }
             } else if let id = matches[path], let game = byID[id], !seen.contains(game.path), byPath[game.path] === game {
                 // A renamed or moved file: the game keeps its identity. The
                 // matcher compared checksums when the game had one.
@@ -194,10 +230,28 @@ final class LibraryStore {
                 let game = Game(path: path, systemID: rom.systemID, title: rom.title, fileName: rom.fileName,
                                 fileSize: rom.fileSize, crc32: rom.crc32)
                 game.fileModified = rom.modified
+                game.missingTracks = rom.missingTracks
                 context.insert(game)
                 added.append(game)
             }
         }
+
+        // Files the scanner could not identify may be games of the library:
+        // added with a system of their choice, or recognized by a folder
+        // name that has changed since. Those are present, not missing, and
+        // keep their system.
+        var unrecognized: [URL] = []
+        for url in scan.unrecognized {
+            let path = url.standardizedFileURL.path(percentEncoded: false)
+            if let game = byPath[path] {
+                seen.insert(path)
+                if game.missingSince != nil { game.missingSince = nil }
+            } else {
+                unrecognized.append(url)
+            }
+        }
+        unrecognizedFiles = unrecognized
+        unreadableFiles = scan.unreadable
 
         // Games whose file is gone stay in the library, marked as missing, so
         // favourites, play time and saves survive until the file is located
@@ -227,11 +281,37 @@ final class LibraryStore {
         }
         lastScanSummary = summary
         if scrapesAutomatically() {
-            // New games plus any whose scraping was interrupted earlier.
-            let pending = ((try? context.fetch(FetchDescriptor<Game>())) ?? [])
-                .filter { $0.scrapeState == .pending && !$0.isMissing }
-            metadata.enqueue(pending, context: context)
+            // New games, games whose scraping was interrupted, and missing artwork.
+            metadata.enqueue((try? context.fetch(FetchDescriptor<Game>())) ?? [], automatic: true, context: context)
         }
+    }
+
+    /// Adds a file the scan could not identify as a game of `systemID`. The
+    /// choice is kept: later scans leave the system alone.
+    func addUnrecognized(_ url: URL, systemID: String, context: ModelContext) {
+        let url = url.standardizedFileURL
+        let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        let game = Game(path: url.path(percentEncoded: false), systemID: systemID,
+                        title: TitleFormatter.title(fromFileName: url.lastPathComponent), fileName: url.lastPathComponent,
+                        fileSize: Int64(values?.fileSize ?? 0), crc32: nil)
+        game.fileModified = values?.contentModificationDate
+        game.systemOverride = systemID
+        context.insert(game)
+        try? context.save()
+        unrecognizedFiles.removeAll { $0.standardizedFileURL == url }
+        if scrapesAutomatically() { metadata.enqueue([game], context: context) }
+    }
+
+    /// Gives `game` another system. Its battery saves are kept per system,
+    /// so they move along; where the new system already has files of the
+    /// game, nothing is lost (see `FileMerge`).
+    func changeSystem(of game: Game, to systemID: String) {
+        guard game.systemID != systemID else { return }
+        let stamp = FileMerge.stamp()
+        _ = try? GameSaveFiles.changeSystem(of: game.id, from: game.systemID, to: systemID, saves: saves,
+                                            labels: FileMerge.Labels(existing: String(localized: "before merging \(stamp)"),
+                                                                     incoming: String(localized: "merged \(stamp)")))
+        game.systemID = systemID
     }
 
     /// Hides the unreachable-folder warning until the next scan finds it again.
@@ -350,7 +430,7 @@ final class LibraryStore {
         }
         let ext = url.pathExtension.lowercased()
         let system = game.system
-        if !SystemCatalog.ambiguousExtensions.contains(ext),
+        if game.systemOverride == nil, !SystemCatalog.ambiguousExtensions.contains(ext),
            !SystemCatalog.candidates(forExtension: ext).contains(where: { $0.id == game.systemID }) {
             throw RelinkError.wrongSystem(systemName: system?.name ?? game.systemID)
         }
@@ -410,14 +490,20 @@ final class LibraryStore {
         game.lastPlayed = [game.lastPlayed, duplicate.lastPlayed].compactMap { $0 }.max()
         game.dateAdded = min(game.dateAdded, duplicate.dateAdded)
         if game.coreID == nil { game.coreID = duplicate.coreID }
-        if game.scrapeState != .matched, duplicate.scrapeState == .matched {
+        if game.systemOverride == nil { game.systemOverride = duplicate.systemOverride }
+        if game.coreOptionsData == nil { game.coreOptionsData = duplicate.coreOptionsData }
+        if game.inputProfileData == nil { game.inputProfileData = duplicate.inputProfileData }
+        if game.scrapeState != .matched, game.lockedFields.isEmpty, duplicate.scrapeState == .matched || !duplicate.lockedFields.isEmpty {
             game.adoptMetadata(of: duplicate)
         }
         let stamp = FileMerge.stamp()
+        let labels = FileMerge.Labels(existing: String(localized: "before merging \(stamp)"),
+                                      incoming: String(localized: "merged \(stamp)"))
+        // The entry found meanwhile may have been given another system.
+        _ = try? GameSaveFiles.changeSystem(of: duplicate.id, from: duplicate.systemID, to: game.systemID, saves: saves,
+                                            labels: labels)
         _ = try? GameSaveFiles.merge(from: duplicate.id, into: game.id, systemID: game.systemID, baseName: baseName,
-                                     saves: saves, states: states,
-                                     labels: FileMerge.Labels(existing: String(localized: "before merging \(stamp)"),
-                                                              incoming: String(localized: "merged \(stamp)")))
+                                     saves: saves, states: states, labels: labels)
         removeMedia(for: duplicate)
     }
 }

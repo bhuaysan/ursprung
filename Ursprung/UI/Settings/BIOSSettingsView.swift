@@ -61,8 +61,11 @@ struct BIOSSettingsView: View {
 
             ForEach(SystemCatalog.all.filter { !$0.bios.isEmpty }) { system in
                 Section(system.name) {
+                    // Needed by the core the system uses; an alternative of
+                    // the same group that is present makes a file optional.
+                    let needed = Set(bios.missingRequired(for: system, coreID: system.core(withID: Preferences.coreChoice(for: system.id)).id))
                     ForEach(system.bios) { file in
-                        BIOSRow(file: file, status: bios.status(of: file))
+                        BIOSRow(file: file, status: bios.status(of: file), system: system, isNeeded: needed.contains(file))
                     }
                 }
             }
@@ -105,6 +108,9 @@ struct BIOSSettingsView: View {
 private struct BIOSRow: View {
     let file: BIOSFile
     let status: BIOSManager.Status
+    let system: GameSystem
+    /// Missing, and the core the system uses cannot start without it.
+    let isNeeded: Bool
 
     var body: some View {
         LabeledContent {
@@ -116,7 +122,10 @@ private struct BIOSRow: View {
     }
 
     private var requirement: String {
-        file.required ? String(localized: "Required") : String(localized: "Optional")
+        if file.required { return String(localized: "Required") }
+        let cores = system.cores.filter { file.requiredBy.contains($0.id) }.map(\.name)
+        guard !cores.isEmpty else { return String(localized: "Optional") }
+        return String(localized: "Required for \(cores.formatted(.list(type: .and)))")
     }
 
     @ViewBuilder
@@ -130,7 +139,7 @@ private struct BIOSRow: View {
             StatusLabel("Unknown Version", kind: .warning)
                 .help("The checksum does not match the known good dump. It may still work.")
         case .missing:
-            if file.required {
+            if isNeeded {
                 StatusLabel("Missing", kind: .error)
             } else {
                 StatusLabel("Missing", systemImage: "circle.dashed", kind: .neutral)

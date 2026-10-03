@@ -7,6 +7,12 @@ nonisolated enum ScrapeState: String, Codable, Sendable {
     case pending, matched, notFound, failed
 }
 
+/// Metadata the user can edit. An edited field is locked: scraping keeps the
+/// user's value.
+nonisolated enum GameField: String, CaseIterable, Codable, Sendable {
+    case title, overview, developer, publisher, genre, releaseDate, players, boxArt
+}
+
 /// A game in the library. Metadata and artwork come from ScreenScraper.
 ///
 /// The current version of the model; earlier ones are in `LibrarySchema.swift`.
@@ -36,6 +42,21 @@ final class Game {
     /// with its favourite, play time and saves until the user locates the
     /// file or removes the game; a later scan that finds it clears the date.
     var missingSince: Date?
+    /// A system the user chose; scans keep it instead of detecting one.
+    var systemOverride: String?
+    /// Comma-separated `GameField`s the user edited. Scraping leaves them alone.
+    var lockedFieldsRaw: String?
+    /// Hidden games stay in the library (and keep their data) but are not shown.
+    var isHidden: Bool = false
+    /// Some artwork ScreenScraper has could not be downloaded; Fetch Missing retries it.
+    var mediaIncomplete: Bool = false
+    /// Newline-separated files a disc descriptor (.cue, .gdi, .m3u) references
+    /// that the last scan did not find.
+    var missingTracksRaw: String?
+    /// Core option values for this game only: JSON `[core ID: [key: value]]`.
+    var coreOptionsData: Data?
+    /// Controls for this game only: JSON `InputProfile`.
+    var inputProfileData: Data?
 
     // Metadata
     var scrapeStateRaw: String
@@ -77,6 +98,37 @@ final class Game {
     }
 
     var isMissing: Bool { missingSince != nil }
+
+    /// Core option values that apply to this game only, for `coreID`; nil
+    /// when the game uses the core's options.
+    func coreOptions(for coreID: String) -> [String: String]? {
+        guard let data = coreOptionsData,
+              let all = try? JSONDecoder().decode([String: [String: String]].self, from: data) else { return nil }
+        return all[coreID]
+    }
+
+    func setCoreOptions(_ options: [String: String]?, for coreID: String) {
+        var all = coreOptionsData.flatMap { try? JSONDecoder().decode([String: [String: String]].self, from: $0) } ?? [:]
+        all[coreID] = options
+        coreOptionsData = all.isEmpty ? nil : try? JSONEncoder().encode(all)
+    }
+
+    /// The core a launch uses: the game's own choice or the system's.
+    var effectiveCore: CoreDefinition? {
+        system.map { $0.core(withID: coreID ?? Preferences.coreChoice(for: $0.id)) }
+    }
+
+    var lockedFields: Set<GameField> {
+        get { Set((lockedFieldsRaw ?? "").split(separator: ",").compactMap { GameField(rawValue: String($0)) }) }
+        set { lockedFieldsRaw = newValue.isEmpty ? nil : newValue.map(\.rawValue).sorted().joined(separator: ",") }
+    }
+
+    func isLocked(_ field: GameField) -> Bool { lockedFields.contains(field) }
+
+    var missingTracks: [String] {
+        get { (missingTracksRaw ?? "").split(separator: "\n").map(String.init) }
+        set { missingTracksRaw = newValue.isEmpty ? nil : newValue.joined(separator: "\n") }
+    }
     var system: GameSystem? { SystemCatalog.system(withID: systemID) }
     var fileURL: URL { URL(filePath: path) }
     var mediaDirectory: URL { AppPaths.media.appending(path: id.uuidString, directoryHint: .isDirectory) }
@@ -131,6 +183,7 @@ final class Game {
         releaseDate = other.releaseDate
         players = other.players
         rating = other.rating
+        lockedFieldsRaw = other.lockedFieldsRaw
         let artwork: [ReferenceWritableKeyPath<Game, String?>] = [\.boxArtFile, \.screenshotFile, \.titleScreenFile, \.logoFile, \.fanartFile]
         try? FileManager.default.createDirectory(at: mediaDirectory, withIntermediateDirectories: true)
         for keyPath in artwork {
@@ -152,7 +205,8 @@ extension Game {
                    overview: overview, developer: developer, publisher: publisher, genre: genre,
                    releaseDate: releaseDate, players: players, rating: rating, boxArtFile: boxArtFile,
                    screenshotFile: screenshotFile, titleScreenFile: titleScreenFile, logoFile: logoFile,
-                   fanartFile: fanartFile)
+                   fanartFile: fanartFile, systemOverride: systemOverride, lockedFields: lockedFieldsRaw,
+                   isHidden: isHidden, coreOptions: coreOptionsData, inputProfile: inputProfileData)
     }
 
     /// A new library entry from a backup record.
@@ -168,6 +222,10 @@ extension Game {
         isFavorite = record.isFavorite
         coreID = record.coreID
         missingSince = record.missingSince
+        systemOverride = record.systemOverride
+        isHidden = record.isHidden ?? false
+        coreOptionsData = record.coreOptions
+        inputProfileData = record.inputProfile
         adoptMetadata(of: record)
     }
 
@@ -181,7 +239,16 @@ extension Game {
         lastPlayed = [lastPlayed, record.lastPlayed].compactMap { $0 }.max()
         dateAdded = min(dateAdded, record.dateAdded)
         if coreID == nil { coreID = record.coreID }
-        if scrapeState != .matched, record.scrapeState == ScrapeState.matched.rawValue {
+        if systemOverride == nil, let system = record.systemOverride {
+            systemOverride = system
+            systemID = system
+        }
+        isHidden = isHidden || (record.isHidden ?? false)
+        if coreOptionsData == nil { coreOptionsData = record.coreOptions }
+        if inputProfileData == nil { inputProfileData = record.inputProfile }
+        // The user's own edits count as much as a match.
+        let hasOwnMetadata = scrapeState == .matched || !lockedFields.isEmpty
+        if !hasOwnMetadata, record.scrapeState == ScrapeState.matched.rawValue || record.lockedFields != nil {
             adoptMetadata(of: record)
         }
     }
@@ -202,6 +269,7 @@ extension Game {
         titleScreenFile = record.titleScreenFile
         logoFile = record.logoFile
         fanartFile = record.fanartFile
+        lockedFieldsRaw = record.lockedFields
     }
 }
 

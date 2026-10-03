@@ -50,23 +50,19 @@ final class GameMTKView: MTKView {
             return
         }
         NSCursor.setHiddenUntilMouseMoves(true)
-        switch event.keyCode {
-        case HotKey.escape:
-            if !event.isARepeat { session.toggleMenu() }
-        case HotKey.fastForward:
-            if !event.isARepeat { session.setFastForward(true) }
-        case HotKey.quickSave:
-            if !event.isARepeat { session.saveState(slot: 0) }
-        case HotKey.quickLoad:
-            if !event.isARepeat { session.loadState(slot: 0) }
-        default:
-            if !event.isARepeat { session.input.keyDown(event.keyCode) }
+        guard !event.isARepeat else { return }
+        switch session.input.hotkeys.action(forKeyCode: event.keyCode) {
+        case .menu: session.toggleMenu()
+        case .fastForward: session.setFastForward(true)
+        case .quickSave: session.saveState(slot: 0)
+        case .quickLoad: session.loadState(slot: 0)
+        case nil: session.input.keyDown(event.keyCode)
         }
     }
 
     override func keyUp(with event: NSEvent) {
         guard let session else { return }
-        if event.keyCode == HotKey.fastForward {
+        if session.input.hotkeys.action(forKeyCode: event.keyCode) == .fastForward {
             session.setFastForward(false)
         } else {
             session.input.keyUp(event.keyCode)

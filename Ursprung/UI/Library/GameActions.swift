@@ -7,22 +7,48 @@ import SwiftUI
 /// so labels, symbols and order match everywhere.
 struct GameActions {
     let game: Game
+    /// Starts the game; continues from its automatic state when there is one
+    /// and the user resumes automatically (Settings › Emulation).
     let play: () -> Void
+    /// The other way to start when an automatic state exists: from the
+    /// beginning, or continuing (when Play starts fresh).
+    let playAlternate: () -> Void
+    /// Whether an automatic state exists for the game's core.
+    var hasAutosave = false
+    var resumesAutomatically = true
     let toggleFavorite: () -> Void
     let refetchMetadata: () -> Void
+    let editInfo: () -> Void
+    let chooseMatch: () -> Void
     let showInFinder: () -> Void
     /// Chooses the file of a missing game.
     let locate: () -> Void
+    /// Hides the game, or shows a hidden one again. Hidden games keep their data.
+    let toggleHidden: () -> Void
     let importBatterySave: () -> Void
     /// False while the game runs: its next save would overwrite an import.
     var canImportBatterySave = true
     /// `nil` selects the system's default core.
     let setCore: (String?) -> Void
-    /// Asks for confirmation before the game leaves the library.
+    /// Missing games only: asks for confirmation before the game leaves the
+    /// library. A present file would come back with the next scan, so
+    /// present games are hidden instead.
     let requestRemoval: () -> Void
 
     var favoriteTitle: LocalizedStringKey {
         game.isFavorite ? "Remove from Favorites" : "Add to Favorites"
+    }
+
+    var playTitle: LocalizedStringKey {
+        hasAutosave && resumesAutomatically ? "Resume" : "Play"
+    }
+
+    var alternatePlayTitle: LocalizedStringKey {
+        resumesAutomatically ? "Start from Beginning" : "Resume"
+    }
+
+    var hiddenTitle: LocalizedStringKey {
+        game.isHidden ? "Show in Library" : "Hide from Library"
     }
 
     var favoriteSymbol: String {
@@ -34,7 +60,7 @@ extension FocusedValues {
     /// The selected game's actions, published by the library window for the Game menu.
     @Entry var gameActions: GameActions?
     /// Set while the grid has keyboard focus. Only then does the Game menu give
-    /// Remove from Library ⌘⌫, so the search field keeps ⌘⌫ for its text.
+    /// Hide from Library (or Remove for a missing game) ⌘⌫, so the search field keeps ⌘⌫ for its text.
     @Entry var isGridFocused: Bool?
 }
 
@@ -51,16 +77,27 @@ struct GameActionItems: View {
 
     let actions: GameActions
     let placement: Placement
-    /// Menu bar only: registers ⌘⌫ for Remove from Library.
+    /// Menu bar only: registers ⌘⌫ for Hide from Library or Remove from Library.
     var removesWithDeleteKey = false
 
     var body: some View {
         if placement != .inspectorMenu {
-            Button("Play", systemImage: "play.fill", action: actions.play)
+            Button(actions.playTitle, systemImage: "play.fill", action: actions.play)
+            if actions.hasAutosave {
+                Button(actions.alternatePlayTitle, systemImage: actions.resumesAutomatically ? "backward.end" : "play",
+                       action: actions.playAlternate)
+            }
             Button(actions.favoriteTitle, systemImage: actions.favoriteSymbol, action: actions.toggleFavorite)
                 .keyboardShortcut(shortcut("d"))
             Divider()
+        } else if actions.hasAutosave {
+            Button(actions.alternatePlayTitle, systemImage: actions.resumesAutomatically ? "backward.end" : "play",
+                   action: actions.playAlternate)
+            Divider()
         }
+        Button("Edit Info…", systemImage: "pencil", action: actions.editInfo)
+            .keyboardShortcut(shortcut("i"))
+        Button("Choose Match…", systemImage: "magnifyingglass.circle", action: actions.chooseMatch)
         Button("Refetch Metadata", systemImage: "arrow.triangle.2.circlepath", action: actions.refetchMetadata)
         if actions.game.isMissing {
             Button("Locate File…", systemImage: "magnifyingglass", action: actions.locate)
@@ -75,8 +112,13 @@ struct GameActionItems: View {
                 .pickerStyle(.menu)
         }
         Divider()
-        Button("Remove from Library…", systemImage: "trash", role: .destructive, action: actions.requestRemoval)
-            .keyboardShortcut(placement == .menuBar && removesWithDeleteKey ? KeyboardShortcut(.delete) : nil)
+        if actions.game.isMissing {
+            Button("Remove from Library…", systemImage: "trash", role: .destructive, action: actions.requestRemoval)
+                .keyboardShortcut(placement == .menuBar && removesWithDeleteKey ? KeyboardShortcut(.delete) : nil)
+        } else {
+            Button(actions.hiddenTitle, systemImage: actions.game.isHidden ? "eye" : "eye.slash", action: actions.toggleHidden)
+                .keyboardShortcut(placement == .menuBar && removesWithDeleteKey ? KeyboardShortcut(.delete) : nil)
+        }
     }
 
     private func shortcut(_ key: KeyEquivalent) -> KeyboardShortcut? {
@@ -107,11 +149,13 @@ struct GameCorePicker: View {
 extension View {
     /// VoiceOver custom actions for a game, mirroring its context menu.
     func gameAccessibilityActions(_ actions: GameActions) -> some View {
-        accessibilityAction(named: "Play", actions.play)
+        accessibilityAction(named: Text(actions.playTitle), actions.play)
             .accessibilityAction(named: Text(actions.favoriteTitle), actions.toggleFavorite)
             .accessibilityAction(named: actions.game.isMissing ? "Locate File…" : "Show in Finder",
                                  actions.game.isMissing ? actions.locate : actions.showInFinder)
             .accessibilityAction(named: "Refetch Metadata", actions.refetchMetadata)
-            .accessibilityAction(named: "Remove from Library…", actions.requestRemoval)
+            .accessibilityAction(named: "Edit Info…", actions.editInfo)
+            .accessibilityAction(named: actions.game.isMissing ? "Remove from Library…" : actions.hiddenTitle,
+                                 actions.game.isMissing ? actions.requestRemoval : actions.toggleHidden)
     }
 }

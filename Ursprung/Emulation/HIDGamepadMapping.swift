@@ -108,7 +108,8 @@ nonisolated struct HIDGamepadSnapshot: Sendable {
         case .axis(let usage, let positive):
             guard let info = elements[usage], let raw = values[usage] else { return 0 }
             let centred = Float(raw - info.min) / Float(info.span) * 2 - 1
-            return max(PadState.applyDeadZone(positive ? centred : -centred), 0)
+            // Raw; the input router applies the stick dead zone.
+            return simd_clamp(positive ? centred : -centred, 0, 1)
         case .trigger(let usage):
             guard let info = elements[usage], let raw = values[usage] else { return 0 }
             return simd_clamp(Float(raw - info.min) / Float(info.span), 0, 1)

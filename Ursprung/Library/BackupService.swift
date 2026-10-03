@@ -158,6 +158,10 @@ final class BackupService {
 
         var added = 0
         var renames: [Backup.Rename] = []
+        // Battery saves are kept per system. Saves restored under the
+        // record's system, and the game's own when the record changes its
+        // system, move to the system the game ends up with.
+        var systemMoves: [(game: Game, from: String)] = []
         for record in contents.records {
             guard let target = plan[record.id] else { continue }
             if target.isNew {
@@ -168,7 +172,11 @@ final class BackupService {
                 context.insert(game)
                 added += 1
             } else if let game = byID[target.id] {
+                let previousSystem = game.systemID
                 game.restore(record)
+                for system in Set([previousSystem, record.systemID]) where system != game.systemID {
+                    systemMoves.append((game, system))
+                }
                 renames.append(Backup.Rename(systemID: record.systemID, recordID: record.id,
                                              from: record.saveBaseName, to: game.saveBaseName))
             }
@@ -176,6 +184,12 @@ final class BackupService {
         try context.save()
 
         let files = try await Self.restoreFiles(of: contents, plan: plan, renames: renames, locations: locations)
+        let stamp = FileMerge.stamp()
+        let labels = FileMerge.Labels(existing: String(localized: "before merging \(stamp)"),
+                                      incoming: String(localized: "merged \(stamp)"))
+        for (game, system) in systemMoves {
+            _ = try? GameSaveFiles.changeSystem(of: game.id, from: system, to: game.systemID, saves: locations.saves, labels: labels)
+        }
 
         if restoresSettings, let settings = contents.settings {
             library.addFolders(Preferences.restore(fromBackup: settings))

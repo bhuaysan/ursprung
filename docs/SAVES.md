@@ -46,6 +46,11 @@ shown in the player once and retried with the next write.
 After a ROM is renamed, its save still carries the old name. When it is the
 only save in the folder it is renamed to match (`BatterySave.adoptRenamed`).
 
+When a game's system changes (Edit Info…, or a scan that detects another
+system), its `<game id>` folder moves to the new system's folder
+(`GameSaveFiles.changeSystem`), e.g. a Game Boy Color game that was first
+listed as Game Boy keeps its save.
+
 Files that cores manage themselves (memory cards, backup RAM) are named after
 the game inside `Saves/<system>/`. They are renamed along with the game when
 no other game in the library uses the old name.
@@ -60,6 +65,23 @@ emulator or installation into place. The previous save is kept as a copy.
     States/<game id>/<core id>/slotN.json    manifest
 
 Slot 0 is Quick Save; slots 1–9 are in the pause menu.
+
+### Automatic state
+
+When a game stops (also when Ursprung quits), its state is saved as
+`autosave.state` (with `.png` and `.json`) in the core's folder, apart from the
+numbered slots. With Settings › Emulation › Resume Where You Left Off, Play
+continues from it and the game's menu offers Start from Beginning; otherwise
+Play starts fresh and the menu offers Resume. Optionally the automatic state
+is also written every 5 minutes. Like a slot, a failed write keeps the
+previous file. Cores that cannot save states have no automatic state.
+
+Resuming loads the automatic state right after the game starts and tries
+again a few times over two seconds, as some cores reject a state before they
+have run a few frames. Until it has loaded (or finally failed), nothing is
+written, so quitting meanwhile keeps the state. An automatic state made from
+a different version of the game file is not loaded. If the core rejects the
+state, the game starts from the beginning.
 
 States are specific to a core, so every core has its own slots: switching a
 game to another core never overwrites the first core's states, and switching
@@ -111,7 +133,8 @@ File › Back Up Library… (or Settings › General › Data) writes one zip fi
                        and every file with its size
       library.json     every library entry with its history and metadata
       settings.plist   preferences (library folders, scraper language and
-                       region, video, controls, core choices and options)
+                       region, video, controls and hotkeys for all systems and
+                       per system, controller players, core choices and options)
       Saves/           battery saves and core save folders
       States/          save states with thumbnails and manifests
       Media/           artwork
@@ -124,6 +147,8 @@ an Ursprung backup, comes from a newer version, or misses or garbles any file
 its manifest lists, nothing is restored. Otherwise a summary asks for
 confirmation (optionally including settings), and then
 
+- per-game settings travel with the game: its chosen system, edited fields,
+  hidden state, core options and controls;
 - every backup entry joins the library entry with the same ID, the same path,
   or the same game by unique CRC32 or unique file name and size. It adds its
   favourite and takes the larger play time and play count, so restoring the

@@ -8,6 +8,8 @@ struct LibraryActions {
     let isScanning: Bool
     let addFolder: () -> Void
     let rescan: () -> Void
+    /// What the last scan could not recognize or found incomplete.
+    let showScanReport: () -> Void
     /// Metadata for games without it, plus missing system logos and photos.
     let fetchMissingMetadata: () -> Void
     /// Asks for confirmation first: refetching overwrites existing metadata.
@@ -43,6 +45,7 @@ struct LibraryActionItems: View {
             Button("Rescan Library", systemImage: "arrow.clockwise") { actions?.rescan() }
                 .keyboardShortcut(placement == .menuBar ? KeyboardShortcut("r", modifiers: [.command, .shift]) : nil)
                 .disabled(actions?.isScanning ?? false)
+            Button("Scan Report…", systemImage: "list.bullet.clipboard") { actions?.showScanReport() }
             Divider()
             Button("Fetch Missing Metadata", systemImage: "sparkles") { actions?.fetchMissingMetadata() }
             Button("Refetch All Metadata…", systemImage: "arrow.triangle.2.circlepath") {

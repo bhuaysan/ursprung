@@ -209,6 +209,13 @@ struct MetadataSettingsView: View {
     @AppStorage(PrefKey.scraperRegion) private var region = "eu"
     @AppStorage(PrefKey.autoScrape) private var autoScrape = true
     @State private var password = ""
+    @State private var account = AccountStatus.unchecked
+
+    private enum AccountStatus: Equatable {
+        case unchecked, checking
+        case valid(ScraperAccount)
+        case failed(String)
+    }
 
     private let languages = [("en", "English"), ("de", "Deutsch"), ("fr", "Français"), ("es", "Español"), ("it", "Italiano"), ("pt", "Português")]
     private let regions = [("eu", String(localized: "Europe")), ("us", String(localized: "North America")), ("jp", String(localized: "Japan")), ("wor", String(localized: "World"))]
@@ -228,7 +235,16 @@ struct MetadataSettingsView: View {
                 }
                 .textContentType(.password)
                 .onSubmit { Keychain.setPassword(password, for: username) }
-                .onChange(of: password) { _, value in Keychain.setPassword(value, for: username) }
+                .onChange(of: password) { _, value in
+                    Keychain.setPassword(value, for: username)
+                    account = .unchecked
+                }
+                HStack(alignment: .firstTextBaseline) {
+                    accountStatus
+                    Spacer(minLength: AppSpacing.s)
+                    Button("Check Account", action: checkAccount)
+                        .disabled(username.isEmpty || password.isEmpty || account == .checking)
+                }
             } header: {
                 Text("ScreenScraper Account")
             } footer: {
@@ -250,6 +266,10 @@ struct MetadataSettingsView: View {
             }
 
             Section("Library") {
+                if metadata.isPausedForQuota, !metadata.isRunning {
+                    StatusLabel("Daily ScreenScraper quota reached", kind: .warning, prominent: true,
+                                detail: String(localized: "Fetching continues automatically tomorrow. Fetch Missing tries again now."))
+                }
                 if let failure = metadata.lastError {
                     HStack(alignment: .firstTextBaseline) {
                         StatusLabel("Metadata couldn't be fetched", kind: .error, prominent: true, detail: failure.message)
@@ -280,7 +300,41 @@ struct MetadataSettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear { password = Keychain.password(for: username) ?? "" }
-        .onChange(of: username) { _, value in password = Keychain.password(for: value) ?? "" }
+        .onChange(of: username) { _, value in
+            password = Keychain.password(for: value) ?? ""
+            account = .unchecked
+        }
+    }
+
+    @ViewBuilder
+    private var accountStatus: some View {
+        switch account {
+        case .unchecked:
+            EmptyView()
+        case .checking:
+            ProgressView().controlSize(.small)
+        case .valid(let info):
+            if let used = info.requestsToday, let limit = info.maxRequestsPerDay {
+                StatusLabel("Signed in", kind: .success,
+                            detail: String(localized: "\(used) of \(limit) requests used today"))
+            } else {
+                StatusLabel("Signed in", kind: .success)
+            }
+        case .failed(let message):
+            StatusLabel("Account couldn't be checked", kind: .error, detail: message)
+        }
+    }
+
+    private func checkAccount() {
+        Keychain.setPassword(password, for: username)
+        account = .checking
+        Task {
+            do {
+                account = .valid(try await metadata.checkAccount())
+            } catch {
+                account = .failed(MetadataFailure(error).message)
+            }
+        }
     }
 }
 
@@ -293,6 +347,9 @@ struct EmulationSettingsView: View {
     @AppStorage(PrefKey.showFPS) private var showFPS = false
     @AppStorage(PrefKey.volume) private var volume = 1.0
     @AppStorage(PrefKey.pauseInBackground) private var pauseInBackground = true
+    @AppStorage(PrefKey.autosaveOnQuit) private var autosaveOnQuit = true
+    @AppStorage(PrefKey.periodicAutosave) private var periodicAutosave = false
+    @AppStorage(PrefKey.resumeAutomatically) private var resumeAutomatically = true
     @State private var coreChoices: [String: String] = [:]
 
     var body: some View {
@@ -325,6 +382,26 @@ struct EmulationSettingsView: View {
                     Text("Pause in Background")
                     Text("Pauses the game while another app is active.")
                 }
+            }
+            Section {
+                Toggle(isOn: $autosaveOnQuit) {
+                    Text("Save When Quitting a Game")
+                    Text("Keeps where you are in an automatic save state, apart from your slots.")
+                }
+                Toggle(isOn: $periodicAutosave) {
+                    Text("Also Save Every 5 Minutes")
+                    Text("Protects your progress if the game or the Mac stops unexpectedly.")
+                }
+                .disabled(!autosaveOnQuit)
+                Toggle(isOn: $resumeAutomatically) {
+                    Text("Resume Where You Left Off")
+                    Text("Play continues from the automatic state. Start from Beginning is in the game's menu.")
+                }
+            } header: {
+                Text("Resume")
+            } footer: {
+                Text("Some cores can't save states; their games always start from the beginning. Battery saves are kept either way.")
+                    .settingsFootnote()
             }
             Section {
                 ForEach(SystemCatalog.all.filter { $0.cores.count > 1 }) { system in

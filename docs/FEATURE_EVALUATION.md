@@ -2,6 +2,8 @@
 
 Stand: 30. September 2026. Bewertet wurde der aktuelle lokale Arbeitsstand einschließlich geänderter und noch unversionierter Dateien.
 
+> **Umsetzungsstand 3. Oktober 2026:** Alle Must-haves sind umgesetzt: M1, M2 und M6 (P0) in `d7c33f0`, danach M3, M4, M5, M7, M8 und M9 (P1) sowie der Distributionsablauf (`make dist`, docs/RELEASE.md) und „Nach Updates suchen …“. Offen ist nur die erste notarisierte Veröffentlichung: Sie braucht ein „Developer ID Application“-Zertifikat aus dem Apple Developer Program. Details zu Spielständen, Identität und Backups: docs/SAVES.md. Die folgende Bewertung beschreibt den Stand vom 30. September.
+
 ## Bewertungsrahmen
 
 Angenommenes Produktziel: eine native Retro-Spielebibliothek für macOS und Apple Silicon, in der Nutzer ihre Sammlung pflegen und Spiele unkompliziert starten und fortsetzen können. „Must-have“ bedeutet hier: vor einer alltagstauglichen Version 1.0. Eine weitere Entwicklungs-Beta muss nicht sämtliche Punkte erfüllen.

@@ -5,6 +5,7 @@ import SwiftUI
 struct AppCommands: Commands {
     let session: EmulationSession
     let backup: BackupService
+    let updates: UpdateChecker
 
     @FocusedValue(\.libraryActions) private var libraryActions
     @FocusedValue(\.isShowingRecentlyPlayed) private var isShowingRecentlyPlayed
@@ -18,6 +19,11 @@ struct AppCommands: Commands {
         // the items are disabled while another window is key.
         CommandGroup(replacing: .newItem) {
             LibraryActionItems(actions: libraryActions, placement: .menuBar)
+        }
+
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") { updates.checkForUpdates() }
+                .disabled(updates.isChecking)
         }
 
         CommandGroup(replacing: .importExport) {
@@ -50,11 +56,13 @@ struct AppCommands: Commands {
                 Button("Play") {}.disabled(true)
                 Button("Add to Favorites") {}.keyboardShortcut("d").disabled(true)
                 Divider()
+                Button("Edit Info…") {}.keyboardShortcut("i").disabled(true)
+                Button("Choose Match…") {}.disabled(true)
                 Button("Refetch Metadata") {}.disabled(true)
                 Button("Show in Finder") {}.keyboardShortcut("r").disabled(true)
                 Button("Import Battery Save…") {}.disabled(true)
                 Divider()
-                Button("Remove from Library…") {}.disabled(true)
+                Button("Hide from Library") {}.disabled(true)
             }
             Divider()
 

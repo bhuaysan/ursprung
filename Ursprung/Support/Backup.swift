@@ -44,6 +44,12 @@ nonisolated struct GameRecord: Codable, Sendable, Hashable {
     var titleScreenFile: String?
     var logoFile: String?
     var fanartFile: String?
+    // Added with schema version 3; optional so older backups still decode.
+    var systemOverride: String?
+    var lockedFields: String?
+    var isHidden: Bool?
+    var coreOptions: Data?
+    var inputProfile: Data?
 
     var saveBaseName: String { (fileName as NSString).deletingPathExtension }
 }

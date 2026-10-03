@@ -48,18 +48,24 @@ struct HIDGamepadTests {
     @Test func evaluatesButtonsHatSticksAndTriggers() {
         let mapping = HIDGamepadMapping.standard(for: Self.eightBitDo.keys)
         var snapshot = HIDGamepadSnapshot(elements: Self.eightBitDo, values: Self.restValues)
-        #expect(mapping.state(from: snapshot) == PadState())
+        // Axes are raw: at rest they sit close to, not exactly at, the centre.
+        // The input router's dead zone removes that.
+        let rest = mapping.state(from: snapshot)
+        #expect(rest.buttonMask == 0)
+        #expect(PadState.applyDeadZone(rest.leftStick, deadZone: 0.15) == .zero)
+        #expect(PadState.applyDeadZone(rest.rightStick, deadZone: 0.15) == .zero)
 
         snapshot.values[.button(2)] = 1
         snapshot.values[.hat] = 1 // up-right
         snapshot.values[.x] = 255
-        snapshot.values[.y] = 140 // inside the dead zone
+        snapshot.values[.y] = 140 // slightly off centre; the input router's dead zone removes it
         snapshot.values[.accelerator] = 200
         snapshot.values[.brake] = 60
         let state = mapping.state(from: snapshot)
         #expect(state.buttonMask == Self.bit(.B) | Self.bit(.up) | Self.bit(.right) | Self.bit(.R2))
-        #expect(state.leftStick == SIMD2(1, 0))
-        #expect(state.rightStick == .zero)
+        #expect(state.leftStick.x == 1)
+        #expect(state.leftStick.y > 0 && state.leftStick.y < 0.15)
+        #expect(PadState.applyDeadZone(state.rightStick, deadZone: 0.15) == .zero)
 
         snapshot.values[.y] = 0
         #expect(mapping.state(from: snapshot).leftStick.y == -1)

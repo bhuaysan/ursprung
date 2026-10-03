@@ -34,13 +34,17 @@ final class BIOSManager {
         statuses[file.fileName] ?? .missing
     }
 
-    /// Whether all required BIOS files of a system are present.
-    func isReady(_ system: GameSystem) -> Bool {
-        missingRequired(for: system).isEmpty
+    /// Whether all BIOS files that `coreID` (default: the system's default
+    /// core) needs are present.
+    func isReady(_ system: GameSystem, coreID: String? = nil) -> Bool {
+        missingRequired(for: system, coreID: coreID).isEmpty
     }
 
-    func missingRequired(for system: GameSystem) -> [BIOSFile] {
-        let required = system.bios.filter(\.required)
+    /// The BIOS files `coreID` cannot start without that are missing. Which
+    /// files are needed depends on the core: some bring a built-in BIOS.
+    func missingRequired(for system: GameSystem, coreID: String? = nil) -> [BIOSFile] {
+        let core = coreID ?? system.defaultCore.id
+        let required = system.bios.filter { $0.isRequired(forCore: core) }
         // Alternatives (e.g. the Sega CD regions) only need one of their group.
         let satisfiedGroups = Set(required.filter { status(of: $0) != .missing }.compactMap(\.group))
         return required.filter { file in

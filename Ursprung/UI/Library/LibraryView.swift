@@ -4,7 +4,7 @@ import SwiftData
 import SwiftUI
 
 nonisolated enum LibrarySelection: Hashable {
-    case all, favorites, recent
+    case all, favorites, recent, hidden
     case system(String)
 }
 
@@ -35,7 +35,7 @@ nonisolated enum LibraryState: Equatable {
             case .favorites: self = .noFavorites
             case .recent: self = .nothingPlayed
             // A system without games has no sidebar row; LibraryView falls back to All Games.
-            case .all, .system: self = .games
+            case .all, .system, .hidden: self = .games
             }
         }
     }
@@ -63,6 +63,7 @@ struct LibraryView: View {
     @Environment(MetadataService.self) private var metadata
     @Environment(EmulationSession.self) private var session
     @Environment(SystemMediaStore.self) private var systemMedia
+    @Environment(BIOSManager.self) private var bios
 
     @Query(sort: \Game.title) private var games: [Game]
 
@@ -73,13 +74,17 @@ struct LibraryView: View {
     @State private var gamePendingRemoval: Game?
     @State private var isConfirmingRefetch = false
     @State private var unavailableGame: UnavailableGame?
+    @State private var editingGame: Game?
+    @State private var matchingGame: Game?
+    @State private var isShowingScanReport = false
     @AppStorage(PrefKey.librarySort) private var sort: LibrarySort = .title
     @AppStorage(PrefKey.gridSize) private var gridSize = AppMetrics.defaultCoverStep
     @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
 
     var body: some View {
         NavigationSplitView(columnVisibility: sidebarVisibility) {
-            SidebarView(games: games, selection: $selection, retryMetadata: fetchMissingMetadata)
+            SidebarView(games: libraryGames, hiddenCount: games.count - libraryGames.count, selection: $selection,
+                        retryMetadata: fetchMissingMetadata)
                 .onGeometryChange(for: Double.self) { $0.size.width } action: { width in
                     columns.update { $0.measure(sidebar: width) }
                 }
@@ -124,12 +129,17 @@ struct LibraryView: View {
             Button("Remove", role: .destructive) { remove(game) }
             // No .defaultAction here: a button has one key equivalent, and Return would replace Escape.
             Button("Cancel", role: .cancel) {}
-        } message: { game in
-            if game.isMissing {
-                Text("Play time and favorite status are lost. Saves stay on disk.")
-            } else {
-                Text("The file stays on disk. Play time and favorite status are lost, and the next rescan adds the game again.")
-            }
+        } message: { _ in
+            Text("Play time and favorite status are lost. Saves stay on disk.")
+        }
+        .sheet(item: $editingGame) { game in
+            GameInfoEditor(game: game)
+        }
+        .sheet(item: $matchingGame) { game in
+            MatchPicker(game: game)
+        }
+        .sheet(isPresented: $isShowingScanReport) {
+            ScanReportView()
         }
         .alert(Text(unavailableGame?.title ?? ""),
                isPresented: Binding(get: { unavailableGame != nil }, set: { if !$0 { unavailableGame = nil } }),
@@ -155,7 +165,7 @@ struct LibraryView: View {
             Button("Refetch All", role: .destructive) { metadata.enqueue(games, force: true, context: context) }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Titles, descriptions and artwork of every game are replaced with the data from ScreenScraper.")
+            Text("Titles, descriptions and artwork of every game are replaced with the data from ScreenScraper. Details you edited yourself are kept.")
         }
         .onChange(of: library.isScanning) { _, isScanning in
             if !isScanning, let summary = library.lastScanSummary { announce(summary) }
@@ -170,11 +180,18 @@ struct LibraryView: View {
             // The sidebar row of a system disappears with its last game.
             if case .system(let id) = selection, !systemIDs.contains(id) { selection = .all }
         }
+        .onChange(of: games.count - libraryGames.count) { _, hidden in
+            // So does Hidden once nothing is hidden.
+            if hidden == 0, selection == .hidden { selection = .all }
+        }
         .task(id: librarySystems.map(\.id)) {
             if Preferences.autoScrape { await systemMedia.fetchMissing(for: librarySystems) }
         }
         .task {
+            // The inspector shows missing BIOS files; their status must be known.
+            await bios.refresh()
             if !library.folders.isEmpty { await library.rescan(context: context) }
+            library.startWatching(context: context)
             #if DEBUG
             // Development aid: URSPRUNG_AUTOPLAY=<title substring> starts a game on launch.
             if let query = ProcessInfo.processInfo.environment["URSPRUNG_AUTOPLAY"],
@@ -277,12 +294,19 @@ struct LibraryView: View {
         }
     }
 
+    /// Every game that is not hidden.
+    private var libraryGames: [Game] {
+        games.filter { !$0.isHidden }
+    }
+
     private var filteredGames: [Game] {
         var result: [Game]
+        let games = libraryGames
         switch selection ?? .all {
         case .all: result = games
         case .favorites: result = games.filter(\.isFavorite)
         case .recent: result = games.filter { $0.lastPlayed != nil }
+        case .hidden: result = self.games.filter(\.isHidden)
         case .system(let id): result = games.filter { $0.systemID == id }
         }
         if !searchText.isEmpty {
@@ -309,7 +333,7 @@ struct LibraryView: View {
 
     /// Systems with at least one game, in catalog order.
     private var librarySystems: [GameSystem] {
-        let ids = Set(games.map(\.systemID))
+        let ids = Set(libraryGames.map(\.systemID))
         return SystemCatalog.all.filter { ids.contains($0.id) }
     }
 
@@ -323,6 +347,7 @@ struct LibraryView: View {
         case .all: String(localized: "All Games")
         case .favorites: String(localized: "Favorites")
         case .recent: String(localized: "Recently Played")
+        case .hidden: String(localized: "Hidden")
         case .system(let id): SystemCatalog.system(withID: id)?.name ?? id
         }
     }
@@ -392,6 +417,7 @@ struct LibraryView: View {
             isScanning: library.isScanning,
             addFolder: { library.presentAddFolderPanel(context: context) },
             rescan: { Task { await library.rescan(context: context) } },
+            showScanReport: { isShowingScanReport = true },
             fetchMissingMetadata: fetchMissingMetadata,
             requestRefetchAllMetadata: { isConfirmingRefetch = true },
             showLibraryFolders: {
@@ -416,7 +442,8 @@ struct LibraryView: View {
         AccessibilityNotification.Announcement(message).post()
     }
 
-    private func play(_ game: Game) {
+    /// `resume` nil follows the setting: continue from the automatic state if there is one.
+    private func play(_ game: Game, resume: Bool? = nil) {
         selectedGameID = game.persistentModelID
         guard FileManager.default.fileExists(atPath: game.path) else {
             if let folder = library.offlineFolder(containing: game) {
@@ -436,20 +463,30 @@ struct LibraryView: View {
             try? context.save()
         }
         openWindow(id: WindowID.player)
-        Task { await session.launch(game, context: context) }
+        let resume = resume ?? Preferences.resumeAutomatically
+        Task { await session.launch(game, context: context, resume: resume) }
     }
 
     private func actions(for game: Game) -> GameActions {
-        GameActions(
+        let resumes = Preferences.resumeAutomatically
+        return GameActions(
             game: game,
             play: { play(game) },
+            playAlternate: { play(game, resume: !resumes) },
+            hasAutosave: game.effectiveCore.map {
+                SaveStateStore.autosave(in: AppPaths.states, gameID: game.id, coreID: $0.id) != nil
+            } ?? false,
+            resumesAutomatically: resumes,
             toggleFavorite: {
                 game.isFavorite.toggle()
                 try? context.save()
             },
             refetchMetadata: { metadata.enqueue([game], force: true, context: context) },
+            editInfo: { editingGame = game },
+            chooseMatch: { matchingGame = game },
             showInFinder: { NSWorkspace.shared.activateFileViewerSelecting([game.fileURL]) },
             locate: { library.presentLocatePanel(for: game, context: context) },
+            toggleHidden: { toggleHidden(game) },
             importBatterySave: { library.presentBatterySaveImport(for: game) },
             canImportBatterySave: !(session.isActive && session.gameID == game.persistentModelID),
             setCore: { coreID in
@@ -458,6 +495,18 @@ struct LibraryView: View {
             },
             requestRemoval: { gamePendingRemoval = game }
         )
+    }
+
+    private func toggleHidden(_ game: Game) {
+        game.isHidden.toggle()
+        try? context.save()
+        if game.isHidden {
+            // The game leaves the grid; its inspector goes with it.
+            if selection != .hidden, selectedGameID == game.persistentModelID { selectedGameID = nil }
+            announce(String(localized: "“\(game.title)” is hidden. Find it under Hidden in the sidebar."))
+        } else if selection == .hidden, selectedGameID == game.persistentModelID {
+            selectedGameID = nil
+        }
     }
 
     private func remove(_ game: Game) {

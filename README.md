@@ -24,26 +24,32 @@
 
 - **A library, not a file browser.** Point Ursprung at your game folders; it
   identifies the system of every game from file types and folder names, hides
-  disc track files, and keeps the library in sync when files change.
+  disc track files, and rescans by itself when files change. A scan report
+  lists files it could not identify (add them with a system of your choice)
+  and discs with missing tracks; games can be hidden instead of removed.
 - **Covers and details from ScreenScraper.** Box art, screenshots, fan art,
   logos, descriptions, developer, publisher, genre, release date and rating —
-  in your language and region (e.g. German titles and box art).
+  in your language and region (e.g. German titles and box art). Edit any
+  detail, choose your own cover or pick the right match by hand; your edits
+  survive every later fetch.
 - **Native and fast.** SwiftUI interface with the macOS 26 design language,
   Metal presentation, audio-synchronised frame pacing, OpenGL support for 3D
   cores (N64, PSP, Dreamcast).
 - **libretro cores on demand.** The right core is downloaded automatically from
   the libretro buildbot the first time you start a game — nothing to configure.
 - **Save states with thumbnails**, quick save/load, battery saves, fast forward,
-  multi-disc games, per-core options.
+  multi-disc games, core options per core or per game. Quitting a game keeps
+  where you are, and Play resumes there.
 - **Your progress stays put.** Renamed or moved ROMs keep their favourites,
   play time and saves; missing files can be located again. One-file backups
   restore your library, saves, states and settings on another Mac.
 - **Controllers and keyboard.** Xbox, PlayStation, Switch Pro and MFi
   controllers via the GameController framework, Xbox 360 protocol (XInput)
   pads and receivers over USB (e.g. 8BitDo 2.4 GHz dongles) and other
-  USB/Bluetooth gamepads with remappable buttons via IOKit (up to four
-  players), freely remappable keyboard, mouse as touch screen / pointer
-  (Nintendo DS).
+  USB/Bluetooth gamepads via IOKit. Up to four players, each controller on
+  the player you choose; keyboard, controller buttons and hotkeys remappable
+  for all systems, per system or per game; live input test; mouse as touch
+  screen / pointer (Nintendo DS).
 - **BIOS management.** Drop BIOS files in and Ursprung recognises them by
   checksum and names them the way each core expects.
 - **English and German** user interface.
@@ -80,7 +86,9 @@ open Ursprung.xcodeproj     # then press ⌘R
 ```
 
 Or entirely from the command line: `make run`. Other targets: `make test`,
-`make release`, `make smoke` (headless core test), see the [Makefile](Makefile).
+`make release`, `make smoke` (headless core test), `make dist` (signed and
+notarized disk image, see [docs/RELEASE.md](docs/RELEASE.md)), see the
+[Makefile](Makefile).
 
 Builds are signed ad hoc, so the Keychain treats every rebuild as a new app and
 asks again for a stored ScreenScraper account password. To sign with your Apple
@@ -121,7 +129,8 @@ Players can optionally enter their personal ScreenScraper account in
 
 **Esc** opens the game menu, hold **Space** to fast forward, **F2 / F4** quick
 save / load, **⌘S / ⌘L** likewise from the menu bar, **⌃⌘F** full screen. All
-RetroPad keys can be changed in **Settings → Controls**.
+keys, including these hotkeys (esc always opens the menu as well), can be
+changed in **Settings → Controls**.
 
 ## Your data
 

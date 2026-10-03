@@ -30,6 +30,13 @@ nonisolated struct ScrapedSystemMedia: Sendable {
     var photo: URL?
 }
 
+/// What ScreenScraper reports about the signed-in account.
+nonisolated struct ScraperAccount: Sendable, Equatable {
+    var username: String
+    var requestsToday: Int?
+    var maxRequestsPerDay: Int?
+}
+
 nonisolated struct ScrapeQuery: Sendable {
     var systemID: Int
     var fileName: String
@@ -151,6 +158,49 @@ nonisolated struct ScreenScraperClient: Sendable {
             }
         }
         return nil
+    }
+
+    /// Every game a title search finds, best match first, so the user can
+    /// choose one.
+    @concurrent
+    func search(title: String, systemID: Int) async throws -> [ScrapedGame] {
+        guard !devID.isEmpty, !devPassword.isEmpty else { throw ScreenScraperError.missingDeveloperCredentials }
+        let items = [
+            URLQueryItem(name: "systemeid", value: String(systemID)),
+            URLQueryItem(name: "recherche", value: title),
+        ]
+        guard let json = try await request("jeuRecherche.php", items),
+              let games = (json["response"] as? [String: Any])?["jeux"] as? [[String: Any]] else { return [] }
+        return games.compactMap(parse)
+    }
+
+    /// The game with a known ScreenScraper ID, e.g. to download artwork again.
+    @concurrent
+    func lookup(gameID: String, systemID: Int) async throws -> ScrapedGame? {
+        guard !devID.isEmpty, !devPassword.isEmpty else { throw ScreenScraperError.missingDeveloperCredentials }
+        let items = [URLQueryItem(name: "gameid", value: gameID), URLQueryItem(name: "systemeid", value: String(systemID))]
+        guard let json = try await request("jeuInfos.php", items),
+              let game = (json["response"] as? [String: Any])?["jeu"] as? [String: Any] else { return nil }
+        return parse(game)
+    }
+
+    /// Checks the account and reads its request quota. Throws
+    /// `invalidCredentials` when ScreenScraper rejects the login.
+    @concurrent
+    func account() async throws -> ScraperAccount {
+        guard !devID.isEmpty, !devPassword.isEmpty else { throw ScreenScraperError.missingDeveloperCredentials }
+        guard !username.isEmpty else { throw ScreenScraperError.invalidCredentials }
+        guard let json = try await request("ssuserInfos.php", []),
+              let user = (json["response"] as? [String: Any])?["ssuser"] as? [String: Any] else {
+            throw ScreenScraperError.invalidCredentials
+        }
+        return parseAccount(user)
+    }
+
+    func parseAccount(_ user: [String: Any]) -> ScraperAccount {
+        ScraperAccount(username: Self.string(user["id"]) ?? username,
+                       requestsToday: Self.string(user["requeststoday"]).flatMap { Int($0) },
+                       maxRequestsPerDay: Self.string(user["maxrequestsperday"]).flatMap { Int($0) })
     }
 
     /// Logo and console photo download URLs by ScreenScraper system ID.

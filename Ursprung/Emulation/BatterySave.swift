@@ -104,6 +104,21 @@ nonisolated enum GameSaveFiles {
         return report
     }
 
+    /// Battery saves are kept per system: when a game's system changes, its
+    /// folder moves from `oldSystemID` to `newSystemID`. Where both have a
+    /// file, the newer one is used and the older one kept next to it.
+    @discardableResult
+    static func changeSystem(of gameID: UUID, from oldSystemID: String, to newSystemID: String, saves: URL,
+                             labels: FileMerge.Labels) throws -> FileMerge.Report {
+        guard oldSystemID != newSystemID else { return FileMerge.Report() }
+        let source = saves.appending(path: oldSystemID, directoryHint: .isDirectory)
+            .appending(path: gameID.uuidString, directoryHint: .isDirectory)
+        guard FileManager.default.fileExists(atPath: source.path(percentEncoded: false)) else { return FileMerge.Report() }
+        let destination = saves.appending(path: newSystemID, directoryHint: .isDirectory)
+            .appending(path: gameID.uuidString, directoryHint: .isDirectory)
+        return try FileMerge.mergeDirectory(source, into: destination, moving: true, labels: labels)
+    }
+
     /// Cores that manage their own files (memory cards, backup RAM) name them
     /// after the game in the system's save folder. After a rename those
     /// "<old name>.<ext>" files follow the game, unless a file with the new

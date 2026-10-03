@@ -196,6 +196,8 @@ typedef struct {
     [self stopAudio];
     @autoreleasepool {
         [self drainCommands];
+        void (^willUnload)(URLibretroCore *) = self.willUnloadHandler;
+        if (willUnload && atomic_load(&_stopRequested)) willUnload(core);
         [core unloadGame];
     }
     [self finishThreadAfterRunningGame:YES];

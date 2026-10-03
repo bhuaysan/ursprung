@@ -20,6 +20,7 @@ struct UrsprungApp: App {
     @State private var session: EmulationSession
     @State private var systemMedia = SystemMediaStore()
     @State private var backup: BackupService
+    @State private var updates = UpdateChecker()
 
     private let container: ModelContainer
 
@@ -61,7 +62,7 @@ struct UrsprungApp: App {
         }
         .defaultSize(width: 1240, height: 800)
         .commands {
-            AppCommands(session: session, backup: backup)
+            AppCommands(session: session, backup: backup, updates: updates)
             SidebarCommands()
         }
         .environment(metadata)

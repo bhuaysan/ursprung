@@ -29,8 +29,16 @@ nonisolated struct BIOSFile: Sendable, Hashable, Identifiable {
     /// variants: one of them suffices. Required files without a group are
     /// all needed.
     var group: String? = nil
+    /// Cores that need the file although `required` is false, e.g. the
+    /// PlayStation cores without a built-in BIOS.
+    var requiredBy: Set<String> = []
 
     var id: String { fileName }
+
+    /// Whether `coreID` cannot start without this file (or its alternatives).
+    func isRequired(forCore coreID: String) -> Bool {
+        required || requiredBy.contains(coreID)
+    }
 }
 
 nonisolated struct GameSystem: Sendable, Hashable, Identifiable {

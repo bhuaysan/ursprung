@@ -148,8 +148,8 @@ struct PauseMenuView: View {
                 .id(Row.resume)
                 .onHover { if $0, pointer.hasMoved { focusedRow = .resume } }
             GroupDivider()
-            row(.quickSave, "Quick Save", symbol: "square.and.arrow.down", hint: .keys("F2"))
-            row(.quickLoad, "Quick Load", symbol: "square.and.arrow.up", hint: .keys("F4"))
+            row(.quickSave, "Quick Save", symbol: "square.and.arrow.down", hint: .keys(session.input.hotkeys.bindings[.quickSave]?.label ?? ""))
+            row(.quickLoad, "Quick Load", symbol: "square.and.arrow.up", hint: .keys(session.input.hotkeys.bindings[.quickLoad]?.label ?? ""))
             row(.saveStates, "Save States…", symbol: "square.stack.3d.up", hint: .chevron)
             GroupDivider()
             if session.diskCount > 1 {
@@ -547,7 +547,18 @@ private struct CoreOptionsPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             FilterField(text: $filter)
-                .padding(.bottom, AppSpacing.m)
+                .padding(.bottom, AppSpacing.s)
+            Toggle("Only for This Game", isOn: Binding(
+                get: { session.usesGameCoreOptions },
+                set: { enabled in
+                    session.setUsesGameCoreOptions(enabled)
+                    values = [:]
+                }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .help("Changes apply to this game only. Off: they apply to every game of this core.")
+            .padding(.bottom, AppSpacing.m)
             FittingScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(options, id: \.key) { option in

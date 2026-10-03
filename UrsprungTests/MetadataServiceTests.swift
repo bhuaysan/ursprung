@@ -24,7 +24,9 @@ struct MetadataServiceTests {
         #expect(service.isRunning)
         while service.isRunning { await Task.yield() }
 
-        #expect(second.scrapeState == .failed, "The queued game was processed")
-        #expect(first.scrapeState == .pending, "The cancelled game was left alone")
+        #expect(service.lastError != nil, "The queued game was processed")
+        // Missing credentials are no fault of the games: both stay pending.
+        #expect(second.scrapeState == .pending)
+        #expect(first.scrapeState == .pending)
     }
 }

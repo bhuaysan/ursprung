@@ -8,6 +8,18 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Why a game cannot be prepared for its core.
+nonisolated enum LaunchError: LocalizedError {
+    case unsupportedArchive(coreName: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .unsupportedArchive(let core):
+            String(localized: "\(core) can't open .7z archives. Unpack the game or turn it into a .zip file, then rescan.")
+        }
+    }
+}
+
 /// Controls the one game that is currently running.
 @Observable
 final class EmulationSession {
@@ -41,6 +53,8 @@ final class EmulationSession {
     private(set) var isFastForwarding = false
     private(set) var toasts: [Toast] = []
     private(set) var slots: [SaveStateSlot] = []
+    /// Whether core option changes apply to the running game only.
+    private(set) var usesGameCoreOptions = false
     private(set) var diskCount = 0
     private(set) var currentDisk = 0
     private(set) var measuredFPS: Double = 0
@@ -73,6 +87,9 @@ final class EmulationSession {
     /// notices it has been superseded.
     private var generation = 0
     private var shutdown: Task<Void, Never>?
+    /// Writes the automatic state of the running game; nil when automatic
+    /// states are off or while resuming is not settled (see `armAutosave`).
+    private var autosave: (@Sendable (LibretroCore) -> Void)?
 
     let input = InputRouter()
     let cores: CoreManager
@@ -101,7 +118,9 @@ final class EmulationSession {
 
     // MARK: - Launch
 
-    func launch(_ game: Game, context: ModelContext) async {
+    /// Starts `game`. With `resume`, it continues from the automatic state
+    /// saved when it last stopped, if the core can.
+    func launch(_ game: Game, context: ModelContext, resume: Bool = false) async {
         // Switch straight to "preparing" so the player window stays open while
         // a previous game shuts down.
         generation += 1
@@ -130,12 +149,23 @@ final class EmulationSession {
         coreID = definition.id
         coreName = definition.name
 
+        // Tracks may have been added or removed since the last scan.
+        let missingTracks = LibraryScanner.missingTracks(of: game.fileURL)
+        if game.missingTracks != missingTracks {
+            game.missingTracks = missingTracks
+            try? context.save()
+        }
+        if !game.missingTracks.isEmpty {
+            phase = .failed(Failure(message: String(localized: "Files of this disc are missing: \(game.missingTracks.joined(separator: ", ")). Put them next to “\(game.fileName)”, then rescan.")))
+            return
+        }
+
         await bios.refresh()
         guard generation == self.generation else { return }
-        let missing = bios.missingRequired(for: system)
+        let missing = bios.missingRequired(for: system, coreID: definition.id)
         if !missing.isEmpty {
             let names = missing.map(\.fileName).joined(separator: ", ")
-            phase = .failed(Failure(message: String(localized: "\(system.name) needs BIOS files that are missing: \(names). Import them in Settings → BIOS."),
+            phase = .failed(Failure(message: String(localized: "\(definition.name) needs BIOS files that are missing: \(names). Import them in Settings → BIOS, or choose another core."),
                                     settingsTab: .bios))
             return
         }
@@ -167,14 +197,27 @@ final class EmulationSession {
                     self?.showToast(String(localized: "The battery save couldn't be written. \(reason)"), kind: .warning, duration: 6)
                 }
             }
-            core.optionOverrides = definition.optionDefaults.merging(Preferences.coreOptions(for: definition.id)) { $1 }
+            let gameOptions = game.coreOptions(for: definition.id)
+            usesGameCoreOptions = gameOptions != nil
+            core.optionOverrides = definition.optionDefaults
+                .merging(Preferences.coreOptions(for: definition.id)) { $1 }
+                .merging(gameOptions ?? [:]) { $1 }
             core.languageCode = Locale.current.language.languageCode?.identifier ?? "en"
             core.messageHandler = { [weak self] message, duration in
                 MainActor.assumeIsolated { self?.showToast(message, duration: duration) }
             }
 
+            let stateContext = SaveStateContext(coreID: definition.id, coreVersion: core.libraryVersion,
+                                                gameCRC32: game.crc32, gameFileName: game.fileName, gameFileSize: game.fileSize)
+            let autosaveDirectory = SaveStateStore.directory(in: AppPaths.states, gameID: game.id, coreID: definition.id)
+
             let runner = EmulationRunner(core: core)
             runner.volume = Float(Preferences.volume)
+            let writeAutosave: (@Sendable (LibretroCore) -> Void)? = Preferences.autosaveOnQuit
+                ? { @Sendable core in Self.writeAutosave(of: core, context: stateContext, in: autosaveDirectory) }
+                : nil
+            let resumeState = resume ? SaveStateStore.autosave(in: AppPaths.states, gameID: game.id, coreID: definition.id) : nil
+            if resumeState == nil { runner.willUnloadHandler = writeAutosave }
             runner.terminationHandler = { [weak self] in
                 MainActor.assumeIsolated { self?.handleUnexpectedTermination() }
             }
@@ -194,10 +237,10 @@ final class EmulationSession {
             }
 
             self.core = core
-            stateContext = SaveStateContext(coreID: definition.id, coreVersion: core.libraryVersion,
-                                            gameCRC32: game.crc32, gameFileName: game.fileName, gameFileSize: game.fileSize)
+            self.stateContext = stateContext
+            autosave = resumeState == nil ? writeAutosave : nil
             input.core = core
-            input.reloadMapping()
+            input.profile = InputProfile.resolved(gameProfile: game.inputProfileData, systemID: system.id)
             startedAt = .now
             phase = .running
             game.lastPlayed = .now
@@ -207,6 +250,7 @@ final class EmulationSession {
             refreshDiskInfo()
             startFPSTimer()
             applyPause()
+            if let resumeState { continueFromAutosave(resumeState, then: writeAutosave) }
             #if DEBUG
             if ProcessInfo.processInfo.environment["URSPRUNG_DEBUG_STATES"] != nil {
                 // Development aid: exercise save, load and termination automatically.
@@ -251,6 +295,10 @@ final class EmulationSession {
             throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: url.path(percentEncoded: false)])
         }
         let ext = url.pathExtension.lowercased()
+        if ext == "7z", !system.archivesAreNative, !core.validExtensions.contains("7z") {
+            // Ursprung unpacks zip archives only.
+            throw LaunchError.unsupportedArchive(coreName: coreName)
+        }
         guard ext == "zip", !system.archivesAreNative, !core.validExtensions.contains("zip") else { return url }
         return try await Self.extract(zip: url, system: system, into: AppPaths.extracted.appending(path: game.id.uuidString))
     }
@@ -307,9 +355,11 @@ final class EmulationSession {
         fpsTimer?.invalidate()
         input.core = nil
         input.reset()
+        input.reloadMapping()
         runner = nil
         core = nil
         stateContext = nil
+        autosave = nil
         startedAt = nil
         isMenuVisible = false
         isFastForwarding = false
@@ -358,10 +408,15 @@ final class EmulationSession {
 
     private func startFPSTimer() {
         fpsTimer?.invalidate()
+        var ticks = 0
         fpsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, let runner = self.runner else { return }
                 self.measuredFPS = runner.measuredFPS
+                ticks += 1
+                if ticks % Int(Self.periodicAutosaveInterval) == 0, Preferences.periodicAutosave, !self.isPaused {
+                    self.autosaveNow()
+                }
                 #if DEBUG
                 self.writeDebugSnapshot()
                 #endif
@@ -381,6 +436,80 @@ final class EmulationSession {
         try? state.write(to: directory.appending(path: "session.txt"), atomically: true, encoding: .utf8)
     }
     #endif
+
+    // MARK: - Automatic state
+
+    /// Seconds between automatic states while playing, when enabled.
+    static let periodicAutosaveInterval: TimeInterval = 300
+
+    /// Saves the automatic state on the emulation thread; silent, as it
+    /// happens in the background. A failed write keeps the previous state.
+    nonisolated static func writeAutosave(of core: LibretroCore, context: SaveStateContext, in directory: URL) {
+        guard core.supportsSaveStates, let data = core.serializeState() else { return }
+        do {
+            try SaveStateStore.writeAutosave(data, manifest: context.manifest(), in: directory)
+            if let image = core.copyFrameImage() { writePNG(image, to: directory.appending(path: "autosave.png")) }
+        } catch {
+            // The previous automatic state is still there.
+        }
+    }
+
+    private func autosaveNow() {
+        guard let runner, let autosave else { return }
+        runner.performOnEmulationThread(autosave)
+    }
+
+    /// How often resuming is tried again: some cores reject a state until
+    /// they have run a few frames.
+    private static let resumeAttempts = 4
+
+    /// Loads the automatic state right after the game started. Until that
+    /// has worked or finally failed, no automatic state is written, so
+    /// quitting meanwhile keeps the state instead of saving the game's
+    /// beginning over it. If the core rejects the state, the game simply
+    /// runs from the start.
+    private func continueFromAutosave(_ state: SaveStateSlot, then writeAutosave: (@Sendable (LibretroCore) -> Void)?,
+                                      attempt: Int = 1) {
+        let generation = generation
+        if let context = stateContext, state.issues(for: context).contains(.differentGameFile) {
+            // A state of another revision may crash the core or corrupt the game.
+            armAutosave(writeAutosave)
+            showToast(String(localized: "The automatic state belongs to a different version of the game file, so the game starts from the beginning."),
+                      kind: .warning, duration: 6)
+            return
+        }
+        guard let runner, let data = try? Data(contentsOf: state.stateURL) else { return armAutosave(writeAutosave) }
+        runner.performOnEmulationThread { [weak self] core in
+            let success = core.unserializeState(data)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, generation == self.generation, self.runner === runner else { return }
+                    if success {
+                        self.armAutosave(writeAutosave)
+                        self.showToast(String(localized: "Continued where you left off"), kind: .loaded)
+                    } else if attempt < Self.resumeAttempts {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            MainActor.assumeIsolated {
+                                guard generation == self.generation, self.runner === runner else { return }
+                                self.continueFromAutosave(state, then: writeAutosave, attempt: attempt + 1)
+                            }
+                        }
+                    } else {
+                        self.armAutosave(writeAutosave)
+                        self.showToast(String(localized: "The game couldn't continue where you left off, so it starts from the beginning."),
+                                       kind: .warning, duration: 5)
+                    }
+                }
+            }
+        }
+    }
+
+    /// From now on the running game writes its automatic state when it stops
+    /// (and every few minutes, if enabled).
+    private func armAutosave(_ writeAutosave: (@Sendable (LibretroCore) -> Void)?) {
+        autosave = writeAutosave
+        runner?.willUnloadHandler = writeAutosave
+    }
 
     // MARK: - Save states
 
@@ -519,20 +648,58 @@ final class EmulationSession {
 
     // MARK: - Core options
 
+    private var runningGame: Game? {
+        guard let gameID, let context = launchContext else { return nil }
+        return context.existingGame(gameID)
+    }
+
     func setCoreOption(_ value: String, for key: String) {
         guard let core, let coreID else { return }
         core.setValue(value, forOption: key)
-        Preferences.setCoreOption(value, key: key, for: coreID)
+        if usesGameCoreOptions, let game = runningGame {
+            var options = game.coreOptions(for: coreID) ?? [:]
+            options[key] = value
+            game.setCoreOptions(options, for: coreID)
+            try? launchContext?.save()
+        } else {
+            Preferences.setCoreOption(value, key: key, for: coreID)
+        }
+    }
+
+    /// Switches core option changes between the running game and every game
+    /// of the core. Leaving the game's own options brings back the core's.
+    func setUsesGameCoreOptions(_ enabled: Bool) {
+        guard let coreID, let game = runningGame, enabled != usesGameCoreOptions else { return }
+        usesGameCoreOptions = enabled
+        if enabled {
+            game.setCoreOptions([:], for: coreID)
+        } else {
+            game.setCoreOptions(nil, for: coreID)
+            applyCoreLevelOptions()
+        }
+        try? launchContext?.save()
     }
 
     func resetCoreOptions() {
-        guard let core, let coreID else { return }
-        Preferences.resetCoreOptions(for: coreID)
-        let defaults = SystemCatalog.all.flatMap(\.cores).first { $0.id == coreID }?.optionDefaults ?? [:]
-        for option in core.options {
-            core.setValue(defaults[option.key] ?? option.defaultValue, forOption: option.key)
+        guard let coreID else { return }
+        if usesGameCoreOptions, let game = runningGame {
+            game.setCoreOptions([:], for: coreID)
+            try? launchContext?.save()
+        } else {
+            Preferences.resetCoreOptions(for: coreID)
         }
+        applyCoreLevelOptions()
         showToast(String(localized: "Core options reset"))
+    }
+
+    /// The values every game of the core uses: frontend defaults and the user's choices.
+    private func applyCoreLevelOptions() {
+        guard let core, let coreID else { return }
+        let defaults = SystemCatalog.all.flatMap(\.cores).first { $0.id == coreID }?.optionDefaults ?? [:]
+        let values = defaults.merging(Preferences.coreOptions(for: coreID)) { $1 }
+        for option in core.options {
+            core.setValue(values[option.key] ?? option.defaultValue, forOption: option.key)
+        }
     }
 
     // MARK: - Toasts

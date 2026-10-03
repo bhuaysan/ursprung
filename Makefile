@@ -5,7 +5,7 @@ SCHEME = Ursprung
 XCODEBUILD_BASE = xcodebuild -project Ursprung.xcodeproj -derivedDataPath $(DERIVED_DATA) -destination 'platform=macOS,arch=arm64'
 XCODEBUILD = $(XCODEBUILD_BASE) -scheme $(SCHEME)
 
-.PHONY: all project secrets build release test run smoke icon clean
+.PHONY: all project secrets build release dist test run smoke icon clean
 
 all: build
 
@@ -22,6 +22,10 @@ build: project
 release: project
 	$(XCODEBUILD) -configuration Release build -quiet
 	@echo "App: $(DERIVED_DATA)/Build/Products/Release/Ursprung.app"
+
+# Signed, notarized disk image for distribution; see Scripts/dist.sh.
+dist:
+	./Scripts/dist.sh
 
 test: project
 	$(XCODEBUILD) test -quiet

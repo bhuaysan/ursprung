@@ -40,6 +40,11 @@ NS_SWIFT_SENDABLE
 @property (atomic, readonly) double measuredFPS;
 @property (atomic, readonly, getter=isRunning) BOOL running;
 
+/// Called on the emulation thread right before a game that was asked to stop
+/// is unloaded (also from -stopAndWait), e.g. to save its state. Not called
+/// when the core shuts itself down.
+@property (atomic, copy, nullable) void (^NS_SWIFT_SENDABLE willUnloadHandler)(URLibretroCore *core);
+
 /// Called on the main queue if the core asks to shut down or the thread ends
 /// unexpectedly.
 @property (nonatomic, copy, nullable) void (^NS_SWIFT_SENDABLE terminationHandler)(void);

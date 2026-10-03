@@ -17,11 +17,31 @@ nonisolated struct MenuEvent: Equatable, Sendable {
     let command: MenuCommand
 }
 
+/// A connected controller as the Controls settings show it.
+struct ConnectedController: Identifiable {
+    enum Kind: String { case gameController = "gc", xinput, hid }
+
+    /// Stable across reconnects (see `PortAssignment.ids`).
+    let id: String
+    let name: String
+    let kind: Kind
+    /// The player it feeds now; nil when all players are taken.
+    let port: Int?
+    /// The player it was given in Settings; nil for automatic.
+    let fixedPort: Int?
+    /// Generic HID pads have a configurable layout.
+    let hidGamepad: HIDGamepad?
+    let batteryLevel: Int?
+}
+
 /// Merges keyboard and game controller state into RetroPad button masks and
 /// analog values and forwards them to the running core. Controllers the
 /// GameController framework does not support are read through IOKit: Xbox 360
-/// protocol pads over USB (XInput) and generic HID gamepads. Ports are assigned
-/// in that order, after the GameController pads.
+/// protocol pads over USB (XInput) and generic HID gamepads.
+///
+/// Controllers play as the player chosen for them in Settings, or else take
+/// the free players in connection order. The keyboard always plays as player 1.
+/// The active `InputProfile` remaps keys and controller buttons.
 @Observable
 final class InputRouter {
     private(set) var connectedControllers: [GCController] = []
@@ -38,12 +58,28 @@ final class InputRouter {
     @ObservationIgnored var routesToMenu = false {
         didSet {
             // Buttons held while the menu opens do not act in it.
-            menuButtons = routesToMenu ? Self.menuMask(of: padStates()) : 0
+            menuButtons = routesToMenu ? Self.menuMask(of: padStates().map(\.state)) : 0
             push()
         }
     }
     /// The latest controller press in the pause menu.
     private(set) var menuEvent: MenuEvent?
+
+    /// The controls in use: the running game's, or the global ones.
+    @ObservationIgnored var profile = InputProfile.global {
+        didSet { pressedKeys.removeAll(); push() }
+    }
+    private(set) var hotkeys = HotkeyMapping.current
+    /// Players chosen for controllers, by controller ID.
+    private(set) var fixedPorts = PortAssignment.fixed
+
+    /// While set, the state of every player is published in `livePorts`
+    /// (the input test in Settings).
+    var isMonitoring = false {
+        didSet { push() }
+    }
+    /// The RetroPad state of each player, while monitoring.
+    private(set) var livePorts: [PadState] = Array(repeating: PadState(), count: Int(URMaxPorts))
 
     /// HID gamepads that are not already handled by the GameController
     /// framework.
@@ -65,16 +101,33 @@ final class InputRouter {
         pads.map { $0.isLearning ? PadState() : $0.state }
     }
 
-    /// Pad names in port order.
-    var controllerNames: [String] {
-        connectedControllers.map { $0.vendorName ?? String(localized: "Controller") }
-            + xinput.gamepads.map(\.name) + hidGamepads.map(\.name)
+    /// Every connected controller with the player it feeds, in connection
+    /// order: GameController pads, XInput, then HID.
+    var controllers: [ConnectedController] {
+        let gc = connectedControllers.map { (ConnectedController.Kind.gameController, $0.vendorName ?? String(localized: "Controller"), HIDGamepad?.none, Int?.none) }
+        let xi = xinput.gamepads.map { (ConnectedController.Kind.xinput, $0.name, HIDGamepad?.none, Int?.none) }
+        let hi = hidGamepads.map { (ConnectedController.Kind.hid, $0.name, Optional($0), $0.batteryLevel) }
+        let all = gc + xi + hi
+        let ids = PortAssignment.ids(for: all.map { ($0.0.rawValue, $0.1) })
+        let ports = PortAssignment.resolve(ids, fixed: fixedPorts, ports: Int(URMaxPorts))
+        return all.indices.map { index in
+            ConnectedController(id: ids[index], name: all[index].1, kind: all[index].0, port: ports[index],
+                                fixedPort: fixedPorts[ids[index]], hidGamepad: all[index].2, batteryLevel: all[index].3)
+        }
     }
 
-    @ObservationIgnored private var mapping = KeyboardMapping.current
+    /// Pad names in port order.
+    var controllerNames: [String] {
+        controllers.map(\.name)
+    }
+
     @ObservationIgnored private var pressedKeys = Set<UInt16>()
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var menuButtons: UInt32 = 0
+    @ObservationIgnored private var deadZone = Preferences.stickDeadZone
+    @ObservationIgnored private var learning: ((RetroInput) -> Void)?
+    @ObservationIgnored private var learnBaseline: UInt32 = 0
+    @ObservationIgnored private var lastPorts: [String: Int?] = [:]
 
     init() {
         GCController.shouldMonitorBackgroundEvents = false
@@ -95,8 +148,27 @@ final class InputRouter {
         GCController.startWirelessControllerDiscovery {}
     }
 
+    /// Back to the controls for all systems, e.g. after a game ends or the
+    /// global controls changed.
     func reloadMapping() {
-        mapping = KeyboardMapping.current
+        profile = .global
+    }
+
+    /// Reloads hotkeys, dead zone and player choices from Preferences.
+    func reloadSettings() {
+        hotkeys = .current
+        deadZone = Preferences.stickDeadZone
+        fixedPorts = PortAssignment.fixed
+        push()
+    }
+
+    /// Gives the controller `id` a fixed player, or nil for automatic.
+    func setFixedPort(_ port: Int?, for id: String) {
+        var fixed = PortAssignment.fixed
+        fixed[id] = port
+        PortAssignment.fixed = fixed
+        fixedPorts = fixed
+        push()
     }
 
     func reset() {
@@ -109,7 +181,7 @@ final class InputRouter {
     /// Returns true when the key is bound to a RetroPad input.
     @discardableResult
     func keyDown(_ keyCode: UInt16) -> Bool {
-        guard !mapping.input(forKeyCode: keyCode).isEmpty else { return false }
+        guard !profile.keyboard.input(forKeyCode: keyCode).isEmpty else { return false }
         pressedKeys.insert(keyCode)
         push()
         return true
@@ -122,12 +194,36 @@ final class InputRouter {
         return true
     }
 
+    // MARK: Learning a controller button
+
+    /// Reports the next controller button pressed on any controller, by
+    /// position (before remapping). Controllers feed nothing else meanwhile.
+    func learnControllerButton(_ completion: @escaping (RetroInput) -> Void) {
+        learnBaseline = padStates().reduce(0) { $0 | $1.state.buttonMask }
+        learning = completion
+    }
+
+    func cancelControllerLearning() {
+        learning = nil
+    }
+
+    private func learn(from pads: [PadState]) {
+        guard let completion = learning else { return }
+        let mask = pads.reduce(0) { $0 | $1.buttonMask }
+        let new = mask & ~learnBaseline
+        learnBaseline = mask
+        guard new != 0,
+              let input = ControllerMapping.buttons.first(where: { $0.button.map { new & (1 << UInt32($0.rawValue)) != 0 } ?? false })
+        else { return }
+        learning = nil
+        completion(input)
+    }
+
     // MARK: Controllers
 
     private func refreshControllers() {
         connectedControllers = GCController.controllers().filter { $0.extendedGamepad != nil }
-        for (index, controller) in connectedControllers.enumerated() {
-            controller.playerIndex = GCControllerPlayerIndex(rawValue: min(index, 3)) ?? .indexUnset
+        for controller in connectedControllers {
             controller.extendedGamepad?.valueChangedHandler = { [weak self] _, _ in
                 MainActor.assumeIsolated { self?.push() }
             }
@@ -137,7 +233,6 @@ final class InputRouter {
                 MainActor.assumeIsolated { if pressed { self?.onMenuButton?() } }
             }
         }
-        xinput.firstPlayerIndex = connectedControllers.count
         push()
     }
 
@@ -199,63 +294,95 @@ final class InputRouter {
 
     // MARK: State
 
-    /// Controller states in port order: GameController pads, XInput, then HID.
-    private func padStates() -> [PadState] {
+    /// Every controller with its positional state and its player, in
+    /// connection order.
+    private func padStates() -> [(state: PadState, port: Int?)] {
         let learning = hid.learningGamepad
         let hidStates = Self.hidStates(hidGamepads.map { (state: $0.state, isLearning: $0 === learning) })
-        return connectedControllers.map(Self.state(of:)) + xinput.gamepads.map(\.state) + hidStates
+        let states = connectedControllers.map(Self.state(of:)) + xinput.gamepads.map(\.state) + hidStates
+        let controllers = controllers
+        updatePlayerIndicators(controllers)
+        return zip(states, controllers).map { ($0, $1.port) }
     }
 
-    private func push() {
-        var pads = padStates()
-        if routesToMenu {
-            routeToMenu(pads)
-            pads = []
+    /// Player lights follow the players controllers feed.
+    private func updatePlayerIndicators(_ controllers: [ConnectedController]) {
+        let ports = Dictionary(controllers.map { ($0.id, $0.port) }, uniquingKeysWith: { first, _ in first })
+        guard ports != lastPorts else { return }
+        lastPorts = ports
+        for (controller, info) in zip(connectedControllers, controllers.filter { $0.kind == .gameController }) {
+            controller.playerIndex = info.port.flatMap { GCControllerPlayerIndex(rawValue: $0) } ?? .indexUnset
         }
-        guard let core else { return }
-        var masks = [UInt32](repeating: 0, count: Int(URMaxPorts))
-        var sticks = [[SIMD2<Float>]](repeating: [.zero, .zero], count: Int(URMaxPorts))
+        for (gamepad, info) in zip(xinput.gamepads, controllers.filter { $0.kind == .xinput }) {
+            xinput.setPlayer(info.port, for: gamepad)
+        }
+    }
 
-        // Keyboard → port 0
-        for key in pressedKeys where !routesToMenu {
-            for input in mapping.input(forKeyCode: key) {
+    /// The RetroPad state of each player: keyboard and controllers, remapped
+    /// by the profile, with the dead zone applied.
+    private func portStates(_ pads: [(state: PadState, port: Int?)], includesKeyboard: Bool) -> [PadState] {
+        var ports = [PadState](repeating: PadState(), count: Int(URMaxPorts))
+
+        // Keyboard → player 1
+        for key in pressedKeys where includesKeyboard {
+            for input in profile.keyboard.input(forKeyCode: key) {
                 if let button = input.button {
-                    masks[0] |= 1 << UInt32(button.rawValue)
+                    ports[0].set(button, true)
                 } else {
                     switch input {
-                    case .leftStickUp: sticks[0][0].y -= 1
-                    case .leftStickDown: sticks[0][0].y += 1
-                    case .leftStickLeft: sticks[0][0].x -= 1
-                    case .leftStickRight: sticks[0][0].x += 1
-                    case .rightStickUp: sticks[0][1].y -= 1
-                    case .rightStickDown: sticks[0][1].y += 1
-                    case .rightStickLeft: sticks[0][1].x -= 1
-                    case .rightStickRight: sticks[0][1].x += 1
+                    case .leftStickUp: ports[0].leftStick.y -= 1
+                    case .leftStickDown: ports[0].leftStick.y += 1
+                    case .leftStickLeft: ports[0].leftStick.x -= 1
+                    case .leftStickRight: ports[0].leftStick.x += 1
+                    case .rightStickUp: ports[0].rightStick.y -= 1
+                    case .rightStickDown: ports[0].rightStick.y += 1
+                    case .rightStickLeft: ports[0].rightStick.x -= 1
+                    case .rightStickRight: ports[0].rightStick.x += 1
                     default: break
                     }
                 }
             }
         }
 
-        // Controllers → ports by kind, then connection order
-        for (port, pad) in pads.prefix(Int(URMaxPorts)).enumerated() {
-            var pad = pad
+        for (state, port) in pads {
+            guard let port else { continue }
+            var pad = profile.controller.apply(to: state)
+            pad.leftStick = PadState.applyDeadZone(pad.leftStick, deadZone: deadZone)
+            pad.rightStick = PadState.applyDeadZone(pad.rightStick, deadZone: deadZone)
             if stickDrivesDPad {
                 pad.set(.left, pad.leftStick.x < -0.5)
                 pad.set(.right, pad.leftStick.x > 0.5)
                 pad.set(.up, pad.leftStick.y < -0.5)
                 pad.set(.down, pad.leftStick.y > 0.5)
             }
-            masks[port] |= pad.buttonMask
-            sticks[port][0] += pad.leftStick
-            sticks[port][1] += pad.rightStick
+            ports[port].buttonMask |= pad.buttonMask
+            ports[port].leftStick += pad.leftStick
+            ports[port].rightStick += pad.rightStick
         }
+        for index in ports.indices {
+            ports[index].leftStick = simd_clamp(ports[index].leftStick, SIMD2(repeating: -1), SIMD2(repeating: 1))
+            ports[index].rightStick = simd_clamp(ports[index].rightStick, SIMD2(repeating: -1), SIMD2(repeating: 1))
+        }
+        return ports
+    }
 
-        for port in 0..<Int(URMaxPorts) {
-            core.setButtonMask(masks[port], forPort: port)
-            for stick in 0..<2 {
-                let value = simd_clamp(sticks[port][stick], SIMD2(repeating: -1), SIMD2(repeating: 1))
-                core.setAnalogStick(AnalogStick(rawValue: stick)!, x: Int16(value.x * 32767), y: Int16(value.y * 32767), forPort: port)
+    private func push() {
+        var pads = padStates()
+        if learning != nil {
+            learn(from: pads.map(\.state))
+            pads = []
+        }
+        if routesToMenu {
+            routeToMenu(pads.map(\.state))
+            pads = []
+        }
+        let ports = portStates(pads, includesKeyboard: !routesToMenu && learning == nil)
+        if isMonitoring, ports != livePorts { livePorts = ports }
+        guard let core else { return }
+        for (index, pad) in ports.enumerated() {
+            core.setButtonMask(pad.buttonMask, forPort: index)
+            for (stick, value) in [(AnalogStick.left, pad.leftStick), (AnalogStick.right, pad.rightStick)] {
+                core.setAnalogStick(stick, x: Int16(value.x * 32767), y: Int16(value.y * 32767), forPort: index)
             }
         }
     }

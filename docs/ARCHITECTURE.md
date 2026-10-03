@@ -84,6 +84,13 @@ aspect-correct fitting, integer scaling and core-requested rotation.
 
 `InputRouter` merges the keyboard (player 1), GameController pads, XInput pads
 and generic HID gamepads into per-port RetroPad bitmasks and analog values.
+Every controller first reports a positional RetroPad state; the active
+`InputProfile` (the game's, else its system's, else the global one) then
+remaps keys and controller buttons, and the stick dead zone is applied
+radially. Controllers keep the player chosen for them in Settings
+(`PortAssignment`, keyed by kind, name and occurrence); the others take the
+free players in connection order, and player LEDs follow. Hotkeys
+(`HotkeyMapping`) are handled by the player view before the router.
 
 `XInputGamepadManager` opens USB interfaces speaking the Xbox 360 protocol
 (class 0xFF, subclass 0x5D, protocol 0x01), which macOS has no driver for, with
@@ -94,8 +101,7 @@ read by `HIDGamepadManager` through `IOHIDManager`; pads from Nintendo, Sony
 and Microsoft, or whose name matches a GameController pad, are skipped so input
 is not doubled. `HIDGamepadMapping` guesses a layout from the reported elements
 (Android/8BitDo layout for 15+ buttons, DirectInput layout otherwise) and stores
-user changes per vendor/product ID. Ports go to GameController pads first,
-then XInput pads, then HID pads.
+user changes per vendor/product ID.
 
 ## libretro environment
 
@@ -127,9 +133,18 @@ stay as *missing*; `LibraryMatcher` recognises renamed and moved files by
 checksum or size and modification date, so the entry keeps its UUID and with
 it its saves (docs/SAVES.md). The SwiftData schema is versioned in
 `LibrarySchema.swift`; a change to `Game` needs a new version and migration
-stage. `LibraryStore` then queues new games for
+stage. `LibraryWatcher` (FSEvents, plus volume mounts) asks for rescans;
+`RescanScheduler` waits for changes to settle and keeps automatic scans at
+least 15 seconds apart. Scans also report unidentified files and disc
+descriptors with missing tracks (Scan Report); a system the user chose
+(`Game.systemOverride`) wins over detection. `LibraryStore` then queues new games for
 `MetadataService`, which scrapes one game at a time (the anonymous ScreenScraper
-quota allows a single thread). Media are downloaded into
+quota allows a single thread). Its jobs are a full lookup, artwork only
+(`mediaIncomplete`), or a match the user chose; fields the user edited
+(`Game.lockedFields`) are never overwritten. Busy responses are retried;
+quota, login and network problems stop the queue without marking games as
+failed, and a reached daily quota pauses automatic fetching until midnight
+in France. Media are downloaded into
 `Media/<game-id>/`; only file names are stored in the database, because
 ScreenScraper media URLs contain API credentials.
 

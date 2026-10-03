@@ -82,8 +82,9 @@ nonisolated struct XInputReport: Equatable, Sendable {
         return state
     }
 
+    /// Raw stick position; the input router applies the dead zone.
     private static func axis(_ raw: Int16) -> Float {
-        PadState.applyDeadZone(max(Float(raw) / 32767, -1))
+        max(Float(raw) / 32767, -1)
     }
 }
 
@@ -202,10 +203,6 @@ final class XInputGamepadManager {
 
     @ObservationIgnored var onInput: (() -> Void)?
     @ObservationIgnored var onMenuButton: (() -> Void)?
-    /// Player number of the first XInput pad; GameController pads come first.
-    @ObservationIgnored var firstPlayerIndex = 0 {
-        didSet { updatePlayerIndicators() }
-    }
 
     @ObservationIgnored private let notificationPort: IONotificationPortRef
     @ObservationIgnored private var iterator: io_iterator_t = 0
@@ -251,7 +248,6 @@ final class XInputGamepadManager {
                 MainActor.assumeIsolated { self?.remove(id) }
             }
         })
-        updatePlayerIndicators()
         onInput?()
     }
 
@@ -265,18 +261,13 @@ final class XInputGamepadManager {
 
     private func remove(_ id: UInt64) {
         gamepads.removeAll { $0.id == id }
-        updatePlayerIndicators()
         onInput?()
     }
 
-    private func updatePlayerIndicators() {
-        for (offset, gamepad) in gamepads.enumerated() {
-            let index = firstPlayerIndex + offset
-            let player = index < Int(URMaxPorts) ? index : nil
-            if gamepad.playerIndex != player {
-                gamepad.playerIndex = player
-                gamepad.connection.setPlayer(player)
-            }
-        }
+    /// Lights the player indicator of `gamepad` for `port` (nil: none).
+    func setPlayer(_ port: Int?, for gamepad: XInputGamepad) {
+        guard gamepad.playerIndex != port else { return }
+        gamepad.playerIndex = port
+        gamepad.connection.setPlayer(port)
     }
 }

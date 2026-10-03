@@ -14,16 +14,6 @@
     "%@ fps": {
       "shouldTranslate": false
     },
-    "%@ needs BIOS files that are missing: %@. Import them in Settings → BIOS.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ benötigt BIOS-Dateien, die fehlen: %2$@. Importiere sie unter Einstellungen → BIOS."
-          }
-        }
-      }
-    },
     "%lld games": {
       "localizations": {
         "de": {
@@ -246,16 +236,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Controller"
-          }
-        }
-      }
-    },
-    "Controllers are mapped by button position: the bottom face button is B, the right one is A — like on a Super Nintendo pad. The Home button opens the game menu.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Controller werden nach Tastenposition belegt: Die untere Aktionstaste ist B, die rechte A – wie beim Super-Nintendo-Controller. Die Home-Taste öffnet das Spielmenü."
           }
         }
       }
@@ -1993,16 +1973,6 @@
         }
       }
     },
-    "The file stays on disk. Play time and favorite status are lost, and the next rescan adds the game again.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Datei bleibt erhalten. Spielzeit und Favoritenstatus gehen verloren, und beim nächsten Scan wird das Spiel wieder hinzugefügt."
-          }
-        }
-      }
-    },
     "Cancel": {
       "localizations": {
         "de": {
@@ -2179,16 +2149,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Metadaten aller Spiele neu laden?"
-          }
-        }
-      }
-    },
-    "Titles, descriptions and artwork of every game are replaced with the data from ScreenScraper.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titel, Beschreibungen und Bilder aller Spiele werden durch die Daten von ScreenScraper ersetzt."
           }
         }
       }
@@ -2953,16 +2913,6 @@
         }
       }
     },
-    "Player 1 can always play with the keyboard. Click an input below, then press a key.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spieler 1 kann immer mit der Tastatur spielen. Klicke unten auf eine Eingabe und drücke dann eine Taste."
-          }
-        }
-      }
-    },
     "Press to assign a new button": {
       "localizations": {
         "de": {
@@ -2979,16 +2929,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Drücken, um eine neue Taste zuzuweisen"
-          }
-        }
-      }
-    },
-    "Quick Save / Load": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Schnell speichern / laden"
           }
         }
       }
@@ -4101,6 +4041,956 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ein Backup enthält deine Bibliothek, SRAM-Spielstände, Spielstände, Artwork und Einstellungen. BIOS-Dateien, Cores und dein ScreenScraper-Passwort sind nicht enthalten."
+          }
+        }
+      }
+    },
+    "%@ can't open .7z archives. Unpack the game or turn it into a .zip file, then rescan.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kann keine .7z-Archive öffnen. Entpacke das Spiel oder mach daraus eine .zip-Datei und scanne dann erneut."
+          }
+        }
+      }
+    },
+    "%@ needs BIOS files that are missing: %@. Import them in Settings → BIOS, or choose another core.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ benötigt BIOS-Dateien, die fehlen: %2$@. Importiere sie unter Einstellungen → BIOS oder wähle einen anderen Core."
+          }
+        }
+      }
+    },
+    "%lld of %lld requests used today": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld von %2$lld Anfragen heute genutzt"
+          }
+        }
+      }
+    },
+    "A game can have its own controls too: open its inspector and choose Controls › Edit….": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auch ein einzelnes Spiel kann eine eigene Steuerung haben: Öffne sein Infofenster und wähle bei „Steuerung“ › Bearbeiten …"
+          }
+        }
+      }
+    },
+    "Account couldn't be checked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto konnte nicht geprüft werden"
+          }
+        }
+      }
+    },
+    "Add As": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinzufügen als"
+          }
+        }
+      }
+    },
+    "All Systems": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Systeme"
+          }
+        }
+      }
+    },
+    "Also Save Every 5 Minutes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zusätzlich alle 5 Minuten sichern"
+          }
+        }
+      }
+    },
+    "Applies to every controller. Buttons are named by position, like on a Super Nintendo pad: the bottom face button is B.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gilt für jeden Controller. Tasten sind nach ihrer Position benannt, wie auf einem Super-Nintendo-Controller: Die untere Taste ist B."
+          }
+        }
+      }
+    },
+    "Automatic": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch"
+          }
+        }
+      }
+    },
+    "Automatic (Player %lld)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch (Spieler %lld)"
+          }
+        }
+      }
+    },
+    "BIOS missing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BIOS fehlt"
+          }
+        }
+      }
+    },
+    "Changes apply to this game only. Off: they apply to every game of this core.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen gelten nur für dieses Spiel. Aus: Sie gelten für jedes Spiel dieses Cores."
+          }
+        }
+      }
+    },
+    "Check Account": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto prüfen"
+          }
+        }
+      }
+    },
+    "Check for Updates…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Updates suchen …"
+          }
+        }
+      }
+    },
+    "Check the permissions of these files and folders. Games inside them were kept.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prüfe die Zugriffsrechte dieser Dateien und Ordner. Spiele darin wurden behalten."
+          }
+        }
+      }
+    },
+    "Choose": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswählen"
+          }
+        }
+      }
+    },
+    "Choose Image…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild auswählen …"
+          }
+        }
+      }
+    },
+    "Choose Match…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Treffer auswählen …"
+          }
+        }
+      }
+    },
+    "Choose a player for a controller to keep it there when it reconnects. The keyboard always plays as player 1. The Home button opens the game menu.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle einen Spieler für einen Controller, damit er dort bleibt, wenn er sich neu verbindet. Die Tastatur spielt immer als Spieler 1. Die Home-Taste öffnet das Spielmenü."
+          }
+        }
+      }
+    },
+    "Choose the Right Game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das richtige Spiel auswählen"
+          }
+        }
+      }
+    },
+    "Click an input, then press a key.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicke auf eine Eingabe und drücke dann eine Taste."
+          }
+        }
+      }
+    },
+    "Continued where you left off": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dort weitergespielt, wo du aufgehört hast"
+          }
+        }
+      }
+    },
+    "Controller Buttons": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controller-Tasten"
+          }
+        }
+      }
+    },
+    "Controls For": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steuerung für"
+          }
+        }
+      }
+    },
+    "Couldn't Be Read": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht lesbar"
+          }
+        }
+      }
+    },
+    "Couldn't check for updates": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates konnten nicht geprüft werden"
+          }
+        }
+      }
+    },
+    "Cover": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cover"
+          }
+        }
+      }
+    },
+    "Custom": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigene"
+          }
+        }
+      }
+    },
+    "Description": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beschreibung"
+          }
+        }
+      }
+    },
+    "Detect Automatically": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch erkennen"
+          }
+        }
+      }
+    },
+    "Disc Files Missing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disc-Dateien fehlen"
+          }
+        }
+      }
+    },
+    "Disc files missing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disc-Dateien fehlen"
+          }
+        }
+      }
+    },
+    "Edit Info…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Infos bearbeiten …"
+          }
+        }
+      }
+    },
+    "Edit…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeiten …"
+          }
+        }
+      }
+    },
+    "Every game in your library folders is ready to play.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jedes Spiel in deinen Bibliotheksordnern ist startbereit."
+          }
+        }
+      }
+    },
+    "Everything Was Recognized": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alles wurde erkannt"
+          }
+        }
+      }
+    },
+    "Fetching continues automatically tomorrow. Fetch Missing tries again now.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Laden geht morgen automatisch weiter. „Fehlende laden“ versucht es jetzt erneut."
+          }
+        }
+      }
+    },
+    "Files of this disc are missing: %@. Put them next to “%@”, then rescan.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien dieser Disc fehlen: %1$@. Lege sie neben „%2$@“ und scanne dann erneut."
+          }
+        }
+      }
+    },
+    "Forgets your changes and fetches everything from ScreenScraper again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwirft deine Änderungen und lädt alles neu von ScreenScraper."
+          }
+        }
+      }
+    },
+    "Hidden": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgeblendet"
+          }
+        }
+      }
+    },
+    "Hide from Library": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Bibliothek ausblenden"
+          }
+        }
+      }
+    },
+    "Hotkeys": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tastenkürzel"
+          }
+        }
+      }
+    },
+    "Import…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importieren …"
+          }
+        }
+      }
+    },
+    "Keeps where you are in an automatic save state, apart from your slots.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hält deinen Spielstand in einem automatischen Spielstand fest, getrennt von deinen Slots."
+          }
+        }
+      }
+    },
+    "Keys that control the player rather than the game. esc always opens the game menu too.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tasten, die den Player steuern statt des Spiels. esc öffnet zusätzlich immer das Spielmenü."
+          }
+        }
+      }
+    },
+    "Later": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Später"
+          }
+        }
+      }
+    },
+    "Layout": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belegung"
+          }
+        }
+      }
+    },
+    "Metadata is fetched again for the new system.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Metadaten werden für das neue System neu geladen."
+          }
+        }
+      }
+    },
+    "Missing: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlt: %@"
+          }
+        }
+      }
+    },
+    "Only for This Game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur für dieses Spiel"
+          }
+        }
+      }
+    },
+    "Otherwise this system uses the controls for all systems.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonst verwendet dieses System die Steuerung für alle Systeme."
+          }
+        }
+      }
+    },
+    "Otherwise “%@” uses the controls of %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonst verwendet „%1$@“ die Steuerung von %2$@."
+          }
+        }
+      }
+    },
+    "PNG, JPEG or HEIC. Your cover is kept when metadata is fetched again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PNG, JPEG oder HEIC. Dein Cover bleibt erhalten, wenn Metadaten neu geladen werden."
+          }
+        }
+      }
+    },
+    "Play continues from the automatic state. Start from Beginning is in the game's menu.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Spielen“ setzt beim automatischen Spielstand fort. „Von vorn beginnen“ findest du im Menü des Spiels."
+          }
+        }
+      }
+    },
+    "Press buttons or keys to see what the game receives. Raise the dead zone if a stick moves on its own.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drücke Tasten, um zu sehen, was das Spiel empfängt. Erhöhe die Deadzone, wenn sich ein Stick von selbst bewegt."
+          }
+        }
+      }
+    },
+    "Press to assign a controller button": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drücken, um eine Controller-Taste zuzuweisen"
+          }
+        }
+      }
+    },
+    "Protects your progress if the game or the Mac stops unexpectedly.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schützt deinen Fortschritt, falls das Spiel oder der Mac unerwartet stoppt."
+          }
+        }
+      }
+    },
+    "Required for %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erforderlich für %@"
+          }
+        }
+      }
+    },
+    "Restore Default Buttons": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standardtasten wiederherstellen"
+          }
+        }
+      }
+    },
+    "Restore Default Hotkeys": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standardkürzel wiederherstellen"
+          }
+        }
+      }
+    },
+    "Resume Where You Left Off": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dort fortsetzen, wo du aufgehört hast"
+          }
+        }
+      }
+    },
+    "Save When Quitting a Game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Beenden eines Spiels sichern"
+          }
+        }
+      }
+    },
+    "Scan Report": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan-Bericht"
+          }
+        }
+      }
+    },
+    "Scan Report…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan-Bericht …"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchen"
+          }
+        }
+      }
+    },
+    "Search Failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suche fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Search ScreenScraper for %@ games, then choose the one “%@” contains.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suche auf ScreenScraper nach %1$@-Spielen und wähle dann das Spiel, das „%2$@“ enthält."
+          }
+        }
+      }
+    },
+    "Separate Controls for %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigene Steuerung für %@"
+          }
+        }
+      }
+    },
+    "Separate Controls for This Game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigene Steuerung für dieses Spiel"
+          }
+        }
+      }
+    },
+    "Show in Library": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Bibliothek einblenden"
+          }
+        }
+      }
+    },
+    "Signed in": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angemeldet"
+          }
+        }
+      }
+    },
+    "Some cores can't save states; their games always start from the beginning. Battery saves are kept either way.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manche Cores können keine Spielstände sichern; ihre Spiele beginnen immer von vorn. SRAM-Spielstände bleiben in jedem Fall erhalten."
+          }
+        }
+      }
+    },
+    "Start from Beginning": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von vorn beginnen"
+          }
+        }
+      }
+    },
+    "Stick Dead Zone": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stick-Deadzone"
+          }
+        }
+      }
+    },
+    "Takes effect the next time the game starts.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gilt ab dem nächsten Start des Spiels."
+          }
+        }
+      }
+    },
+    "Test": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test"
+          }
+        }
+      }
+    },
+    "The game couldn't continue where you left off, so it starts from the beginning.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Spiel konnte nicht dort weitermachen, wo du aufgehört hast, und beginnt von vorn."
+          }
+        }
+      }
+    },
+    "These games can't start until the files their .cue, .gdi or .m3u sheet lists are next to it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Spiele starten erst, wenn die Dateien, die ihre .cue-, .gdi- oder .m3u-Datei auflistet, daneben liegen."
+          }
+        }
+      }
+    },
+    "Titles, descriptions and artwork of every game are replaced with the data from ScreenScraper. Details you edited yourself are kept.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel, Beschreibungen und Artwork aller Spiele werden durch die Daten von ScreenScraper ersetzt. Angaben, die du selbst bearbeitet hast, bleiben erhalten."
+          }
+        }
+      }
+    },
+    "Untitled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Titel"
+          }
+        }
+      }
+    },
+    "Ursprung %@ is available": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprung %@ ist verfügbar"
+          }
+        }
+      }
+    },
+    "Ursprung couldn't tell which system these files belong to. Put them in a folder named after the system, or add them with Add As.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprung konnte nicht erkennen, zu welchem System diese Dateien gehören. Lege sie in einen Ordner, der nach dem System benannt ist, oder füge sie mit „Hinzufügen als“ hinzu."
+          }
+        }
+      }
+    },
+    "Ursprung is up to date": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprung ist auf dem neuesten Stand"
+          }
+        }
+      }
+    },
+    "Use ScreenScraper Cover": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper-Cover verwenden"
+          }
+        }
+      }
+    },
+    "Use ScreenScraper Data": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ScreenScraper-Daten verwenden"
+          }
+        }
+      }
+    },
+    "Use This Game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Spiel verwenden"
+          }
+        }
+      }
+    },
+    "Version %@ is the latest version.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@ ist die neueste Version."
+          }
+        }
+      }
+    },
+    "You have version %@. Download the new version, then replace Ursprung in your Applications folder. Your library and saves stay as they are.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du hast Version %@. Lade die neue Version und ersetze Ursprung in deinem Programme-Ordner. Bibliothek und Spielstände bleiben, wie sie sind."
+          }
+        }
+      }
+    },
+    "“%@” is hidden. Find it under Hidden in the sidebar.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ ist ausgeblendet. Du findest es unter „Ausgeblendet“ in der Seitenleiste."
+          }
+        }
+      }
+    },
+    "Same as System": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie System"
+          }
+        }
+      }
+    },
+    "Try fewer words, for example only the first word of the title.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versuche es mit weniger Wörtern, zum Beispiel nur dem ersten Wort des Titels."
+          }
+        }
+      }
+    },
+    "Also a hotkey: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auch ein Tastenkürzel: %@"
+          }
+        }
+      }
+    },
+    "The game doesn't receive these keys. Choose other keys, or change the hotkeys above.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Spiel erhält diese Tasten nicht. Wähle andere Tasten oder ändere die Tastenkürzel oben."
+          }
+        }
+      }
+    },
+    "The automatic state belongs to a different version of the game file, so the game starts from the beginning.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der automatische Spielstand gehört zu einer anderen Version der Spieldatei, deshalb beginnt das Spiel von vorn."
           }
         }
       }
