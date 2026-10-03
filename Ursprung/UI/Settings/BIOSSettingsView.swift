@@ -13,12 +13,19 @@ struct BIOSSettingsView: View {
         Form {
             Section {
                 if let importResult {
-                    if importResult.imported.isEmpty && importResult.unknown.isEmpty {
+                    if importResult.imported.isEmpty && importResult.unknown.isEmpty && importResult.failed.isEmpty {
                         StatusLabel("No files imported.", kind: .neutral, prominent: true)
                     }
                     ForEach(importResult.imported, id: \.self) { name in
                         LabeledContent {
                             StatusLabel("Imported", kind: .success)
+                        } label: {
+                            Text(verbatim: name).monospaced()
+                        }
+                    }
+                    ForEach(importResult.failed, id: \.self) { name in
+                        LabeledContent {
+                            StatusLabel("Couldn't Be Copied", kind: .error)
                         } label: {
                             Text(verbatim: name).monospaced()
                         }

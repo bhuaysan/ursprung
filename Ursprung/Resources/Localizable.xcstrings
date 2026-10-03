@@ -3214,6 +3214,26 @@
           }
         }
       }
+    },
+    "Some files or folders couldn't be read; their games were kept.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einige Dateien oder Ordner konnten nicht gelesen werden; ihre Spiele wurden behalten."
+          }
+        }
+      }
+    },
+    "Couldn't Be Copied": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopieren fehlgeschlagen"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import AppKit
 import Foundation
 import Testing
 @testable import Ursprung
@@ -63,5 +64,33 @@ struct InputRoutingTests {
         var drift = PadState()
         drift.leftStick = SIMD2(0.3, 0.3)
         #expect(InputRouter.menuMask(of: [drift]) == 0)
+    }
+}
+
+@Suite("Fast forward")
+struct FastForwardTests {
+    private func makeSession() -> EmulationSession {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "UrsprungTests-\(UUID().uuidString)")
+        return EmulationSession(cores: CoreManager(coresDirectory: directory, systemDirectory: directory),
+                                bios: BIOSManager(systemDirectory: directory))
+    }
+
+    @Test func endsWhenTheAppLosesFocus() {
+        let session = makeSession()
+        session.setFastForward(true)
+
+        NotificationCenter.default.post(name: NSApplication.didResignActiveNotification, object: nil)
+        NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+
+        #expect(!session.isFastForwarding)
+    }
+
+    @Test func endsWhenThePauseMenuOpens() {
+        let session = makeSession()
+        session.setFastForward(true)
+
+        session.isMenuVisible = true
+
+        #expect(!session.isFastForwarding)
     }
 }

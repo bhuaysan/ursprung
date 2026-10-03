@@ -79,6 +79,9 @@ nonisolated struct ZipArchive: Sendable {
         default:
             throw ZipError.unsupportedMethod(entry.method)
         }
+        // Damaged payloads keep plausible offsets and sizes; only the
+        // checksum notices them. Nothing is written for such an entry.
+        guard output.count == uncompressedSize, Checksum.crc(of: output) == entry.crc32 else { throw ZipError.corrupt }
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         try output.write(to: destination, options: .atomic)
     }
@@ -251,6 +254,20 @@ nonisolated enum Checksum {
             remaining -= UInt64(chunk.count)
         }
         return UInt32(crc)
+    }
+
+    static func crc(of data: Data) -> UInt32 {
+        data.withUnsafeBytes { buffer in
+            var crc = crc32(0, nil, 0)
+            var offset = 0
+            // zlib takes 32-bit lengths.
+            while offset < buffer.count {
+                let length = min(buffer.count - offset, Int(UInt32.max))
+                crc = crc32(crc, buffer.baseAddress!.advanced(by: offset).assumingMemoryBound(to: Bytef.self), uInt(length))
+                offset += length
+            }
+            return UInt32(crc)
+        }
     }
 
     static func hex(_ value: UInt32) -> String {

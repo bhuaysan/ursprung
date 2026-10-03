@@ -124,6 +124,10 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 
     // Options
     NSMutableDictionary<NSString *, NSData *> *_optionValues;
+    // Every option value string ever handed to the core, keyed by its text.
+    // Cores may still read a pointer from GET_VARIABLE when the user changes
+    // the option, so these strings live as long as the core.
+    NSMutableDictionary<NSString *, NSData *> *_optionCStrings;
     NSMutableArray<URCoreOption *> *_optionDefinitions;
     BOOL _optionsUpdated;
 
@@ -154,6 +158,7 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     _languageCode = @"en";
     _frameLock = OS_UNFAIR_LOCK_INIT;
     _optionValues = [NSMutableDictionary dictionary];
+    _optionCStrings = [NSMutableDictionary dictionary];
     _optionDefinitions = [NSMutableArray array];
     _pixelFormat = RETRO_PIXEL_FORMAT_0RGB1555;
 
@@ -534,8 +539,14 @@ static void URFrameBufferEnsure(URFrameBuffer *buffer, unsigned width, unsigned 
 
 /// Must be called while synchronized on self.
 - (void)storeOption:(NSString *)key value:(NSString *)value {
-    const char *utf8 = value.UTF8String ?: "";
-    _optionValues[key] = [NSData dataWithBytes:utf8 length:strlen(utf8) + 1];
+    NSString *text = value ?: @"";
+    NSData *string = _optionCStrings[text];
+    if (!string) {
+        const char *utf8 = text.UTF8String ?: "";
+        string = [NSData dataWithBytes:utf8 length:strlen(utf8) + 1];
+        _optionCStrings[text] = string;
+    }
+    _optionValues[key] = string;
 }
 
 - (void)registerOption:(URCoreOption *)option {

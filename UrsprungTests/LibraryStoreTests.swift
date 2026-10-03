@@ -41,7 +41,7 @@ private func makeContext() throws -> (ModelContainer, ModelContext) {
     return (container, ModelContext(container))
 }
 
-private func makeStore(folders: [URL], scanner: @escaping LibraryStore.Scanner = { _ in [] }) -> LibraryStore {
+private func makeStore(folders: [URL], scanner: @escaping LibraryStore.Scanner = { _ in LibraryScan() }) -> LibraryStore {
     LibraryStore(metadata: MetadataService(), folders: folders, scanner: scanner,
                  persistFolders: { _ in }, scrapesAutomatically: { false })
 }
@@ -167,7 +167,7 @@ struct LibraryScanRevisionTests {
         _ = container
         let store = makeStore(folders: [folderA]) { folders in
             await gate.pass()
-            return folders.map { rom($0.appending(path: "Game.sfc").path(percentEncoded: false)) }
+            return LibraryScan(roms: folders.map { rom($0.appending(path: "Game.sfc").path(percentEncoded: false)) })
         }
 
         let firstScan = Task { await store.rescan(context: context) }
@@ -182,5 +182,105 @@ struct LibraryScanRevisionTests {
 
         #expect(try gamePaths(in: context) == [folderB.appending(path: "Game.sfc").path(percentEncoded: false)])
         #expect(store.folders == [folderB])
+    }
+}
+
+@Suite("Library scan safety")
+struct LibraryScanSafetyTests {
+    private func makeStore(folders: [URL]) -> LibraryStore {
+        LibraryStore(metadata: MetadataService(), folders: folders, scanner: { LibraryScanner.scan(folders: $0) },
+                     persistFolders: { _ in }, scrapesAutomatically: { false })
+    }
+
+    @Test func overlappingFoldersKeepTheGame() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snes = root.appending(path: "SNES", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: snes, withIntermediateDirectories: true)
+        try Data([1, 2, 3]).write(to: snes.appending(path: "Game.sfc"))
+
+        let (container, context) = try makeContext()
+        _ = container
+        let store = makeStore(folders: [root, snes])
+        await store.rescan(context: context)
+        let game = try #require(try context.fetch(FetchDescriptor<Game>()).first)
+        let id = game.id
+        game.isFavorite = true
+        game.playTime = 1234
+        try context.save()
+
+        await store.rescan(context: context)
+
+        let games = try context.fetch(FetchDescriptor<Game>())
+        #expect(games.count == 1)
+        #expect(games.first?.id == id)
+        #expect(games.first?.isFavorite == true)
+        #expect(games.first?.playTime == 1234)
+    }
+
+    @Test func unreadableSubfolderKeepsItsGames() async throws {
+        let root = try makeTemporaryDirectory()
+        let sub = root.appending(path: "SNES", directoryHint: .isDirectory)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sub.path(percentEncoded: false))
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        try Data([1, 2, 3]).write(to: sub.appending(path: "Kept.sfc"))
+        try Data([1, 2, 3]).write(to: root.appending(path: "Deleted.sfc"))
+
+        let (container, context) = try makeContext()
+        _ = container
+        let store = makeStore(folders: [root])
+        await store.rescan(context: context)
+        #expect(try context.fetch(FetchDescriptor<Game>()).count == 2)
+
+        try FileManager.default.removeItem(at: root.appending(path: "Deleted.sfc"))
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: sub.path(percentEncoded: false))
+        await store.rescan(context: context)
+
+        // The deleted ROM sits in a readable folder and goes; the unreadable one stays.
+        #expect(try gamePaths(in: context) == [sub.appending(path: "Kept.sfc").standardizedFileURL.path(percentEncoded: false)])
+    }
+
+    @Test func sameSizeReplacementInvalidatesTheChecksum() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appending(path: "Game.sfc")
+        try Data([1, 2, 3]).write(to: file)
+
+        let (container, context) = try makeContext()
+        _ = container
+        let store = makeStore(folders: [root])
+        await store.rescan(context: context)
+        let game = try #require(try context.fetch(FetchDescriptor<Game>()).first)
+        game.crc32 = "55BC801D" // computed by an earlier scrape
+
+        try Data([4, 5, 6]).write(to: file)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: 60)], ofItemAtPath: file.path(percentEncoded: false))
+        await store.rescan(context: context)
+
+        #expect(game.crc32 == nil)
+    }
+
+    @Test func sameSizeZipReplacementTakesTheNewChecksum() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snes = root.appending(path: "SNES", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: snes, withIntermediateDirectories: true)
+        let archive = snes.appending(path: "Game.zip")
+        try makeZip(at: archive, containing: "Game.sfc", bytes: Data([1, 2, 3]))
+
+        let (container, context) = try makeContext()
+        _ = container
+        let store = makeStore(folders: [root])
+        await store.rescan(context: context)
+        let game = try #require(try context.fetch(FetchDescriptor<Game>()).first)
+        #expect(game.crc32 == Checksum.hex(Checksum.crc(of: Data([1, 2, 3]))))
+
+        try makeZip(at: archive, containing: "Game.sfc", bytes: Data([4, 5, 6]))
+        await store.rescan(context: context)
+
+        #expect(game.crc32 == Checksum.hex(Checksum.crc(of: Data([4, 5, 6]))))
     }
 }

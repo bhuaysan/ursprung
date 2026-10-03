@@ -9,7 +9,7 @@ import SwiftData
 /// with the files on disk.
 @Observable
 final class LibraryStore {
-    typealias Scanner = @Sendable ([URL]) async -> [ScannedROM]
+    typealias Scanner = @Sendable ([URL]) async -> LibraryScan
 
     private(set) var folders: [URL]
     private(set) var isScanning = false
@@ -108,35 +108,46 @@ final class LibraryStore {
         }
     }
 
-    private func apply(_ scanned: [ScannedROM], reachable: [URL], folders: [URL], context: ModelContext) {
+    private func apply(_ scan: LibraryScan, reachable: [URL], folders: [URL], context: ModelContext) {
         let existing = (try? context.fetch(FetchDescriptor<Game>())) ?? []
-        var byPath = Dictionary(existing.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+        let byPath = Dictionary(existing.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+        // Overlapping folders can report a file twice. A path is applied once,
+        // so the second report never creates a fresh game over the first.
+        var seen = Set<String>()
         var added: [Game] = []
 
-        for rom in scanned {
-            let path = rom.url.path(percentEncoded: false)
-            if let game = byPath.removeValue(forKey: path) {
+        for rom in scan.roms {
+            let path = rom.url.standardizedFileURL.path(percentEncoded: false)
+            guard seen.insert(path).inserted else { continue }
+            if let game = byPath[path] {
                 if game.systemID != rom.systemID { game.systemID = rom.systemID }
-                if game.fileSize != rom.fileSize {
-                    game.fileSize = rom.fileSize
-                    game.crc32 = rom.crc32
-                }
+                // A file replaced at the same path may keep its size; its
+                // modification date still changes. A zip's CRC is read on
+                // every scan, so a new value always wins.
+                let isReplaced = game.fileSize != rom.fileSize
+                    || (game.fileModified != nil && game.fileModified != rom.modified)
+                if isReplaced || (rom.crc32 != nil && rom.crc32 != game.crc32) { game.crc32 = rom.crc32 }
+                if game.fileSize != rom.fileSize { game.fileSize = rom.fileSize }
+                if game.fileModified != rom.modified { game.fileModified = rom.modified }
             } else {
                 let game = Game(path: path, systemID: rom.systemID, title: rom.title, fileName: rom.fileName,
                                 fileSize: rom.fileSize, crc32: rom.crc32)
+                game.fileModified = rom.modified
                 context.insert(game)
                 added.append(game)
             }
         }
 
         // Games that vanished from reachable folders are removed, as are games
-        // no folder covers any more. Games on unmounted volumes are kept.
+        // no folder covers any more. Games on unmounted volumes and in sub
+        // folders the scan could not read are kept.
         let reachablePaths = reachable.map { $0.path(percentEncoded: false) }
         let folderPaths = folders.map { $0.path(percentEncoded: false) }
         var removed = 0
-        for game in byPath.values {
+        for game in existing where !seen.contains(game.path) {
             let isCovered = folderPaths.contains { LibraryPaths.isInside(game.path, folder: $0) }
             let isReachable = reachablePaths.contains { LibraryPaths.isInside(game.path, folder: $0) }
+                && !scan.isUnreadable(game.path)
             guard isReachable || !isCovered else { continue }
             removeMedia(for: game)
             context.delete(game)
@@ -144,7 +155,11 @@ final class LibraryStore {
         }
         try? context.save()
 
-        lastScanSummary = String(localized: "\(scanned.count) games found, \(added.count) new, \(removed) removed.")
+        var summary = String(localized: "\(seen.count) games found, \(added.count) new, \(removed) removed.")
+        if !scan.unreadable.isEmpty {
+            summary += " " + String(localized: "Some files or folders couldn't be read; their games were kept.")
+        }
+        lastScanSummary = summary
         if scrapesAutomatically() {
             // New games plus any whose scraping was interrupted earlier.
             let pending = ((try? context.fetch(FetchDescriptor<Game>())) ?? []).filter { $0.scrapeState == .pending }
@@ -158,7 +173,7 @@ final class LibraryStore {
     }
 
     @concurrent
-    private static func scan(_ folders: [URL]) async -> [ScannedROM] {
+    private static func scan(_ folders: [URL]) async -> LibraryScan {
         LibraryScanner.scan(folders: folders)
     }
 

@@ -2,6 +2,7 @@
 
 import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
 @testable import Ursprung
 
@@ -59,5 +60,38 @@ struct SystemMediaTests {
                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
         let image = try #require(context.makeImage())
         #expect(SystemMediaStore.opaqueBounds(of: image) == nil)
+    }
+}
+
+@Suite("Artwork cache")
+struct ArtworkCacheTests {
+    private func writePNG(_ color: CGColor, to url: URL, modified: Date) throws {
+        let context = try #require(CGContext(data: nil, width: 4, height: 4, bitsPerComponent: 8, bytesPerRow: 0,
+                                             space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.setFillColor(color)
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        let image = try #require(context.makeImage())
+        let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, nil)
+        #expect(CGImageDestinationFinalize(destination))
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path(percentEncoded: false))
+    }
+
+    @Test func replacedFileIsLoadedAgain() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "cover.png")
+        let cache = ArtworkCache()
+
+        try writePNG(CGColor(red: 1, green: 0, blue: 0, alpha: 1), to: url, modified: Date(timeIntervalSinceNow: -60))
+        let red = try #require(cache.load(ArtworkCache.Version(url), maxPixel: 4))
+        try writePNG(CGColor(red: 0, green: 0, blue: 1, alpha: 1), to: url, modified: Date())
+        let version = ArtworkCache.Version(url)
+
+        #expect(cache.cached(version, maxPixel: 4) == nil)
+        let blue = try #require(cache.load(version, maxPixel: 4))
+        #expect(blue !== red)
+        #expect(cache.load(version, maxPixel: 4) === blue, "An unchanged file comes from the cache")
     }
 }

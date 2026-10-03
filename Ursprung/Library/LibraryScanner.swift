@@ -10,6 +10,25 @@ nonisolated struct ScannedROM: Sendable, Hashable {
     let fileName: String
     let fileSize: Int64
     let crc32: String?
+    /// Content modification date, so a file replaced at the same path and
+    /// size is still noticed.
+    var modified: Date? = nil
+}
+
+/// The outcome of scanning library folders.
+nonisolated struct LibraryScan: Sendable {
+    var roms: [ScannedROM] = []
+    /// Files and directories that could not be read. Games inside them may
+    /// still exist, so the library keeps them.
+    var unreadable: [URL] = []
+
+    /// Whether `path` lies in a part of the folders that could not be read.
+    func isUnreadable(_ path: String) -> Bool {
+        unreadable.contains { url in
+            let unreadablePath = url.standardizedFileURL.path(percentEncoded: false)
+            return path == unreadablePath || LibraryPaths.isInside(path, folder: unreadablePath)
+        }
+    }
 }
 
 /// Walks library folders and identifies games. Pure and synchronous — call it
@@ -28,49 +47,78 @@ nonisolated enum LibraryScanner {
         "hiscore.dat", "stvbios.zip", "naomi.zip", "awbios.zip", "cpzn1.zip", "cpzn2.zip", "taitofx1.zip",
     ]
 
-    static func scan(folders: [URL]) -> [ScannedROM] {
-        var results: [ScannedROM] = []
-        for folder in folders {
-            results.append(contentsOf: scan(folder: folder))
+    private static let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
+
+    /// Scans all folders as one library: a file that several (nested) folders
+    /// contain is listed once, and a playlist in one folder hides the discs it
+    /// references in another.
+    static func scan(folders: [URL]) -> LibraryScan {
+        var scan = LibraryScan()
+        // Outer folders first: a file found through them sees more parent
+        // folders that may name its system.
+        let roots = folders.map(\.standardizedFileURL).sorted { $0.pathComponents.count < $1.pathComponents.count }
+        var files: [(url: URL, root: URL)] = []
+        var seen = Set<String>()
+        for root in roots {
+            for url in enumerateFiles(in: root, unreadable: &scan.unreadable) {
+                guard seen.insert(url.path(percentEncoded: false)).inserted else { continue }
+                files.append((url, root))
+            }
         }
-        return results
+
+        let referenced = referencedPaths(in: files.map(\.url))
+        for (url, root) in files where !referenced.contains(normalized(url)) {
+            let folderSystem = system(forDirectory: url.deletingLastPathComponent(), root: root)
+            if let rom = identify(url, folderSystem: folderSystem) { scan.roms.append(rom) }
+        }
+        scan.roms.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        return scan
     }
 
     static func scan(folder root: URL) -> [ScannedROM] {
-        let fm = FileManager.default
-        let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .fileSizeKey, .isHiddenKey]
-        guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: keys,
-                                             options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
+        scan(folders: [root]).roms
+    }
 
-        var filesByDirectory: [URL: [URL]] = [:]
-        for case let url as URL in enumerator {
-            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
-            filesByDirectory[url.deletingLastPathComponent(), default: []].append(url)
+    /// The regular files below `root`. Directories and files that cannot be
+    /// read are added to `unreadable` instead of being skipped silently.
+    private static func enumerateFiles(in root: URL, unreadable: inout [URL]) -> [URL] {
+        var failures: [URL] = []
+        let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys,
+                                                        options: [.skipsHiddenFiles, .skipsPackageDescendants]) { url, _ in
+            failures.append(url)
+            return true
         }
-
-        var results: [ScannedROM] = []
-        for (directory, files) in filesByDirectory {
-            let referenced = referencedFiles(in: files)
-            let folderSystem = system(forDirectory: directory, root: root)
-
-            for url in files {
-                let name = url.lastPathComponent
-                let ext = url.pathExtension.lowercased()
-                guard !ext.isEmpty, !ignoredExtensions.contains(ext),
-                      !referenced.contains(name.lowercased()) else { continue }
-                guard let system = detectSystem(for: url, folderSystem: folderSystem) else { continue }
-                if system.archivesAreNative, arcadeBIOSSets.contains(name.lowercased()) { continue }
-
-                let size = Int64((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
-                var crc: String?
-                if ext == "zip", !system.archivesAreNative, let entry = primaryEntry(inZip: url, system: system) {
-                    crc = Checksum.hex(entry.crc32)
-                }
-                results.append(ScannedROM(url: url, systemID: system.id, title: TitleFormatter.title(fromFileName: name),
-                                          fileName: name, fileSize: size, crc32: crc))
+        guard let enumerator else {
+            unreadable.append(root)
+            return []
+        }
+        var files: [URL] = []
+        for case let url as URL in enumerator {
+            do {
+                if try url.resourceValues(forKeys: Set(keys)).isRegularFile == true { files.append(url.standardizedFileURL) }
+            } catch {
+                failures.append(url)
             }
         }
-        return results.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        unreadable += failures.map(\.standardizedFileURL)
+        return files
+    }
+
+    private static func identify(_ url: URL, folderSystem: GameSystem?) -> ScannedROM? {
+        let name = url.lastPathComponent
+        let ext = url.pathExtension.lowercased()
+        guard !ext.isEmpty, !ignoredExtensions.contains(ext) else { return nil }
+        guard let system = detectSystem(for: url, folderSystem: folderSystem) else { return nil }
+        if system.archivesAreNative, arcadeBIOSSets.contains(name.lowercased()) { return nil }
+
+        let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        var crc: String?
+        if ext == "zip", !system.archivesAreNative, let entry = primaryEntry(inZip: url, system: system) {
+            crc = Checksum.hex(entry.crc32)
+        }
+        return ScannedROM(url: url, systemID: system.id, title: TitleFormatter.title(fromFileName: name),
+                          fileName: name, fileSize: Int64(values?.fileSize ?? 0), crc32: crc,
+                          modified: values?.contentModificationDate)
     }
 
     // MARK: - System detection
@@ -121,27 +169,37 @@ nonisolated enum LibraryScanner {
 
     // MARK: - Multi-file discs
 
-    /// Lower-cased names of files referenced by .cue/.gdi/.m3u/.ccd files, so
-    /// individual tracks are not listed as separate games.
-    static func referencedFiles(in files: [URL]) -> Set<String> {
+    /// Normalised paths of files referenced by .cue/.gdi/.m3u/.ccd files, so
+    /// individual tracks and the discs of a playlist are not listed as
+    /// separate games. References are resolved relative to the file that
+    /// makes them, so a playlist can point into sub folders.
+    static func referencedPaths(in files: [URL]) -> Set<String> {
         var referenced = Set<String>()
         for url in files {
+            let directory = url.deletingLastPathComponent()
+            let references: [String]
             switch url.pathExtension.lowercased() {
-            case "cue":
-                referenced.formUnion(CueSheet.referencedFiles(in: url).map { $0.lowercased() })
-            case "gdi":
-                referenced.formUnion(parseGDI(url).map { $0.lowercased() })
-            case "m3u":
-                referenced.formUnion(parseM3U(url).map { ($0 as NSString).lastPathComponent.lowercased() })
+            case "cue": references = CueSheet.referencedFiles(in: url)
+            case "gdi": references = parseGDI(url)
+            case "m3u": references = parseM3U(url)
             case "ccd":
                 let base = url.deletingPathExtension().lastPathComponent
-                referenced.formUnion(["img", "sub"].map { "\(base).\($0)".lowercased() })
-            default:
-                break
+                references = ["\(base).img", "\(base).sub"]
+            default: references = []
+            }
+            for reference in references {
+                let path = reference.replacingOccurrences(of: "\\", with: "/")
+                let target = path.hasPrefix("/") ? URL(filePath: path) : directory.appending(path: path)
+                referenced.insert(normalized(target))
             }
         }
-        // A .cue referenced by an .m3u is part of a multi-disc set.
         return referenced
+    }
+
+    /// A path for comparing references: standardised and lower-cased, as
+    /// macOS volumes usually ignore case.
+    static func normalized(_ url: URL) -> String {
+        url.standardizedFileURL.path(percentEncoded: false).lowercased()
     }
 
     static func parseM3U(_ url: URL) -> [String] {

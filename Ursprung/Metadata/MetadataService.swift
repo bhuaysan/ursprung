@@ -16,6 +16,14 @@ final class MetadataService {
 
     private var queue: [PersistentIdentifier] = []
     private var worker: Task<Void, Never>?
+    /// Bumped by `cancel()`. A cancelled worker may still be finishing its
+    /// request; it then leaves the queue and the progress to its successor.
+    private var generation = 0
+    private let makeClient: () -> ScreenScraperClient
+
+    init(client: @escaping () -> ScreenScraperClient = { .configured }) {
+        makeClient = client
+    }
 
     var progress: Double { total == 0 ? 0 : Double(completed) / Double(total) }
 
@@ -34,40 +42,47 @@ final class MetadataService {
 
     func cancel() {
         worker?.cancel()
+        generation += 1
         queue.removeAll()
+        finish()
     }
 
     private func startIfNeeded(context: ModelContext) {
         guard worker == nil else { return }
         isRunning = true
-        worker = Task { [weak self] in
-            await self?.run(context: context)
+        worker = Task { [weak self, generation = self.generation] in
+            await self?.run(generation: generation, context: context)
         }
     }
 
-    private func run(context: ModelContext) async {
-        let client = ScreenScraperClient.configured
-        while !queue.isEmpty, !Task.isCancelled {
+    private func run(generation: Int, context: ModelContext) async {
+        let client = makeClient()
+        while generation == self.generation, !queue.isEmpty {
             let id = queue.removeFirst()
             guard let game = context.existingGame(id) else { completed += 1; continue }
             currentTitle = game.title
             do {
                 try await scrape(game, client: client)
                 try? context.save()
-            } catch let error as ScreenScraperError {
-                game.scrapeState = .failed
-                lastError = MetadataFailure(error)
-                if error.isFatal { queue.removeAll() }
-                if error == .tooManyThreads { try? await Task.sleep(for: .seconds(5)) }
-            } catch is CancellationError {
-                break
             } catch {
+                // A cancelled request is no failure of the game.
+                guard generation == self.generation, !(error is CancellationError) else { break }
                 game.scrapeState = .failed
                 lastError = MetadataFailure(error)
+                if let error = error as? ScreenScraperError {
+                    if error.isFatal { queue.removeAll() }
+                    if error == .tooManyThreads { try? await Task.sleep(for: .seconds(5)) }
+                }
             }
+            guard generation == self.generation else { break }
             completed += 1
         }
         try? context.save()
+        guard generation == self.generation else { return }
+        finish()
+    }
+
+    private func finish() {
         worker = nil
         isRunning = false
         currentTitle = nil
@@ -79,10 +94,15 @@ final class MetadataService {
         guard let system = game.system else { return }
         let url = game.fileURL
         var crc = game.crc32
-        if crc == nil, game.fileSize > 0, game.fileSize <= 64 << 20,
+        if game.fileSize > 0, game.fileSize <= 64 << 20,
            !["cue", "m3u", "gdi", "zip"].contains(url.pathExtension.lowercased()) {
-            crc = await Self.checksum(of: url)
-            game.crc32 = crc
+            // The file may have been replaced since the last scan.
+            let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+            if crc == nil || modified != game.fileModified {
+                crc = await Self.checksum(of: url)
+                game.crc32 = crc
+                game.fileModified = modified
+            }
         }
 
         let query = ScrapeQuery(systemID: system.screenScraperID, fileName: game.fileName, fileSize: game.fileSize,

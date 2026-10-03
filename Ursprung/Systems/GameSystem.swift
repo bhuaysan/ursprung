@@ -25,6 +25,10 @@ nonisolated struct BIOSFile: Sendable, Hashable, Identifiable {
     let md5: String?
     let required: Bool
     var note: String? = nil
+    /// Required files that share a group are alternatives, e.g. region
+    /// variants: one of them suffices. Required files without a group are
+    /// all needed.
+    var group: String? = nil
 
     var id: String { fileName }
 }

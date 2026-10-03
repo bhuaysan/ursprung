@@ -15,10 +15,15 @@ typedef struct URAudioRing {
     size_t capacity;          // in frames (one frame = L + R)
     _Atomic size_t readIndex; // monotonically increasing frame counters
     _Atomic size_t writeIndex;
+    // Write index up to which the reader drops frames; URAudioRingNoClear
+    // when no clear is pending. Only the reader moves readIndex.
+    _Atomic size_t clearTarget;
 } URAudioRing;
 
 void URAudioRingInit(URAudioRing *ring, size_t capacityFrames);
 void URAudioRingFree(URAudioRing *ring);
+/// Discards the buffered frames. Called by the writer; the reader drops the
+/// frames before its next read, so a read in progress cannot undo the clear.
 void URAudioRingClear(URAudioRing *ring);
 
 /// Number of frames currently buffered.

@@ -17,10 +17,18 @@ final class BIOSManager {
     nonisolated struct ImportResult: Sendable {
         var imported: [String] = []
         var unknown: [String] = []
+        /// Recognised files that could not be copied.
+        var failed: [String] = []
     }
 
-    private(set) var statuses: [String: Status] = [:]
+    private(set) var statuses: [String: Status]
     private(set) var isRefreshing = false
+    private let systemDirectory: URL
+
+    init(systemDirectory: URL = AppPaths.system, statuses: [String: Status] = [:]) {
+        self.systemDirectory = systemDirectory
+        self.statuses = statuses
+    }
 
     func status(of file: BIOSFile) -> Status {
         statuses[file.fileName] ?? .missing
@@ -33,21 +41,23 @@ final class BIOSManager {
 
     func missingRequired(for system: GameSystem) -> [BIOSFile] {
         let required = system.bios.filter(\.required)
-        // Region variants (e.g. Sega CD) only need one of them.
-        if required.count > 1, required.contains(where: { status(of: $0) != .missing }) { return [] }
-        return required.filter { status(of: $0) == .missing }
+        // Alternatives (e.g. the Sega CD regions) only need one of their group.
+        let satisfiedGroups = Set(required.filter { status(of: $0) != .missing }.compactMap(\.group))
+        return required.filter { file in
+            status(of: file) == .missing && !(file.group.map(satisfiedGroups.contains) ?? false)
+        }
     }
 
     func refresh() async {
         isRefreshing = true
-        statuses = await Self.computeStatuses()
+        statuses = await Self.computeStatuses(in: systemDirectory)
         isRefreshing = false
     }
 
     /// Copies BIOS files into the system directory. Files are recognised by
     /// name (case-insensitive) or by MD5, and renamed to what the cores expect.
     func importFiles(_ urls: [URL]) async -> ImportResult {
-        let result = await Self.performImport(urls)
+        let result = await Self.performImport(urls, into: systemDirectory)
         await refresh()
         return result
     }
@@ -55,10 +65,10 @@ final class BIOSManager {
     // MARK: - Background work
 
     @concurrent
-    private static func computeStatuses() async -> [String: Status] {
+    private static func computeStatuses(in systemDirectory: URL) async -> [String: Status] {
         var result: [String: Status] = [:]
         for file in SystemCatalog.all.flatMap(\.bios) {
-            let url = AppPaths.system.appending(path: file.fileName)
+            let url = systemDirectory.appending(path: file.fileName)
             guard let actual = resolveCaseInsensitive(url) else {
                 result[file.fileName] = .missing
                 continue
@@ -73,7 +83,7 @@ final class BIOSManager {
     }
 
     @concurrent
-    private static func performImport(_ urls: [URL]) async -> ImportResult {
+    private static func performImport(_ urls: [URL], into systemDirectory: URL) async -> ImportResult {
         let known = SystemCatalog.all.flatMap(\.bios)
         let byMD5 = Dictionary(known.compactMap { file in file.md5.map { ($0, file) } }, uniquingKeysWith: { first, _ in first })
         let byName = Dictionary(known.map { (($0.fileName as NSString).lastPathComponent.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
@@ -90,17 +100,46 @@ final class BIOSManager {
                 result.unknown.append(name)
                 continue
             }
-            let destination = AppPaths.system.appending(path: target)
+            let destination = systemDirectory.appending(path: target)
             do {
-                try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-                if let existing = resolveCaseInsensitive(destination) { try FileManager.default.removeItem(at: existing) }
-                try FileManager.default.copyItem(at: url, to: destination)
+                try install(url, at: destination)
                 result.imported.append(target)
             } catch {
-                result.unknown.append(name)
+                result.failed.append(name)
             }
         }
         return result
+    }
+
+    /// Copies `source` to `destination`. An existing file is only replaced
+    /// once the copy is complete, and importing the installed file itself
+    /// (e.g. from the opened system folder) leaves it alone.
+    private nonisolated static func install(_ source: URL, at destination: URL) throws {
+        let fm = FileManager.default
+        let existing = resolveCaseInsensitive(destination)
+        if let existing, isSameFile(source, existing) { return }
+
+        let directory = destination.deletingLastPathComponent()
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        let staging = directory.appending(path: ".import-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: staging) }
+        try fm.copyItem(at: source, to: staging)
+        if fm.fileExists(atPath: destination.path(percentEncoded: false)) {
+            _ = try fm.replaceItemAt(destination, withItemAt: staging)
+        } else {
+            try fm.moveItem(at: staging, to: destination)
+        }
+        // On a case-sensitive volume the old file may differ in case only.
+        if let existing, existing.lastPathComponent != destination.lastPathComponent, !isSameFile(existing, destination) {
+            try? fm.removeItem(at: existing)
+        }
+    }
+
+    private nonisolated static func isSameFile(_ a: URL, _ b: URL) -> Bool {
+        let key: Set<URLResourceKey> = [.fileResourceIdentifierKey]
+        guard let first = try? a.resourceValues(forKeys: key).fileResourceIdentifier,
+              let second = try? b.resourceValues(forKeys: key).fileResourceIdentifier else { return false }
+        return first.isEqual(second)
     }
 
     /// Folders are imported recursively.

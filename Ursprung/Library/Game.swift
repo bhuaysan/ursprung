@@ -19,6 +19,9 @@ final class Game {
     var fileSize: Int64
     /// CRC32 of the ROM (of the inner file for zipped cartridge games).
     var crc32: String?
+    /// Modification date of the file when it was last scanned; a change
+    /// invalidates `crc32`.
+    var fileModified: Date?
     var dateAdded: Date
     var lastPlayed: Date?
     var playCount: Int

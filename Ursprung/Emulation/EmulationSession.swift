@@ -60,6 +60,9 @@ final class EmulationSession {
             guard isMenuVisible != oldValue else { return }
             // While the menu is open, controllers navigate it instead of the game.
             input.routesToMenu = isMenuVisible
+            // The menu takes the keyboard, so the player never sees the
+            // fast forward key being released.
+            if isMenuVisible { setFastForward(false) }
             applyPause()
         }
     }
@@ -336,6 +339,8 @@ final class EmulationSession {
 
     private func setAppInactive(_ inactive: Bool) {
         appInactive = inactive
+        // The fast forward key may be released in another app.
+        if inactive { setFastForward(false) }
         applyPause()
     }
 

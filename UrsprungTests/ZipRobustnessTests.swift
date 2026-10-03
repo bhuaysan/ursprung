@@ -102,6 +102,38 @@ struct ZipRobustnessTests {
         let destination = FileManager.default.temporaryDirectory.appending(path: "never-\(UUID().uuidString)")
         #expect(throws: ZipArchive.ZipError.self) { try archive.extract(entry, to: destination) }
     }
+
+    @Test func extractRejectsStoredPayloadWithWrongChecksum() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // The handmade entry stores "abcd" but claims a CRC32 of 0.
+        let file = directory.appending(path: "test.zip")
+        try handmadeZip(centralExtra: [], sentinelSizes: false).write(to: file)
+        let archive = try ZipArchive(url: file)
+        let entry = try #require(archive.files.first)
+        let destination = directory.appending(path: "a.bin")
+        try Data("old".utf8).write(to: destination)
+
+        #expect(throws: ZipArchive.ZipError.self) { try archive.extract(entry, to: destination) }
+        #expect(try Data(contentsOf: destination) == Data("old".utf8), "A failed extraction keeps the previous file")
+    }
+
+    @Test func extractRejectsDamagedDeflatedPayload() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appending(path: "test.zip")
+        try makeZip(at: file, containing: "rom.bin", bytes: Data((0..<4096).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ $0 / 7) }))
+        var data = try Data(contentsOf: file)
+        // Flip a byte in the middle of the compressed data, past the local header.
+        let payloadStart = 30 + Int(data.uint16(at: 26)) + Int(data.uint16(at: 28))
+        data[payloadStart + 20] ^= 0x55
+        try data.write(to: file)
+        let archive = try ZipArchive(url: file)
+        let entry = try #require(archive.files.first)
+
+        #expect(throws: (any Error).self) { try archive.extract(entry, to: directory.appending(path: "rom.bin")) }
+        #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "rom.bin").path(percentEncoded: false)))
+    }
 }
 
 private extension Data {

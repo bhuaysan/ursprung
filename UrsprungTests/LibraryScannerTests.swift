@@ -89,3 +89,52 @@ struct ScanTests {
         #expect(files == ["Game (Track 1).bin", "Game (Track 2).bin"])
     }
 }
+
+@Suite("Scanning playlists and nested folders")
+struct PlaylistScanTests {
+    @Test func playlistHidesDiscsInSubfolders() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+        try fm.createDirectory(at: root.appending(path: "PSX/Disc1"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: root.appending(path: "PSX/Other"), withIntermediateDirectories: true)
+        try Data(repeating: 0, count: 2352).write(to: root.appending(path: "PSX/Disc1/Game.bin"))
+        try "FILE \"Game.bin\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n"
+            .write(to: root.appending(path: "PSX/Disc1/Game.cue"), atomically: true, encoding: .utf8)
+        try "Disc1/Game.cue\n".write(to: root.appending(path: "PSX/Game.m3u"), atomically: true, encoding: .utf8)
+        // Same name, but not referenced: still a game of its own.
+        try Data(repeating: 0, count: 2352).write(to: root.appending(path: "PSX/Other/Game.bin"))
+        try "FILE \"Game.bin\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n"
+            .write(to: root.appending(path: "PSX/Other/Game.cue"), atomically: true, encoding: .utf8)
+
+        let results = LibraryScanner.scan(folder: root)
+
+        #expect(results.map { $0.url.deletingLastPathComponent().lastPathComponent + "/" + $0.fileName }.sorted()
+                == ["Other/Game.cue", "PSX/Game.m3u"])
+    }
+
+    @Test func parentReferencesResolve() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appending(path: "PSX/Playlists"), withIntermediateDirectories: true)
+        try Data(repeating: 0, count: 2352).write(to: root.appending(path: "PSX/Game.bin"))
+        try "FILE \"Game.bin\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n"
+            .write(to: root.appending(path: "PSX/Game.cue"), atomically: true, encoding: .utf8)
+        try "../Game.cue\n".write(to: root.appending(path: "PSX/Playlists/Game.m3u"), atomically: true, encoding: .utf8)
+
+        #expect(LibraryScanner.scan(folder: root).map(\.fileName) == ["Game.m3u"])
+    }
+
+    @Test func nestedFoldersListEachFileOnce() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snes = root.appending(path: "SNES", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: snes, withIntermediateDirectories: true)
+        try Data([1]).write(to: snes.appending(path: "Game.sfc"))
+
+        let scan = LibraryScanner.scan(folders: [snes, root])
+
+        #expect(scan.roms.map(\.fileName) == ["Game.sfc"])
+        #expect(scan.unreadable.isEmpty)
+    }
+}

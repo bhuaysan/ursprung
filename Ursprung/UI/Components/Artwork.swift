@@ -6,6 +6,19 @@ import SwiftUI
 
 /// Decodes and downsamples artwork off the main thread, with an in-memory cache.
 nonisolated final class ArtworkCache: @unchecked Sendable {
+    /// One version of an image file. Artwork and save state thumbnails are
+    /// replaced at the same path, so the modification date tells them apart.
+    nonisolated struct Version: Hashable, Sendable {
+        let url: URL
+        let modified: Date?
+
+        init(_ url: URL) {
+            self.url = url
+            let attributes = try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))
+            modified = attributes?[.modificationDate] as? Date
+        }
+    }
+
     static let shared = ArtworkCache()
     private let cache = NSCache<NSString, CGImage>()
 
@@ -13,13 +26,13 @@ nonisolated final class ArtworkCache: @unchecked Sendable {
         cache.countLimit = 600
     }
 
-    func cached(_ url: URL, maxPixel: Int) -> CGImage? {
-        cache.object(forKey: key(url, maxPixel))
+    func cached(_ version: Version, maxPixel: Int) -> CGImage? {
+        cache.object(forKey: key(version, maxPixel))
     }
 
-    func load(_ url: URL, maxPixel: Int) -> CGImage? {
-        if let image = cached(url, maxPixel: maxPixel) { return image }
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+    func load(_ version: Version, maxPixel: Int) -> CGImage? {
+        if let image = cached(version, maxPixel: maxPixel) { return image }
+        guard let source = CGImageSourceCreateWithURL(version.url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -27,21 +40,18 @@ nonisolated final class ArtworkCache: @unchecked Sendable {
             kCGImageSourceThumbnailMaxPixelSize: maxPixel,
         ]
         guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-        cache.setObject(image, forKey: key(url, maxPixel))
+        cache.setObject(image, forKey: key(version, maxPixel))
         return image
     }
 
     @concurrent
-    func loadAsync(_ url: URL, maxPixel: Int) async -> CGImage? {
-        load(url, maxPixel: maxPixel)
+    func loadAsync(_ version: Version, maxPixel: Int) async -> CGImage? {
+        load(version, maxPixel: maxPixel)
     }
 
-    func invalidate() {
-        cache.removeAllObjects()
-    }
-
-    private func key(_ url: URL, _ maxPixel: Int) -> NSString {
-        "\(url.path(percentEncoded: false))#\(maxPixel)" as NSString
+    private func key(_ version: Version, _ maxPixel: Int) -> NSString {
+        let modified = version.modified?.timeIntervalSinceReferenceDate ?? 0
+        return "\(version.url.path(percentEncoded: false))#\(maxPixel)#\(modified)" as NSString
     }
 }
 
@@ -60,6 +70,9 @@ struct ArtworkImage<Placeholder: View>: View {
     @State private var image: CGImage?
 
     var body: some View {
+        // Read on every update, so a file replaced at the same URL (refetched
+        // artwork, an overwritten save state) loads again.
+        let version = url.map(ArtworkCache.Version.init)
         // A ZStack rather than a Group: with an EmptyView placeholder a Group
         // produces no view, so the loading task below would never start.
         ZStack {
@@ -74,9 +87,9 @@ struct ArtworkImage<Placeholder: View>: View {
                 placeholder()
             }
         }
-        .task(id: url) {
-            guard let url else { image = nil; return }
-            if let cached = ArtworkCache.shared.cached(url, maxPixel: maxPixel) {
+        .task(id: version) {
+            guard let version else { image = nil; return }
+            if let cached = ArtworkCache.shared.cached(version, maxPixel: maxPixel) {
                 image = cached
                 return
             }
@@ -84,7 +97,7 @@ struct ArtworkImage<Placeholder: View>: View {
             // selection): without this the previous game's art shows until
             // the new one has loaded.
             image = nil
-            let loaded = await ArtworkCache.shared.loadAsync(url, maxPixel: maxPixel)
+            let loaded = await ArtworkCache.shared.loadAsync(version, maxPixel: maxPixel)
             // 0.15 s, the same short fade Reduce Motion uses elsewhere.
             withAnimation(fadesIn && !reduceMotion ? AppAnimation.reduced : nil) { image = loaded }
         }
