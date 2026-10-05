@@ -327,7 +327,8 @@ struct LibraryView: View {
                     selection = .system(systemID)
                 }
                 if let query = ProcessInfo.processInfo.environment["URSPRUNG_SELECT"] {
-                    gameSelection.select(games.first { $0.title.localizedStandardContains(query) }?.persistentModelID)
+                    let game = games.first { $0.title.localizedStandardContains(query) }
+                    gameSelection.select(game?.persistentModelID)
                 }
                 // Shows the activity footer's error row.
                 if let message = ProcessInfo.processInfo.environment["URSPRUNG_METADATA_ERROR"] {
