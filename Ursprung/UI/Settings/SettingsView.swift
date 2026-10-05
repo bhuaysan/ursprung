@@ -502,7 +502,8 @@ private struct SystemVideoSection: View {
                     Text(system.name).tag(system.id)
                 }
             }
-            Picker("Filter", selection: Binding(get: { filter }, set: setFilter)) {
+            // A closure, not `set: setFilter`: the method reference crashes the Swift 6.2 compiler (Xcode 26).
+            Picker("Filter", selection: Binding(get: { filter }, set: { setFilter($0) })) {
                 Text("Same as All Systems (\(Preferences.videoFilter.title))").tag(VideoFilter?.none)
                 Divider()
                 ForEach(VideoFilter.allCases) { Text($0.title).tag(VideoFilter?.some($0)) }
