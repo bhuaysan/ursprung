@@ -100,6 +100,8 @@ struct AppCommands: Commands {
             Button("Quick Load") { session.loadState(slot: 0) }
                 .keyboardShortcut("l")
                 .disabled(!running)
+            Button("Take Screenshot") { session.takeScreenshot() }
+                .disabled(!running)
             Divider()
             Button("Reset") { session.reset() }
                 .keyboardShortcut("r", modifiers: [.command, .option])

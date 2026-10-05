@@ -46,8 +46,14 @@ struct GameInspector: View {
                         versionsSection
                     }
                     activitySection
+                    MediaSection(game: game)
                     emulationSection
                     discsSection
+                    if game.system?.supportsPatches == true {
+                        PatchesSection(game: game)
+                    }
+                    CheatsSection(game: game)
+                    ManualSection(game: game)
                     fileSection
                 }
                 .padding(.top, AppSpacing.xl)

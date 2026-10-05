@@ -47,19 +47,33 @@ nonisolated struct ControllerMapping: Codable, Equatable, Sendable {
 nonisolated struct InputProfile: Codable, Equatable, Sendable {
     var keyboard: KeyboardMapping
     var controller: ControllerMapping
+    /// Buttons that fire repeatedly while held (autofire), for every player.
+    /// Optional so profiles saved before turbo existed still decode.
+    var turboButtons: Set<RetroInput>?
 
     static let standard = InputProfile(keyboard: .standard, controller: .standard)
+
+    /// The RetroPad bit mask of the turbo buttons.
+    var turboMask: UInt32 {
+        (turboButtons ?? []).reduce(0) { mask, input in
+            input.button.map { mask | 1 << UInt32($0.rawValue) } ?? mask
+        }
+    }
 
     /// The profile for all systems.
     static var global: InputProfile {
         get {
             let controller = UserDefaults.standard.data(forKey: PrefKey.controllerMapping)
                 .flatMap { try? JSONDecoder().decode(ControllerMapping.self, from: $0) } ?? .standard
-            return InputProfile(keyboard: KeyboardMapping.current, controller: controller)
+            let turbo = UserDefaults.standard.data(forKey: PrefKey.turboButtons)
+                .flatMap { try? JSONDecoder().decode(Set<RetroInput>.self, from: $0) }
+            return InputProfile(keyboard: KeyboardMapping.current, controller: controller, turboButtons: turbo)
         }
         set {
             KeyboardMapping.current = newValue.keyboard
             UserDefaults.standard.set(try? JSONEncoder().encode(newValue.controller), forKey: PrefKey.controllerMapping)
+            let turbo = newValue.turboButtons.flatMap { $0.isEmpty ? nil : $0 }
+            UserDefaults.standard.set(turbo.flatMap { try? JSONEncoder().encode($0) }, forKey: PrefKey.turboButtons)
         }
     }
 
@@ -88,7 +102,7 @@ nonisolated struct InputProfile: Codable, Equatable, Sendable {
 
 /// Player actions bound to keys, handled by the player rather than the game.
 nonisolated enum HotkeyAction: String, CaseIterable, Codable, Identifiable, Sendable {
-    case menu, fastForward, quickSave, quickLoad
+    case menu, fastForward, fastForwardToggle, rewind, quickSave, quickLoad, screenshot, turbo, typing
 
     var id: String { rawValue }
 
@@ -96,29 +110,57 @@ nonisolated enum HotkeyAction: String, CaseIterable, Codable, Identifiable, Send
         switch self {
         case .menu: String(localized: "Game Menu")
         case .fastForward: String(localized: "Fast Forward (hold)")
+        case .fastForwardToggle: String(localized: "Fast Forward (on/off)")
+        case .rewind: String(localized: "Rewind (hold)")
         case .quickSave: String(localized: "Quick Save")
         case .quickLoad: String(localized: "Quick Load")
+        case .screenshot: String(localized: "Take Screenshot")
+        case .turbo: String(localized: "Turbo Buttons (on/off)")
+        case .typing: String(localized: "Type on Computer Keyboard (on/off)")
         }
     }
+
+    /// Hotkeys that act while held; the others act once per press.
+    var isHeld: Bool { self == .fastForward || self == .rewind }
 }
 
 nonisolated struct HotkeyMapping: Codable, Equatable, Sendable {
     var bindings: [HotkeyAction: KeyBinding]
+    /// The actions the user has seen in Settings. An action added in a later
+    /// version gets its default key, unless the user already uses that key;
+    /// a hotkey the user cleared stays cleared. nil: the first four actions.
+    var knownActions: Set<HotkeyAction>?
 
     static let standard = HotkeyMapping(bindings: [
         .menu: KeyBinding(keyCode: HotKey.escape, label: "esc"),
         .fastForward: KeyBinding(keyCode: HotKey.fastForward, label: String(localized: "Space")),
+        .rewind: KeyBinding(keyCode: HotKey.rewind, label: "⌫"),
         .quickSave: KeyBinding(keyCode: HotKey.quickSave, label: "F2"),
         .quickLoad: KeyBinding(keyCode: HotKey.quickLoad, label: "F4"),
-    ])
+        .screenshot: KeyBinding(keyCode: HotKey.screenshot, label: "F8"),
+        .typing: KeyBinding(keyCode: HotKey.typing, label: "F12"),
+    ], knownActions: Set(HotkeyAction.allCases))
 
     static var current: HotkeyMapping {
         get {
             guard let data = UserDefaults.standard.data(forKey: PrefKey.hotkeys),
                   let mapping = try? JSONDecoder().decode(HotkeyMapping.self, from: data) else { return .standard }
-            return mapping
+            return mapping.addingNewActions()
         }
         set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: PrefKey.hotkeys) }
+    }
+
+    /// Gives actions this mapping does not know yet their default keys.
+    func addingNewActions() -> HotkeyMapping {
+        let known = knownActions ?? [.menu, .fastForward, .quickSave, .quickLoad]
+        var mapping = self
+        for action in HotkeyAction.allCases where !known.contains(action) {
+            guard let binding = Self.standard.bindings[action],
+                  !mapping.bindings.values.contains(where: { $0.keyCode == binding.keyCode }) else { continue }
+            mapping.bindings[action] = binding
+        }
+        mapping.knownActions = Set(HotkeyAction.allCases)
+        return mapping
     }
 
     /// The action of a key. esc always opens the game menu as well, so a

@@ -33,8 +33,39 @@ NS_SWIFT_SENDABLE
 /// Runs `block` on the emulation thread between two frames.
 - (void)performOnEmulationThread:(void (^NS_SWIFT_SENDABLE)(URLibretroCore *core))block NS_SWIFT_NAME(performOnEmulationThread(_:));
 
+/// Whether rewinding works for the running game.
+typedef NS_ENUM(NSInteger, URRewindAvailability) {
+    /// Not known until the first state has been taken.
+    URRewindAvailabilityUnknown = 0,
+    URRewindAvailabilityAvailable = 1,
+    /// The core cannot save states, or its states are too large.
+    URRewindAvailabilityUnsupported = 2,
+} NS_SWIFT_NAME(RewindAvailability);
+
 @property (atomic, getter=isPaused) BOOL paused;
 @property (atomic) BOOL fastForward;
+/// How many times faster than normal fast forward runs; 0 runs as fast as
+/// the Mac can. Default 4.
+@property (atomic) double fastForwardSpeed;
+
+/// Records states while playing so the game can run backwards.
+@property (atomic) BOOL rewindEnabled;
+/// Memory for the recorded states, in megabytes. Default 256.
+@property (atomic) NSInteger rewindBufferMegabytes;
+/// While set (and rewinding is enabled), the game runs backwards.
+@property (atomic, getter=isRewinding) BOOL rewinding;
+@property (atomic, readonly) URRewindAvailability rewindAvailability;
+/// Seconds of play that can be rewound right now, roughly.
+@property (atomic, readonly) double rewindSeconds;
+
+/// Frames the game runs ahead to hide its own input lag (0–3). Needs save
+/// states; off for hardware-rendered cores and while fast forwarding.
+@property (atomic) NSInteger runAheadFrames;
+
+/// Called on the emulation thread after every frame the player sees with
+/// `ranFrame` YES, and about every 10 ms while paused with NO (for
+/// achievements).
+@property (atomic, copy, nullable) void (^NS_SWIFT_SENDABLE frameHandler)(URLibretroCore *core, BOOL ranFrame);
 /// Output volume 0…1.
 @property (atomic) float volume;
 @property (atomic, readonly) double measuredFPS;

@@ -14,8 +14,12 @@ struct PlayerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    @AppStorage(PrefKey.videoFilter) private var filter: VideoFilter = .sharp
+    @AppStorage(PrefKey.videoFilter) private var globalFilter: VideoFilter = .sharp
+    @AppStorage(PrefKey.bezel) private var bezel: BezelStyle = .none
     @AppStorage(PrefKey.integerScaling) private var integerScaling = false
+    /// Bumped when any preference changes: per-system filters and bezel
+    /// images have no fixed key to observe.
+    @State private var preferencesRevision = 0
     @AppStorage(PrefKey.showFPS) private var showFPS = false
     @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
     /// The pause menu is in the view tree; it fades in with its insertion
@@ -32,7 +36,8 @@ struct PlayerView: View {
             // Created per game: SwiftUI reuses the player's views when the
             // window reopens, and a reused MTKView never resumes drawing.
             if session.phase == .running {
-                GameMetalView(session: session, filter: filter, integerScaling: integerScaling)
+                GameMetalView(session: session, filter: filter, integerScaling: integerScaling, bezel: bezel,
+                              bezelImage: bezelImage)
                     .ignoresSafeArea()
             }
 
@@ -82,11 +87,33 @@ struct PlayerView: View {
                     HUDCapsule { Label("Fast Forward", systemImage: "forward.fill") }
                         .transition(.opacity)
                 }
+                if session.isRewinding {
+                    HUDCapsule { Label("Rewind", systemImage: "backward.fill") }
+                        .transition(.opacity)
+                }
+                if session.isTyping {
+                    HUDCapsule { Label("Typing", systemImage: "keyboard") }
+                        .transition(.opacity)
+                }
+                if session.isHardcore {
+                    HUDCapsule { Label("Hardcore", systemImage: "trophy.fill") }
+                        .transition(.opacity)
+                }
             }
             .padding(AppSpacing.l)
         }
+        .overlay(alignment: .bottomTrailing) {
+            AchievementIndicators(indicators: session.achievementIndicators)
+                .padding(AppSpacing.l)
+        }
         .appAnimation(AppAnimation.standard, value: session.toasts)
         .appAnimation(AppAnimation.standard, value: session.isFastForwarding)
+        .appAnimation(AppAnimation.standard, value: session.isRewinding)
+        .appAnimation(AppAnimation.standard, value: session.isTyping)
+        .appAnimation(AppAnimation.standard, value: session.achievementIndicators)
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+            preferencesRevision += 1
+        }
         .navigationTitle(session.gameTitle)
         .toolbar(session.phase == .running && !session.isMenuVisible ? .hidden : .automatic, for: .windowToolbar)
         .onChange(of: session.isMenuVisible, initial: true) { _, visible in
@@ -119,6 +146,18 @@ struct PlayerView: View {
 
     private var currentDownloadProgress: Double? {
         cores.downloads.values.first
+    }
+
+    /// The system's own filter, or the one for all systems.
+    private var filter: VideoFilter {
+        _ = (preferencesRevision, globalFilter)
+        return VideoFilter.current(for: session.systemID)
+    }
+
+    /// The system's bezel image, when the user chose one.
+    private var bezelImage: URL? {
+        _ = preferencesRevision
+        return session.systemID.flatMap { BezelImages.image(for: $0) }
     }
 
     private func closePlayer() {
@@ -222,11 +261,23 @@ private struct ToastStack: View {
             ForEach(toasts) { toast in
                 HUDCapsule {
                     Label {
-                        Text(toast.text)
+                        if let detail = toast.detail {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(toast.text)
+                                Text(detail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Text(toast.text)
+                        }
                     } icon: {
-                        if let symbol = symbol(for: toast.kind) {
+                        if let imageURL = toast.imageURL {
+                            RemoteBadge(url: imageURL, size: 32)
+                        } else if let symbol = symbol(for: toast.kind) {
                             Image(systemName: symbol)
-                                .foregroundStyle(toast.kind == .warning ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary))
+                                .foregroundStyle(toast.kind == .warning ? AnyShapeStyle(.orange)
+                                                 : toast.kind == .achievement ? AnyShapeStyle(.yellow) : AnyShapeStyle(.primary))
                         }
                     }
                     .labelStyle(ToastLabelStyle())
@@ -242,7 +293,55 @@ private struct ToastStack: View {
         case .saved: "square.and.arrow.down"
         case .loaded: "square.and.arrow.up"
         case .warning: "exclamationmark.triangle.fill"
+        case .screenshot: "camera.fill"
+        case .achievement: "trophy.fill"
         }
+    }
+}
+
+/// Running challenges, achievement progress and leaderboard values, in the
+/// bottom corner where they cover the least of the game.
+private struct AchievementIndicators: View {
+    let indicators: [EmulationSession.AchievementIndicator]
+
+    var body: some View {
+        HStack(spacing: AppSpacing.s) {
+            ForEach(indicators) { indicator in
+                HUDCapsule {
+                    HStack(spacing: 6) {
+                        if let url = indicator.imageURL {
+                            RemoteBadge(url: url, size: 22)
+                        } else if indicator.kind == .tracker {
+                            Image(systemName: "stopwatch")
+                        }
+                        if let value = indicator.value {
+                            Text(value)
+                                .monospacedDigit()
+                        }
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A RetroAchievements badge, loaded from the web.
+struct RemoteBadge: View {
+    let url: URL
+    let size: CGFloat
+
+    var body: some View {
+        AsyncImage(url: url) { image in
+            image.resizable().interpolation(.medium)
+        } placeholder: {
+            Image(systemName: "trophy.fill")
+                .foregroundStyle(.yellow)
+        }
+        .frame(width: size, height: size)
+        .clipShape(.rect(cornerRadius: size / 6))
+        .accessibilityHidden(true)
     }
 }
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#import "URLibretroCore.h"
+#import "URLibretroCore+Internal.h"
 
 #import "URGLContext.h"
 #import "libretro.h"
@@ -70,6 +70,9 @@ typedef struct {
     void (*unload_game)(void);
     void *(*get_memory_data)(unsigned);
     size_t (*get_memory_size)(unsigned);
+    // Optional: cores without cheat support may leave them out.
+    void (*cheat_reset)(void);
+    void (*cheat_set)(unsigned, bool, const char *);
 } URCoreSymbols;
 
 typedef struct {
@@ -84,6 +87,18 @@ static _Atomic uint32_t gButtonMasks[UR_MAX_PORTS];
 static _Atomic int16_t gAnalog[UR_MAX_PORTS][2][2];
 static _Atomic int16_t gPointerX, gPointerY;
 static _Atomic bool gPointerPressed;
+static _Atomic uint32_t gTurboMasks[UR_MAX_PORTS];
+/// Whether turbo buttons are in the released half of their rhythm.
+static _Atomic bool gTurboReleased;
+static _Atomic bool gKeys[RETROK_LAST];
+
+/// A key event for the core's keyboard callback, queued until its next frame.
+typedef struct {
+    bool down;
+    unsigned keycode;
+    uint32_t character;
+    uint16_t modifiers;
+} URKeyEvent;
 
 @class URLibretroCore;
 static __unsafe_unretained URLibretroCore *gActiveCore = nil;
@@ -136,6 +151,30 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     NSData *_lastSavedRTC;
     BOOL _saveFailing;
 
+    // Run-ahead and rewind switch these off for frames nobody sees or hears.
+    _Atomic bool _videoEnabled;
+    _Atomic bool _audioEnabled;
+
+    // Turbo
+    _Atomic NSInteger _turboPeriod;
+    uint64_t _turboClock;
+
+    // Keyboard
+    struct retro_keyboard_callback _keyboardCallback;
+    BOOL _hasKeyboardCallback;
+    os_unfair_lock _keyLock;
+    URKeyEvent *_keyEvents;
+    size_t _keyEventCount;
+    size_t _keyEventCapacity;
+
+    // Rumble: last strength per port and motor, to report changes only.
+    uint16_t _rumble[UR_MAX_PORTS][2];
+
+    // Memory map (SET_MEMORY_MAPS), copied with its strings.
+    struct retro_memory_map _memoryMap;
+    struct retro_memory_descriptor *_memoryDescriptors;
+    NSUInteger _memoryMapRevision;
+
     // Misc callbacks
     struct retro_frame_time_callback _frameTimeCallback;
     BOOL _hasFrameTimeCallback;
@@ -159,6 +198,10 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     _optionOverrides = @{};
     _languageCode = @"en";
     _frameLock = OS_UNFAIR_LOCK_INIT;
+    _keyLock = OS_UNFAIR_LOCK_INIT;
+    atomic_store(&_videoEnabled, true);
+    atomic_store(&_audioEnabled, true);
+    atomic_store(&_turboPeriod, 3);
     _optionValues = [NSMutableDictionary dictionary];
     _optionCStrings = [NSMutableDictionary dictionary];
     _optionDefinitions = [NSMutableArray array];
@@ -208,6 +251,8 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     UR_LOAD(get_memory_data, "retro_get_memory_data")
     UR_LOAD(get_memory_size, "retro_get_memory_size")
 #undef UR_LOAD
+    _sym.cheat_reset = dlsym(_handle, "retro_cheat_reset");
+    _sym.cheat_set = dlsym(_handle, "retro_cheat_set");
 
     if (_sym.api_version() != RETRO_API_VERSION) {
         if (error) *error = [NSError errorWithDomain:URCoreErrorDomain code:3 userInfo:@{
@@ -243,6 +288,8 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     free(_usernameC);
     free(_back.data);
     free(_ready.data);
+    free(_keyEvents);
+    [self clearMemoryMap];
     URAudioRingFree(&_ring);
 }
 
@@ -267,6 +314,7 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 
     for (NSInteger port = 0; port < URMaxPorts; port++) {
         atomic_store(&gButtonMasks[port], 0);
+        atomic_store(&gTurboMasks[port], 0);
         for (int s = 0; s < 2; s++) {
             atomic_store(&gAnalog[port][s][0], 0);
             atomic_store(&gAnalog[port][s][1], 0);
@@ -279,6 +327,9 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     extern size_t URCoreAudioSampleBatch(const int16_t *data, size_t frames);
     extern void URCoreInputPoll(void);
     extern int16_t URCoreInputState(unsigned port, unsigned device, unsigned index, unsigned id);
+
+    for (unsigned key = 0; key < RETROK_LAST; key++) atomic_store(&gKeys[key], false);
+    atomic_store(&gTurboReleased, false);
 
     _sym.set_environment(URCoreEnvironment);
     _sym.init();
@@ -345,6 +396,7 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 
 - (void)runFrame {
     if (!_gameLoaded) return;
+    [self deliverKeyEvents];
     if (_hasFrameTimeCallback && _frameTimeCallback.callback) {
         _frameTimeCallback.callback(_frameTimeCallback.reference);
     }
@@ -389,6 +441,80 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 - (BOOL)unserializeState:(NSData *)state {
     if (!_gameLoaded || state.length == 0) return NO;
     return _sym.unserialize(state.bytes, state.length);
+}
+
+- (size_t)stateSize {
+    return _gameLoaded ? _sym.serialize_size() : 0;
+}
+
+- (BOOL)serializeStateIntoBuffer:(NSMutableData *)buffer {
+    if (!_gameLoaded) return NO;
+    size_t size = _sym.serialize_size();
+    if (size == 0) return NO;
+    if (buffer.length != size) buffer.length = size;
+    return _sym.serialize(buffer.mutableBytes, size);
+}
+
+- (BOOL)unserializeStateFromBytes:(const void *)bytes length:(size_t)length {
+    if (!_gameLoaded || length == 0) return NO;
+    return _sym.unserialize(bytes, length);
+}
+
+#pragma mark - Cheats
+
+- (BOOL)supportsCheats {
+    return _sym.cheat_reset != NULL && _sym.cheat_set != NULL;
+}
+
+- (void)resetCheats {
+    if (_gameLoaded && _sym.cheat_reset) _sym.cheat_reset();
+}
+
+- (void)setCheatAtIndex:(NSUInteger)index enabled:(BOOL)enabled code:(NSString *)code {
+    if (!_gameLoaded || !_sym.cheat_set) return;
+    _sym.cheat_set((unsigned)index, enabled, code.UTF8String ?: "");
+}
+
+#pragma mark - Memory
+
+- (nullable void *)memoryDataOfType:(unsigned)type size:(size_t *)size {
+    if (!_gameLoaded) {
+        if (size) *size = 0;
+        return NULL;
+    }
+    if (size) *size = _sym.get_memory_size(type);
+    return _sym.get_memory_data(type);
+}
+
+- (NSUInteger)memoryMapRevision { return _memoryMapRevision; }
+
+- (nullable const struct retro_memory_map *)memoryMap {
+    return _memoryDescriptors ? &_memoryMap : NULL;
+}
+
+- (void)clearMemoryMap {
+    for (unsigned i = 0; _memoryDescriptors && i < _memoryMap.num_descriptors; i++) {
+        free((void *)_memoryDescriptors[i].addrspace);
+    }
+    free(_memoryDescriptors);
+    _memoryDescriptors = NULL;
+    memset(&_memoryMap, 0, sizeof(_memoryMap));
+}
+
+- (void)storeMemoryMap:(const struct retro_memory_map *)map {
+    [self clearMemoryMap];
+    if (map && map->descriptors && map->num_descriptors > 0) {
+        _memoryDescriptors = calloc(map->num_descriptors, sizeof(struct retro_memory_descriptor));
+        if (_memoryDescriptors) {
+            memcpy(_memoryDescriptors, map->descriptors, map->num_descriptors * sizeof(struct retro_memory_descriptor));
+            for (unsigned i = 0; i < map->num_descriptors; i++) {
+                if (map->descriptors[i].addrspace) _memoryDescriptors[i].addrspace = strdup(map->descriptors[i].addrspace);
+            }
+            _memoryMap.descriptors = _memoryDescriptors;
+            _memoryMap.num_descriptors = map->num_descriptors;
+        }
+    }
+    _memoryMapRevision++;
 }
 
 #pragma mark - Save RAM
@@ -488,6 +614,11 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     return atomic_exchange(&_avInfoChanged, false);
 }
 
+- (BOOL)videoEnabled { return atomic_load(&_videoEnabled); }
+- (void)setVideoEnabled:(BOOL)enabled { atomic_store(&_videoEnabled, enabled); }
+- (BOOL)audioEnabled { return atomic_load(&_audioEnabled); }
+- (void)setAudioEnabled:(BOOL)enabled { atomic_store(&_audioEnabled, enabled); }
+
 - (uint64_t)frameSerial { return atomic_load(&_frameSerial); }
 
 - (BOOL)accessLatestFrame:(void (NS_NOESCAPE ^)(const void *, NSInteger, NSInteger, NSInteger))block {
@@ -551,6 +682,77 @@ static void URFrameBufferEnsure(URFrameBuffer *buffer, unsigned width, unsigned 
     atomic_store(&gPointerX, x);
     atomic_store(&gPointerY, y);
     atomic_store(&gPointerPressed, pressed);
+}
+
+- (void)setTurboMask:(uint32_t)mask forPort:(NSInteger)port {
+    if (port >= 0 && port < URMaxPorts) atomic_store(&gTurboMasks[port], mask);
+}
+
+- (NSInteger)turboPeriod { return atomic_load(&_turboPeriod); }
+- (void)setTurboPeriod:(NSInteger)period { atomic_store(&_turboPeriod, MAX(1, period)); }
+
+- (void)advanceTurboClock {
+    _turboClock++;
+    NSInteger period = MAX(1, atomic_load(&_turboPeriod));
+    atomic_store(&gTurboReleased, (_turboClock / (uint64_t)period) % 2 == 1);
+}
+
+#pragma mark - Keyboard
+
+- (BOOL)wantsKeyboard { return _hasKeyboardCallback; }
+
+- (void)setKey:(unsigned)retroKey pressed:(BOOL)pressed character:(uint32_t)character modifiers:(uint16_t)modifiers {
+    if (retroKey >= RETROK_LAST) return;
+    bool wasPressed = atomic_exchange(&gKeys[retroKey], pressed);
+    if (wasPressed == pressed && character == 0) return;
+    os_unfair_lock_lock(&_keyLock);
+    if (_keyEventCount == _keyEventCapacity) {
+        size_t capacity = _keyEventCapacity ? _keyEventCapacity * 2 : 32;
+        URKeyEvent *events = realloc(_keyEvents, capacity * sizeof(URKeyEvent));
+        if (events) {
+            _keyEvents = events;
+            _keyEventCapacity = capacity;
+        }
+    }
+    if (_keyEventCount < _keyEventCapacity) {
+        _keyEvents[_keyEventCount++] = (URKeyEvent){pressed, retroKey, character, modifiers};
+    }
+    os_unfair_lock_unlock(&_keyLock);
+}
+
+- (void)releaseAllKeys {
+    for (unsigned key = 0; key < RETROK_LAST; key++) {
+        if (atomic_load(&gKeys[key])) [self setKey:key pressed:NO character:0 modifiers:0];
+    }
+}
+
+/// Hands queued key events to the core's keyboard callback (emulation thread).
+- (void)deliverKeyEvents {
+    os_unfair_lock_lock(&_keyLock);
+    size_t count = _keyEventCount;
+    URKeyEvent *pending = NULL;
+    if (count > 0 && (pending = malloc(count * sizeof(URKeyEvent)))) {
+        memcpy(pending, _keyEvents, count * sizeof(URKeyEvent));
+    }
+    _keyEventCount = 0;
+    os_unfair_lock_unlock(&_keyLock);
+    if (!pending) return;
+    if (!_hasKeyboardCallback || !_keyboardCallback.callback) {
+        free(pending);
+        return;
+    }
+    for (size_t i = 0; i < count; i++) {
+        _keyboardCallback.callback(pending[i].down, pending[i].keycode, pending[i].character, pending[i].modifiers);
+    }
+    free(pending);
+}
+
+- (void)reportRumbleOnPort:(unsigned)port effect:(enum retro_rumble_effect)effect strength:(uint16_t)strength {
+    if (port >= UR_MAX_PORTS || (effect != RETRO_RUMBLE_STRONG && effect != RETRO_RUMBLE_WEAK)) return;
+    if (_rumble[port][effect] == strength) return;
+    _rumble[port][effect] = strength;
+    void (^handler)(NSInteger, BOOL, uint16_t) = self.rumbleHandler;
+    if (handler) handler((NSInteger)port, effect == RETRO_RUMBLE_STRONG, strength);
 }
 
 #pragma mark - Options
@@ -682,6 +884,8 @@ static void URPerfStop(struct retro_perf_counter *counter) {
 }
 
 static bool URCoreSetRumble(unsigned port, enum retro_rumble_effect effect, uint16_t strength) {
+    URLibretroCore *core = gActiveCore;
+    if (core) [core reportRumbleOnPort:port effect:effect strength:strength];
     return true;
 }
 
@@ -861,10 +1065,20 @@ bool URCoreEnvironment(unsigned cmd, void *data) {
             return true;
         }
 
+        case RETRO_ENVIRONMENT_SET_MEMORY_MAPS:
+            [core storeMemoryMap:data];
+            return true;
+
+        case RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK: {
+            const struct retro_keyboard_callback *cb = data;
+            core->_keyboardCallback = *cb;
+            core->_hasKeyboardCallback = cb->callback != NULL;
+            return true;
+        }
+
         case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS:
         case RETRO_ENVIRONMENT_SET_CONTROLLER_INFO:
         case RETRO_ENVIRONMENT_SET_SUBSYSTEM_INFO:
-        case RETRO_ENVIRONMENT_SET_MEMORY_MAPS:
         case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME:
         case RETRO_ENVIRONMENT_SET_SUPPORT_ACHIEVEMENTS:
         case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY:
@@ -872,7 +1086,6 @@ bool URCoreEnvironment(unsigned cmd, void *data) {
         case RETRO_ENVIRONMENT_SET_CONTENT_INFO_OVERRIDE:
         case RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS:
         case RETRO_ENVIRONMENT_SET_MINIMUM_AUDIO_LATENCY:
-        case RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK:
             return true;
 
         case RETRO_ENVIRONMENT_GET_INPUT_BITMASKS:
@@ -883,7 +1096,8 @@ bool URCoreEnvironment(unsigned cmd, void *data) {
             return true;
 
         case RETRO_ENVIRONMENT_GET_INPUT_DEVICE_CAPABILITIES:
-            *(uint64_t *)data = (1 << RETRO_DEVICE_JOYPAD) | (1 << RETRO_DEVICE_ANALOG) | (1 << RETRO_DEVICE_POINTER);
+            *(uint64_t *)data = (1 << RETRO_DEVICE_JOYPAD) | (1 << RETRO_DEVICE_ANALOG) | (1 << RETRO_DEVICE_POINTER)
+                | (1 << RETRO_DEVICE_KEYBOARD);
             return true;
 
         case RETRO_ENVIRONMENT_GET_VARIABLE: {
@@ -1038,7 +1252,7 @@ bool URCoreEnvironment(unsigned cmd, void *data) {
         }
 
         case RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE:
-            if (data) *(int *)data = 1 | 2;
+            if (data) *(int *)data = (atomic_load(&core->_videoEnabled) ? 1 : 0) | (atomic_load(&core->_audioEnabled) ? 2 : 0);
             return true;
 
         case RETRO_ENVIRONMENT_GET_FASTFORWARDING:
@@ -1080,6 +1294,7 @@ static inline uint32_t URConvert2101010(uint32_t p) {
 void URCoreVideoRefresh(const void *data, unsigned width, unsigned height, size_t pitch) {
     URLibretroCore *core = gActiveCore;
     if (!core || !data || width == 0 || height == 0) return; // NULL = duplicate frame
+    if (!atomic_load(&core->_videoEnabled)) return;
 
     URFrameBuffer *back = &core->_back;
     URFrameBufferEnsure(back, width, height);
@@ -1128,36 +1343,47 @@ void URCoreVideoRefresh(const void *data, unsigned width, unsigned height, size_
 
 void URCoreAudioSample(int16_t left, int16_t right) {
     URLibretroCore *core = gActiveCore;
-    if (!core) return;
+    if (!core || !atomic_load(&core->_audioEnabled)) return;
     int16_t frame[2] = {left, right};
     URAudioRingWrite(&core->_ring, frame, 1);
 }
 
 size_t URCoreAudioSampleBatch(const int16_t *data, size_t frames) {
     URLibretroCore *core = gActiveCore;
-    if (!core) return frames;
+    if (!core || !atomic_load(&core->_audioEnabled)) return frames;
     URAudioRingWrite(&core->_ring, data, frames);
     return frames;
 }
 
 void URCoreInputPoll(void) {}
 
+/// The buttons held on `port`, with turbo buttons released every other beat.
+static inline uint32_t URCurrentButtons(unsigned port) {
+    uint32_t mask = atomic_load_explicit(&gButtonMasks[port], memory_order_relaxed);
+    if (atomic_load_explicit(&gTurboReleased, memory_order_relaxed)) {
+        mask &= ~atomic_load_explicit(&gTurboMasks[port], memory_order_relaxed);
+    }
+    return mask;
+}
+
 int16_t URCoreInputState(unsigned port, unsigned device, unsigned index, unsigned id) {
     if (port >= URMaxPorts) return 0;
     switch (device & RETRO_DEVICE_MASK) {
         case RETRO_DEVICE_JOYPAD: {
-            uint32_t mask = atomic_load_explicit(&gButtonMasks[port], memory_order_relaxed);
+            uint32_t mask = URCurrentButtons(port);
             if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)(mask & 0xFFFF);
             return (id < 16) ? (int16_t)((mask >> id) & 1) : 0;
         }
         case RETRO_DEVICE_ANALOG: {
             if (index < 2 && id < 2) return atomic_load_explicit(&gAnalog[port][index][id], memory_order_relaxed);
             if (index == RETRO_DEVICE_INDEX_ANALOG_BUTTON && id < 16) {
-                uint32_t mask = atomic_load_explicit(&gButtonMasks[port], memory_order_relaxed);
+                uint32_t mask = URCurrentButtons(port);
                 return ((mask >> id) & 1) ? 0x7FFF : 0;
             }
             return 0;
         }
+        case RETRO_DEVICE_KEYBOARD:
+            return (id < RETROK_LAST && atomic_load_explicit(&gKeys[id], memory_order_relaxed)) ? 1 : 0;
         case RETRO_DEVICE_POINTER: {
             if (port != 0 || index != 0) return 0;
             switch (id) {

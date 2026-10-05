@@ -87,6 +87,11 @@ final class InputRouter {
     @ObservationIgnored var profile = InputProfile.global {
         didSet { pressedKeys.removeAll(); push() }
     }
+    /// Whether the profile's turbo buttons fire repeatedly (the Turbo hotkey
+    /// switches it for the running game).
+    @ObservationIgnored var isTurboActive = true {
+        didSet { push() }
+    }
     private(set) var hotkeys = HotkeyMapping.current
     /// Players chosen for controllers, by controller ID.
     private(set) var fixedPorts = PortAssignment.fixed
@@ -149,6 +154,8 @@ final class InputRouter {
     @ObservationIgnored private var learning: ((RetroInput) -> Void)?
     @ObservationIgnored private var learnBaseline: UInt32 = 0
     @ObservationIgnored private var lastPorts: [String: Int?] = [:]
+    @ObservationIgnored private var rumbleStates = [RumbleState](repeating: RumbleState(), count: Int(URMaxPorts))
+    @ObservationIgnored private var haptics: [ObjectIdentifier: HapticRumble] = [:]
 
     init() {
         GCController.shouldMonitorBackgroundEvents = false
@@ -244,6 +251,11 @@ final class InputRouter {
 
     private func refreshControllers() {
         connectedControllers = GCController.controllers().filter { $0.extendedGamepad != nil }
+        let present = Set(connectedControllers.map(ObjectIdentifier.init))
+        for (id, rumble) in haptics where !present.contains(id) {
+            rumble.stop()
+            haptics[id] = nil
+        }
         for controller in connectedControllers {
             controller.extendedGamepad?.valueChangedHandler = { [weak self] _, _ in
                 MainActor.assumeIsolated { self?.push() }
@@ -280,6 +292,38 @@ final class InputRouter {
         state.leftStick = SIMD2(pad.leftThumbstick.xAxis.value, -pad.leftThumbstick.yAxis.value)
         state.rightStick = SIMD2(pad.rightThumbstick.xAxis.value, -pad.rightThumbstick.yAxis.value)
         return state
+    }
+
+    // MARK: Rumble
+
+    /// A core changed a motor of `port`; `strength` is 0…0xFFFF.
+    func setRumble(port: Int, strong: Bool, strength: UInt16) {
+        guard rumbleStates.indices.contains(port) else { return }
+        let value = Float(strength) / 65535
+        if strong { rumbleStates[port].strong = value } else { rumbleStates[port].weak = value }
+        applyRumble(port: port)
+    }
+
+    /// Stops every motor, e.g. when the game pauses or ends.
+    func stopRumble() {
+        rumbleStates = rumbleStates.map { _ in RumbleState() }
+        for port in rumbleStates.indices { applyRumble(port: port) }
+    }
+
+    private func applyRumble(port: Int) {
+        let state = Preferences.rumble ? rumbleStates[port] : RumbleState()
+        let controllers = controllers
+        for (controller, info) in zip(connectedControllers, controllers.filter { $0.kind == .gameController }) where info.port == port {
+            let id = ObjectIdentifier(controller)
+            if haptics[id] == nil {
+                guard !state.isOff else { continue }
+                haptics[id] = HapticRumble(controller: controller)
+            }
+            haptics[id]?.apply(state)
+        }
+        for (gamepad, info) in zip(xinput.gamepads, controllers.filter { $0.kind == .xinput }) where info.port == port {
+            xinput.setRumble(state, for: gamepad)
+        }
     }
 
     // MARK: Pause menu
@@ -446,8 +490,10 @@ final class InputRouter {
         let ports = portStates(pads, includesKeyboard: !routesToMenu && learning == nil)
         if isMonitoring, ports != livePorts { livePorts = ports }
         guard let core else { return }
+        let turbo = isTurboActive ? profile.turboMask : 0
         for (index, pad) in ports.enumerated() {
             core.setButtonMask(pad.buttonMask, forPort: index)
+            core.setTurboMask(turbo, forPort: index)
             for (stick, value) in [(AnalogStick.left, pad.leftStick), (AnalogStick.right, pad.rightStick)] {
                 core.setAnalogStick(stick, x: Int16(value.x * 32767), y: Int16(value.y * 32767), forPort: index)
             }

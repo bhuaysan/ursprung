@@ -18,7 +18,8 @@ nonisolated private func existing(_ path: String, id: UUID = UUID(), crc: String
 }
 
 nonisolated private func locations(in root: URL) -> DataLocations {
-    DataLocations(saves: root.appending(path: "Saves"), states: root.appending(path: "States"), media: root.appending(path: "Media"))
+    DataLocations(saves: root.appending(path: "Saves"), states: root.appending(path: "States"), media: root.appending(path: "Media"),
+                  extras: root.appending(path: "Extras"), bezels: root.appending(path: "Bezels"))
 }
 
 @Suite("Backup")

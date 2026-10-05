@@ -170,4 +170,7 @@ nonisolated enum HotKey {
     static let fastForward: UInt16 = 49 // Space
     static let quickSave: UInt16 = 120  // F2
     static let quickLoad: UInt16 = 118  // F4
+    static let rewind: UInt16 = 51      // Backspace (⌫)
+    static let screenshot: UInt16 = 100 // F8
+    static let typing: UInt16 = 111     // F12
 }

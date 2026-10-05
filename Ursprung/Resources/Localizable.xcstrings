@@ -290,16 +290,6 @@
         }
       }
     },
-    "Cores are downloaded automatically from the libretro buildbot the first time you play a game. They are separate open source projects with their own licenses.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cores werden beim ersten Spielstart automatisch vom libretro-Buildbot geladen. Es sind eigenständige Open-Source-Projekte mit eigenen Lizenzen."
-          }
-        }
-      }
-    },
     "D-Pad": {
       "localizations": {
         "de": {
@@ -4035,16 +4025,6 @@
         }
       }
     },
-    "A backup contains your library, battery saves, save states, artwork and settings. BIOS files, cores and your ScreenScraper password are not included.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ein Backup enthält deine Bibliothek, SRAM-Spielstände, Spielstände, Artwork und Einstellungen. BIOS-Dateien, Cores und dein ScreenScraper-Passwort sind nicht enthalten."
-          }
-        }
-      }
-    },
     "%@ can't open .7z archives. Unpack the game or turn it into a .zip file, then rescan.": {
       "localizations": {
         "de": {
@@ -6341,6 +6321,1796 @@
           "stringUnit": {
             "state": "translated",
             "value": "„%@“ wird hinzugefügt."
+          }
+        }
+      }
+    },
+    "%@ can't rewind this game.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kann dieses Spiel nicht zurückspulen."
+          }
+        }
+      }
+    },
+    "%@ doesn't support cheats.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ unterstützt keine Cheats."
+          }
+        }
+      }
+    },
+    "%@ · Fits this game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · Passt zu diesem Spiel"
+          }
+        }
+      }
+    },
+    "%@ · Made for another version of the game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · Für eine andere Version des Spiels"
+          }
+        }
+      }
+    },
+    "%lld hardcore, %lld softcore": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld Hardcore, %2$lld Softcore"
+          }
+        }
+      }
+    },
+    "%lld of %lld unlocked · %lld of %lld points": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld von %2$lld freigeschaltet · %3$lld von %4$lld Punkten"
+          }
+        }
+      }
+    },
+    "%lld pts": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Pkt."
+          }
+        }
+      }
+    },
+    "%lld×": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld×"
+          }
+        }
+      }
+    },
+    "1 Frame": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Bild"
+          }
+        }
+      }
+    },
+    "2 Frames": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 Bilder"
+          }
+        }
+      }
+    },
+    "3 Frames": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 Bilder"
+          }
+        }
+      }
+    },
+    "A backup contains your library, battery saves, save states, artwork, screenshots, manuals, patches, cheats and settings. BIOS files, cores and your passwords are not included.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Backup enthält deine Bibliothek, SRAM-Spielstände, Spielstände, Artwork, Bildschirmfotos, Anleitungen, Patches, Cheats und Einstellungen. BIOS-Dateien, Cores und deine Passwörter sind nicht enthalten."
+          }
+        }
+      }
+    },
+    "A bezel image is drawn over the game, so it needs a transparent window for the picture. Images for 16:9 screens with the picture in the middle fit best.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Rahmenbild liegt über dem Spiel und braucht daher ein transparentes Fenster für das Bild. Am besten passen Bilder für 16:9-Bildschirme mit dem Spielbild in der Mitte."
+          }
+        }
+      }
+    },
+    "A held turbo button presses itself repeatedly, on the keyboard and on every controller. The Turbo hotkey switches turbo off and on while playing.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine gehaltene Turbotaste drückt sich selbst immer wieder, auf der Tastatur und auf jedem Controller. Das Turbo-Tastenkürzel schaltet Turbo beim Spielen aus und ein."
+          }
+        }
+      }
+    },
+    "Achievement unlocked · %lld points": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Erfolg freigeschaltet · %lld Punkt"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Erfolg freigeschaltet · %lld Punkte"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Achievement unlocked · %lld point"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Achievement unlocked · %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Achievements": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfolge"
+          }
+        }
+      }
+    },
+    "Achievements couldn't be loaded. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfolge konnten nicht geladen werden. %@"
+          }
+        }
+      }
+    },
+    "Achievements…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfolge …"
+          }
+        }
+      }
+    },
+    "Actions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktionen"
+          }
+        }
+      }
+    },
+    "Add Cheat": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cheat hinzufügen"
+          }
+        }
+      }
+    },
+    "Add Cheat…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cheat hinzufügen …"
+          }
+        }
+      }
+    },
+    "Add Manual…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anleitung hinzufügen …"
+          }
+        }
+      }
+    },
+    "Add Patch…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patch hinzufügen …"
+          }
+        }
+      }
+    },
+    "Add a code, or import a cheat file (.cht) in the game's info panel.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füge einen Code hinzu oder importiere eine Cheat-Datei (.cht) im Infofenster des Spiels."
+          }
+        }
+      }
+    },
+    "Add a manual in the game's info panel.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füge im Infofenster des Spiels eine Anleitung hinzu."
+          }
+        }
+      }
+    },
+    "All installed cores are up to date": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle installierten Cores sind aktuell"
+          }
+        }
+      }
+    },
+    "Ambient Light": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umgebungslicht"
+          }
+        }
+      }
+    },
+    "Around the Picture": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um das Bild"
+          }
+        }
+      }
+    },
+    "Artwork from ScreenScraper": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artwork von ScreenScraper"
+          }
+        }
+      }
+    },
+    "As Fast as Possible": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "So schnell wie möglich"
+          }
+        }
+      }
+    },
+    "Bezel Image": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rahmenbild"
+          }
+        }
+      }
+    },
+    "Box Art": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cover"
+          }
+        }
+      }
+    },
+    "CRT": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Röhrenfernseher"
+          }
+        }
+      }
+    },
+    "CRT and Handheld LCD show their lines and pixel grid once the window is large enough. Ambient Light fills the space around the picture with its colours.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Röhrenfernseher und Handheld-LCD zeigen ihre Zeilen und ihr Pixelraster, sobald das Fenster groß genug ist. Umgebungslicht füllt den Platz um das Bild mit seinen Farben."
+          }
+        }
+      }
+    },
+    "CRT, Curved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Röhrenfernseher, gewölbt"
+          }
+        }
+      }
+    },
+    "Changes apply the next time the game starts.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen gelten ab dem nächsten Start des Spiels."
+          }
+        }
+      }
+    },
+    "Change…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ändern …"
+          }
+        }
+      }
+    },
+    "Cheat %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cheat %lld"
+          }
+        }
+      }
+    },
+    "Cheats": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cheats"
+          }
+        }
+      }
+    },
+    "Cheats are off in hardcore mode.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Hardcore-Modus sind Cheats aus."
+          }
+        }
+      }
+    },
+    "Cheats can make games misbehave; if one does, switch the cheat off and load a state.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cheats können Spiele aus dem Tritt bringen; schalte den Cheat dann aus und lade einen Spielstand."
+          }
+        }
+      }
+    },
+    "Cheats for %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cheats für %@"
+          }
+        }
+      }
+    },
+    "Cheats…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cheats …"
+          }
+        }
+      }
+    },
+    "Check for Updates": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Updates suchen"
+          }
+        }
+      }
+    },
+    "Checked %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geprüft um %@"
+          }
+        }
+      }
+    },
+    "Choose…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswählen …"
+          }
+        }
+      }
+    },
+    "Code": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code"
+          }
+        }
+      }
+    },
+    "Codes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codes"
+          }
+        }
+      }
+    },
+    "Codes are given to the core as they are; their format depends on the system, e.g. Game Genie or Action Replay. Several codes for one cheat are joined with “+”.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codes gehen unverändert an den Core; ihr Format hängt vom System ab, z. B. Game Genie oder Action Replay. Mehrere Codes für einen Cheat werden mit „+“ verbunden."
+          }
+        }
+      }
+    },
+    "Completed %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ abgeschlossen"
+          }
+        }
+      }
+    },
+    "Controllers vibrate when the game uses rumble. Works with controllers macOS supports and Xbox 360 type pads.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controller vibrieren, wenn das Spiel Rumble nutzt. Funktioniert mit Controllern, die macOS unterstützt, und Xbox-360-artigen Pads."
+          }
+        }
+      }
+    },
+    "Copy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopieren"
+          }
+        }
+      }
+    },
+    "Cores are downloaded automatically from the libretro buildbot the first time you play a game. They are separate open source projects with their own licenses. After an update, the version before stays available: if a game no longer works, go back to it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cores werden beim ersten Spielstart automatisch vom libretro-Buildbot geladen. Es sind eigenständige Open-Source-Projekte mit eigenen Lizenzen. Nach einem Update bleibt die vorherige Version erhalten: Läuft ein Spiel nicht mehr, kehre zu ihr zurück."
+          }
+        }
+      }
+    },
+    "Earn Achievements": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfolge sammeln"
+          }
+        }
+      }
+    },
+    "Fan Art": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fan-Art"
+          }
+        }
+      }
+    },
+    "Fast (10 presses per second)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schnell (10 Mal pro Sekunde)"
+          }
+        }
+      }
+    },
+    "Fast Forward (on/off)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorspulen (ein/aus)"
+          }
+        }
+      }
+    },
+    "Fast Forward Speed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempo beim Vorspulen"
+          }
+        }
+      }
+    },
+    "Game Genie, Action Replay or GameShark codes, as the core understands them. Join several codes with “+”.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Game-Genie-, Action-Replay- oder GameShark-Codes, wie der Core sie versteht. Verbinde mehrere Codes mit „+“."
+          }
+        }
+      }
+    },
+    "Games with achievements on RetroAchievements.org unlock them while you play.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele mit Erfolgen auf RetroAchievements.org schalten sie beim Spielen frei."
+          }
+        }
+      }
+    },
+    "Go Back to Previous Version": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zur vorherigen Version zurück"
+          }
+        }
+      }
+    },
+    "Go Back to Version %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück zu Version %@"
+          }
+        }
+      }
+    },
+    "Go Back to Version from %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück zur Version vom %@"
+          }
+        }
+      }
+    },
+    "Handheld LCD": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handheld-LCD"
+          }
+        }
+      }
+    },
+    "Hardcore": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hardcore"
+          }
+        }
+      }
+    },
+    "Hardcore Mode": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hardcore-Modus"
+          }
+        }
+      }
+    },
+    "Hardcore mode can be changed when no game is running.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Hardcore-Modus lässt sich ändern, wenn kein Spiel läuft."
+          }
+        }
+      }
+    },
+    "Hardcore mode is off for this game: the core option “%@” isn't allowed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hardcore-Modus ist für dieses Spiel aus: Die Core-Option „%@“ ist nicht erlaubt."
+          }
+        }
+      }
+    },
+    "Hardcore mode starts games from the beginning.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Hardcore-Modus beginnen Spiele von vorn."
+          }
+        }
+      }
+    },
+    "Hides the input lag games have built in: the game runs a few frames ahead, so a press shows up sooner. Too many frames make the picture jump. Needs a core that saves states; costs processing power.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbirgt die Eingabeverzögerung, die Spiele eingebaut haben: Das Spiel läuft ein paar Bilder voraus, sodass ein Tastendruck früher sichtbar wird. Zu viele Bilder lassen das Bild springen. Braucht einen Core mit Spielständen und kostet Rechenleistung."
+          }
+        }
+      }
+    },
+    "Hold the Rewind key to run the game backwards. Records the game while you play, which takes memory and some processing power.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Halte die Zurückspulen-Taste, um das Spiel rückwärts laufen zu lassen. Zeichnet das Spiel beim Spielen auf, was Speicher und etwas Rechenleistung braucht."
+          }
+        }
+      }
+    },
+    "Import failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Keep the game's manual here, as a PDF or picture. It opens next to the game, also from the game menu.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewahre die Anleitung des Spiels hier auf, als PDF oder Bild. Sie öffnet sich neben dem Spiel, auch über das Spielmenü."
+          }
+        }
+      }
+    },
+    "Keys play the game again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Tasten steuern wieder das Spiel."
+          }
+        }
+      }
+    },
+    "Leaderboard attempt failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bestenlisten-Versuch gescheitert"
+          }
+        }
+      }
+    },
+    "Leaderboard attempt started": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bestenlisten-Versuch gestartet"
+          }
+        }
+      }
+    },
+    "Loading states is off in hardcore mode.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Hardcore-Modus können keine Spielstände geladen werden."
+          }
+        }
+      }
+    },
+    "Locked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesperrt"
+          }
+        }
+      }
+    },
+    "Logo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Logo"
+          }
+        }
+      }
+    },
+    "Manual": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anleitung"
+          }
+        }
+      }
+    },
+    "Manual: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anleitung: %@"
+          }
+        }
+      }
+    },
+    "Mastered %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ gemeistert"
+          }
+        }
+      }
+    },
+    "Media": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medien"
+          }
+        }
+      }
+    },
+    "Medium (7.5 presses per second)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mittel (7,5 Mal pro Sekunde)"
+          }
+        }
+      }
+    },
+    "Memory for Rewinding": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speicher fürs Zurückspulen"
+          }
+        }
+      }
+    },
+    "Move to Trash": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In den Papierkorb legen"
+          }
+        }
+      }
+    },
+    "New Cheat": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuer Cheat"
+          }
+        }
+      }
+    },
+    "Newer builds for %lld cores": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Neuerer Build für %lld Core"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Neuere Builds für %lld Cores"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Newer build for %lld core"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Newer builds for %lld cores"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Next": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiter"
+          }
+        }
+      }
+    },
+    "No Manual": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Anleitung"
+          }
+        }
+      }
+    },
+    "No turbo buttons are set. Choose them in Settings › Controls.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es sind keine Turbotasten festgelegt. Wähle sie unter Einstellungen › Steuerung."
+          }
+        }
+      }
+    },
+    "None": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine"
+          }
+        }
+      }
+    },
+    "Not checked yet": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nicht geprüft"
+          }
+        }
+      }
+    },
+    "Not every core supports cheats; %@ is used for this game.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht jeder Core unterstützt Cheats; dieses Spiel nutzt %@."
+          }
+        }
+      }
+    },
+    "Not supported by this version of Ursprung": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von dieser Version von Ursprung nicht unterstützt"
+          }
+        }
+      }
+    },
+    "Open": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnen"
+          }
+        }
+      }
+    },
+    "Original": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original"
+          }
+        }
+      }
+    },
+    "Patches": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patches"
+          }
+        }
+      }
+    },
+    "Patching produced a different result than the patch expects.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Patchen ergab ein anderes Ergebnis, als der Patch erwartet."
+          }
+        }
+      }
+    },
+    "Per System": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro System"
+          }
+        }
+      }
+    },
+    "Playback": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe"
+          }
+        }
+      }
+    },
+    "Points": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punkte"
+          }
+        }
+      }
+    },
+    "Previous": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück"
+          }
+        }
+      }
+    },
+    "Remove Patch": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patch entfernen"
+          }
+        }
+      }
+    },
+    "Replace…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ersetzen …"
+          }
+        }
+      }
+    },
+    "RetroAchievements Account": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroAchievements-Konto"
+          }
+        }
+      }
+    },
+    "RetroAchievements can't be reached. Unlocks are sent when the connection is back.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroAchievements ist nicht erreichbar. Freischaltungen werden gesendet, sobald die Verbindung wieder steht."
+          }
+        }
+      }
+    },
+    "RetroAchievements doesn't support %@ for this system. Choose another core to earn achievements.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroAchievements unterstützt %@ für dieses System nicht. Wähle einen anderen Core, um Erfolge zu sammeln."
+          }
+        }
+      }
+    },
+    "RetroAchievements is a free community service. Ursprung sends it a checksum of the game, your unlocks and what you are doing in the game.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroAchievements ist ein kostenloser Community-Dienst. Ursprung sendet ihm eine Prüfsumme des Spiels, deine Freischaltungen und was du gerade im Spiel tust."
+          }
+        }
+      }
+    },
+    "RetroAchievements is reachable again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroAchievements ist wieder erreichbar."
+          }
+        }
+      }
+    },
+    "RetroAchievements reported a problem. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroAchievements meldet ein Problem. %@"
+          }
+        }
+      }
+    },
+    "Rewind": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurückspulen"
+          }
+        }
+      }
+    },
+    "Rewind (hold)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurückspulen (halten)"
+          }
+        }
+      }
+    },
+    "Rewind and run-ahead don't work with every core. In RetroAchievements hardcore mode rewind is off.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurückspulen und Run-Ahead funktionieren nicht mit jedem Core. Im Hardcore-Modus von RetroAchievements ist Zurückspulen aus."
+          }
+        }
+      }
+    },
+    "Rewind is off in hardcore mode.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Hardcore-Modus ist Zurückspulen aus."
+          }
+        }
+      }
+    },
+    "Rewind is off. Turn it on in Settings › Emulation.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurückspulen ist aus. Schalte es unter Einstellungen › Emulation ein."
+          }
+        }
+      }
+    },
+    "Rumble": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rumble"
+          }
+        }
+      }
+    },
+    "Run-Ahead": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run-Ahead"
+          }
+        }
+      }
+    },
+    "Same as All Systems (%@)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie für alle Systeme (%@)"
+          }
+        }
+      }
+    },
+    "Save As…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern unter …"
+          }
+        }
+      }
+    },
+    "Screenshot": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screenshot"
+          }
+        }
+      }
+    },
+    "Screenshot from %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfoto vom %@"
+          }
+        }
+      }
+    },
+    "Screenshot saved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfoto gesichert"
+          }
+        }
+      }
+    },
+    "Show Progress": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortschritt zeigen"
+          }
+        }
+      }
+    },
+    "Shows how far you are with achievements that count something, like collected items.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt, wie weit du bei Erfolgen bist, die etwas zählen, etwa gesammelte Gegenstände."
+          }
+        }
+      }
+    },
+    "Sign In": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmelden"
+          }
+        }
+      }
+    },
+    "Sign Out": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abmelden"
+          }
+        }
+      }
+    },
+    "Signed In As": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angemeldet als"
+          }
+        }
+      }
+    },
+    "Signing in failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmeldung fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Signing in failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anmeldung ist fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "Slow (5 presses per second)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langsam (5 Mal pro Sekunde)"
+          }
+        }
+      }
+    },
+    "Submitted %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ eingereicht"
+          }
+        }
+      }
+    },
+    "Take Screenshot": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfoto machen"
+          }
+        }
+      }
+    },
+    "The buildbot builds cores every night. A newer build can fix games, and occasionally break save states; Ursprung warns when a state comes from another core version.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Buildbot baut Cores jede Nacht. Ein neuerer Build kann Spiele reparieren und gelegentlich Spielstände unbrauchbar machen; Ursprung warnt, wenn ein Spielstand von einer anderen Core-Version stammt."
+          }
+        }
+      }
+    },
+    "The cheats couldn't be saved. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Cheats konnten nicht gesichert werden. %@"
+          }
+        }
+      }
+    },
+    "The file can't be read.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei kann nicht gelesen werden."
+          }
+        }
+      }
+    },
+    "The file contains no cheats.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei enthält keine Cheats."
+          }
+        }
+      }
+    },
+    "The image couldn't be used": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Bild konnte nicht verwendet werden"
+          }
+        }
+      }
+    },
+    "The keyboard types on the computer.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Tastatur tippt auf dem Computer."
+          }
+        }
+      }
+    },
+    "The keyboard types on the computer. Press %@ to play with keys again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Tastatur tippt auf dem Computer. Drücke %@, um wieder mit Tasten zu spielen."
+          }
+        }
+      }
+    },
+    "The manual couldn't be added": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anleitung konnte nicht hinzugefügt werden"
+          }
+        }
+      }
+    },
+    "The patch couldn't be added": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Patch konnte nicht hinzugefügt werden"
+          }
+        }
+      }
+    },
+    "The patch file is damaged.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Patch-Datei ist beschädigt."
+          }
+        }
+      }
+    },
+    "The patch is made for another version of the game (CRC32 %@, this file has %@).": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Patch ist für eine andere Version des Spiels (CRC32 %1$@, diese Datei hat %2$@)."
+          }
+        }
+      }
+    },
+    "The patch “%@” couldn't be applied. %@ Choose another patch or the original in the game's info panel.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Patch „%1$@“ konnte nicht angewendet werden. %2$@ Wähle im Infofenster des Spiels einen anderen Patch oder das Original."
+          }
+        }
+      }
+    },
+    "The screenshot couldn't be saved. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Bildschirmfoto konnte nicht gesichert werden. %@"
+          }
+        }
+      }
+    },
+    "This isn't an IPS, UPS or BPS patch.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ist kein IPS-, UPS- oder BPS-Patch."
+          }
+        }
+      }
+    },
+    "Title Screen": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titelbild"
+          }
+        }
+      }
+    },
+    "Translations, hacks and fixes as IPS, UPS or BPS files. The game file stays unchanged; a patched game keeps its own saves.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Übersetzungen, Hacks und Korrekturen als IPS-, UPS- oder BPS-Dateien. Die Spieldatei bleibt unverändert; ein gepatchtes Spiel hat eigene Spielstände."
+          }
+        }
+      }
+    },
+    "Turbo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turbo"
+          }
+        }
+      }
+    },
+    "Turbo Buttons": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turbotasten"
+          }
+        }
+      }
+    },
+    "Turbo Buttons (on/off)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turbotasten (ein/aus)"
+          }
+        }
+      }
+    },
+    "Turbo Speed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turbo-Tempo"
+          }
+        }
+      }
+    },
+    "Turbo off": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turbo aus"
+          }
+        }
+      }
+    },
+    "Turbo on": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turbo ein"
+          }
+        }
+      }
+    },
+    "Type on Computer Keyboard (on/off)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf Computertastatur tippen (ein/aus)"
+          }
+        }
+      }
+    },
+    "Type on Keyboard": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf Tastatur tippen"
+          }
+        }
+      }
+    },
+    "Typing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tippen"
+          }
+        }
+      }
+    },
+    "Unlocked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freigeschaltet"
+          }
+        }
+      }
+    },
+    "Unlocked %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freigeschaltet am %@"
+          }
+        }
+      }
+    },
+    "Unlocks earn full points. Loading states, rewind and cheats are off, and games start from the beginning.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freischaltungen bringen volle Punkte. Spielstände laden, Zurückspulen und Cheats sind aus, und Spiele beginnen von vorn."
+          }
+        }
+      }
+    },
+    "Update All": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle aktualisieren"
+          }
+        }
+      }
+    },
+    "Update Available": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update verfügbar"
+          }
+        }
+      }
+    },
+    "Updates": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        }
+      }
+    },
+    "Very Fast (15 presses per second)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sehr schnell (15 Mal pro Sekunde)"
+          }
+        }
+      }
+    },
+    "Your password is only sent to sign in. Ursprung keeps the sign-in token in your keychain. No account yet? Create one at retroachievements.org.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Passwort wird nur zum Anmelden gesendet. Ursprung bewahrt das Anmelde-Token in deinem Schlüsselbund auf. Noch kein Konto? Erstelle eines auf retroachievements.org."
+          }
+        }
+      }
+    },
+    "On: %lld of %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiv: %1$lld von %2$lld"
+          }
+        }
+      }
+    },
+    "Achievements: %lld of %lld unlocked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfolge: %1$lld von %2$lld freigeschaltet"
+          }
+        }
+      }
+    },
+    "Screenshots you take while playing appear here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfotos, die du beim Spielen machst, erscheinen hier."
+          }
+        }
+      }
+    },
+    "%lld screenshots": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Bildschirmfoto"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Bildschirmfotos"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld screenshot"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld screenshots"
+                }
+              }
+            }
           }
         }
       }

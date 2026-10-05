@@ -4,5 +4,7 @@
 #import "URLibretroCore.h"
 #import "UREmulationRunner.h"
 #import "URAudioRing.h"
+#import "URAchievements.h"
+#import "URRewindBuffer.h"
 
 #include <zlib.h>

@@ -10,6 +10,8 @@ struct GameMetalView: NSViewRepresentable {
     let session: EmulationSession
     let filter: VideoFilter
     let integerScaling: Bool
+    let bezel: BezelStyle
+    let bezelImage: URL?
 
     func makeNSView(context: Context) -> GameMTKView {
         let view = GameMTKView(frame: .zero, device: nil)
@@ -22,6 +24,8 @@ struct GameMetalView: NSViewRepresentable {
         view.renderer?.core = session.core
         view.renderer?.filter = filter
         view.renderer?.integerScaling = integerScaling
+        view.renderer?.bezel = bezel
+        view.renderer?.bezelImageURL = bezelImage
         if session.phase == .running, !session.isMenuVisible {
             view.window?.makeFirstResponder(view)
         }
@@ -50,22 +54,37 @@ final class GameMTKView: MTKView {
             return
         }
         NSCursor.setHiddenUntilMouseMoves(true)
+        let action = session.input.hotkeys.action(forKeyCode: event.keyCode)
+        if session.isTyping {
+            // Every key types on the emulated computer, except the one that ends typing.
+            if action == .typing, !event.isARepeat { session.toggleTyping() } else { session.typeKey(event, isDown: true) }
+            return
+        }
         guard !event.isARepeat else { return }
-        switch session.input.hotkeys.action(forKeyCode: event.keyCode) {
+        switch action {
         case .menu: session.toggleMenu()
         case .fastForward: session.setFastForward(true)
+        case .fastForwardToggle: session.toggleFastForward()
+        case .rewind: session.setRewinding(true)
         case .quickSave: session.saveState(slot: 0)
         case .quickLoad: session.loadState(slot: 0)
+        case .screenshot: session.takeScreenshot()
+        case .turbo: session.toggleTurbo()
+        case .typing: session.toggleTyping()
         case nil: session.input.keyDown(event.keyCode)
         }
     }
 
     override func keyUp(with event: NSEvent) {
         guard let session else { return }
-        if session.input.hotkeys.action(forKeyCode: event.keyCode) == .fastForward {
-            session.setFastForward(false)
-        } else {
-            session.input.keyUp(event.keyCode)
+        if session.isTyping {
+            session.typeKey(event, isDown: false)
+            return
+        }
+        switch session.input.hotkeys.action(forKeyCode: event.keyCode) {
+        case .fastForward: session.setFastForward(false)
+        case .rewind: session.setRewinding(false)
+        default: session.input.keyUp(event.keyCode)
         }
     }
 
@@ -73,6 +92,10 @@ final class GameMTKView: MTKView {
     override func flagsChanged(with event: NSEvent) {
         guard let session else { return }
         let code = event.keyCode
+        if session.isTyping {
+            session.typeKey(event, isDown: EmulatedKeyboard.isModifierDown(keyCode: code, flags: event.modifierFlags))
+            return
+        }
         if pressedModifiers.remove(code) != nil {
             session.input.keyUp(code)
         } else {

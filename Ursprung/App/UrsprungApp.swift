@@ -22,6 +22,7 @@ struct UrsprungApp: App {
     @State private var systemMedia = SystemMediaStore()
     @State private var backup: BackupService
     @State private var updates = UpdateChecker()
+    @State private var achievements: AchievementService
 
     private let container: ModelContainer
 
@@ -34,7 +35,9 @@ struct UrsprungApp: App {
         let cores = CoreManager()
         let bios = BIOSManager()
         let library = LibraryStore(metadata: metadata)
-        let session = EmulationSession(cores: cores, bios: bios)
+        let achievements = AchievementService()
+        let session = EmulationSession(cores: cores, bios: bios, achievements: achievements)
+        _achievements = State(initialValue: achievements)
         _metadata = State(initialValue: metadata)
         _library = State(initialValue: library)
         _cores = State(initialValue: cores)
@@ -87,6 +90,14 @@ struct UrsprungApp: App {
         .environment(cores)
         .modelContainer(container)
 
+        WindowGroup(String(localized: "Manual"), id: WindowID.manual, for: UUID.self) { $gameID in
+            ManualView(gameID: gameID)
+                .frame(minWidth: 480, minHeight: 400)
+        }
+        .defaultSize(width: 760, height: 900)
+        .restorationBehavior(.disabled)
+        .modelContainer(container)
+
         Settings {
             SettingsView()
                 .frame(width: 700)
@@ -99,6 +110,7 @@ struct UrsprungApp: App {
         .environment(bios)
         .environment(session)
         .environment(backup)
+        .environment(achievements)
         .modelContainer(container)
     }
 }
@@ -106,4 +118,5 @@ struct UrsprungApp: App {
 enum WindowID {
     static let library = "library"
     static let player = "player"
+    static let manual = "manual"
 }

@@ -2,10 +2,11 @@
 
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The Settings tabs. The selected one is stored, so other windows can open a specific tab.
 enum SettingsTab: String {
-    case general, metadata, emulation, controls, cores, bios
+    case general, metadata, emulation, controls, achievements, cores, bios
 }
 
 struct SettingsView: View {
@@ -17,6 +18,7 @@ struct SettingsView: View {
             Tab("Metadata", systemImage: "text.below.photo", value: .metadata) { MetadataSettingsView() }
             Tab("Emulation", systemImage: "display", value: .emulation) { EmulationSettingsView() }
             Tab("Controls", systemImage: "gamecontroller", value: .controls) { ControlsSettingsView() }
+            Tab("Achievements", systemImage: "trophy", value: .achievements) { AchievementsSettingsView() }
             Tab("Cores", systemImage: "cpu", value: .cores) { CoresSettingsView() }
             Tab("BIOS", systemImage: "memorychip", value: .bios) { BIOSSettingsView() }
         }
@@ -132,7 +134,7 @@ struct GeneralSettingsView: View {
             } header: {
                 Text("Data")
             } footer: {
-                Text("A backup contains your library, battery saves, save states, artwork and settings. BIOS files, cores and your ScreenScraper password are not included.")
+                Text("A backup contains your library, battery saves, save states, artwork, screenshots, manuals, patches, cheats and settings. BIOS files, cores and your passwords are not included.")
                     .settingsFootnote()
             }
         }
@@ -350,13 +352,21 @@ struct EmulationSettingsView: View {
     @AppStorage(PrefKey.autosaveOnQuit) private var autosaveOnQuit = true
     @AppStorage(PrefKey.periodicAutosave) private var periodicAutosave = false
     @AppStorage(PrefKey.resumeAutomatically) private var resumeAutomatically = true
+    @AppStorage(PrefKey.bezel) private var bezel: BezelStyle = .none
+    @AppStorage(PrefKey.fastForwardSpeed) private var fastForwardSpeed = 4.0
+    @AppStorage(PrefKey.rewindEnabled) private var rewindEnabled = false
+    @AppStorage(PrefKey.rewindBufferSize) private var rewindBufferSize = 256
+    @AppStorage(PrefKey.runAheadFrames) private var runAheadFrames = 0
     @State private var coreChoices: [String: String] = [:]
 
     var body: some View {
         Form {
-            Section("Video") {
+            Section {
                 Picker("Filter", selection: $filter) {
                     ForEach(VideoFilter.allCases) { Text($0.title).tag($0) }
+                }
+                Picker("Around the Picture", selection: $bezel) {
+                    ForEach(BezelStyle.allCases) { Text($0.title).tag($0) }
                 }
                 Toggle(isOn: $integerScaling) {
                     Text("Integer Scaling")
@@ -366,7 +376,51 @@ struct EmulationSettingsView: View {
                     Text("Show Frame Rate")
                     Text("Shows frames per second in the corner of the player.")
                 }
+            } header: {
+                Text("Video")
+            } footer: {
+                Text("CRT and Handheld LCD show their lines and pixel grid once the window is large enough. Ambient Light fills the space around the picture with its colours.")
+                    .settingsFootnote()
             }
+            SystemVideoSection()
+            Section {
+                Picker("Fast Forward Speed", selection: $fastForwardSpeed) {
+                    ForEach([2.0, 3.0, 4.0, 6.0, 8.0], id: \.self) { speed in
+                        Text("\(Int(speed))×").tag(speed)
+                    }
+                    Divider()
+                    Text("As Fast as Possible").tag(0.0)
+                }
+                Toggle(isOn: $rewindEnabled) {
+                    Text("Rewind")
+                    Text("Hold the Rewind key to run the game backwards. Records the game while you play, which takes memory and some processing power.")
+                }
+                if rewindEnabled {
+                    Picker("Memory for Rewinding", selection: $rewindBufferSize) {
+                        ForEach([128, 256, 512, 1024], id: \.self) { size in
+                            Text(ByteCountFormatter.string(fromByteCount: Int64(size) << 20, countStyle: .memory)).tag(size)
+                        }
+                    }
+                }
+                Picker(selection: $runAheadFrames) {
+                    Text("Off").tag(0)
+                    Text("1 Frame").tag(1)
+                    Text("2 Frames").tag(2)
+                    Text("3 Frames").tag(3)
+                } label: {
+                    Text("Run-Ahead")
+                    Text("Hides the input lag games have built in: the game runs a few frames ahead, so a press shows up sooner. Too many frames make the picture jump. Needs a core that saves states; costs processing power.")
+                }
+            } header: {
+                Text("Playback")
+            } footer: {
+                Text("Rewind and run-ahead don't work with every core. In RetroAchievements hardcore mode rewind is off.")
+                    .settingsFootnote()
+            }
+            .onChange(of: fastForwardSpeed) { session.reloadPlaybackSettings() }
+            .onChange(of: rewindEnabled) { session.reloadPlaybackSettings() }
+            .onChange(of: rewindBufferSize) { session.reloadPlaybackSettings() }
+            .onChange(of: runAheadFrames) { session.reloadPlaybackSettings() }
             Section("Audio") {
                 Slider(value: $volume, in: 0...1) {
                     Text("Volume")
@@ -429,5 +483,89 @@ struct EmulationSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+
+/// A filter and a bezel image for one system.
+private struct SystemVideoSection: View {
+    @State private var systemID = SystemCatalog.all[0].id
+    @State private var filter: VideoFilter?
+    @State private var bezelImage: URL?
+    @State private var isChoosingImage = false
+    @State private var failure: String?
+
+    var body: some View {
+        Section {
+            Picker("System", selection: $systemID) {
+                ForEach(SystemCatalog.all.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }) { system in
+                    Text(system.name).tag(system.id)
+                }
+            }
+            Picker("Filter", selection: Binding(get: { filter }, set: setFilter)) {
+                Text("Same as All Systems (\(Preferences.videoFilter.title))").tag(VideoFilter?.none)
+                Divider()
+                ForEach(VideoFilter.allCases) { Text($0.title).tag(VideoFilter?.some($0)) }
+            }
+            LabeledContent("Bezel Image") {
+                HStack(spacing: AppSpacing.s) {
+                    if let bezelImage {
+                        Text(bezelImage.lastPathComponent)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Button("Remove") { removeImage() }
+                    }
+                    Button(bezelImage == nil ? "Choose…" : "Change…") { isChoosingImage = true }
+                }
+            }
+            if let failure {
+                StatusLabel("The image couldn't be used", kind: .error, detail: failure)
+            }
+        } header: {
+            Text("Per System")
+        } footer: {
+            Text("A bezel image is drawn over the game, so it needs a transparent window for the picture. Images for 16:9 screens with the picture in the middle fit best.")
+                .settingsFootnote()
+        }
+        .onChange(of: systemID, initial: true) { load() }
+        .fileImporter(isPresented: $isChoosingImage, allowedContentTypes: [.png]) { result in
+            if case .success(let url) = result { setImage(url) }
+        }
+    }
+
+    private func load() {
+        filter = UserDefaults.standard.string(forKey: PrefKey.systemVideoFilter(systemID)).flatMap(VideoFilter.init(rawValue:))
+        bezelImage = BezelImages.image(for: systemID)
+        failure = nil
+    }
+
+    private func setFilter(_ value: VideoFilter?) {
+        filter = value
+        UserDefaults.standard.set(value?.rawValue, forKey: PrefKey.systemVideoFilter(systemID))
+    }
+
+    private func setImage(_ url: URL) {
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        do {
+            try BezelImages.setImage(url, for: systemID)
+            failure = nil
+        } catch {
+            failure = error.localizedDescription
+        }
+        bezelImage = BezelImages.image(for: systemID)
+        Self.notifyPlayer()
+    }
+
+    private func removeImage() {
+        try? BezelImages.removeImage(for: systemID)
+        bezelImage = nil
+        Self.notifyPlayer()
+    }
+
+    /// The player redraws with the new image (it watches preference changes).
+    private static func notifyPlayer() {
+        NotificationCenter.default.post(name: UserDefaults.didChangeNotification, object: UserDefaults.standard)
     }
 }

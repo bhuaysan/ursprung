@@ -23,6 +23,7 @@ nonisolated enum PrefKey {
     static let periodicAutosave = "periodicAutosave"
     static let resumeAutomatically = "resumeAutomatically"
     static let controllerMapping = "controllerMapping"
+    static let turboButtons = "turboButtons"
     static let hotkeys = "hotkeys"
     static let portAssignments = "portAssignments"
     static let stickDeadZone = "stickDeadZone"
@@ -30,6 +31,18 @@ nonisolated enum PrefKey {
     static let libraryViewMode = "libraryViewMode"
     static let groupsVariants = "groupsVariants"
     static let preferredRegions = "preferredRegions"
+    static let fastForwardSpeed = "fastForwardSpeed"
+    static let rewindEnabled = "rewindEnabled"
+    static let rewindBufferSize = "rewindBufferSize"
+    static let runAheadFrames = "runAheadFrames"
+    static let turboRate = "turboRate"
+    static let rumble = "rumble"
+    static let bezel = "bezel"
+    static let achievementsEnabled = "achievementsEnabled"
+    static let achievementsUsername = "achievementsUsername"
+    static let achievementsHardcore = "achievementsHardcore"
+    static let achievementsShowsProgress = "achievementsShowsProgress"
+    static func systemVideoFilter(_ systemID: String) -> String { "videoFilter.\(systemID)" }
     static func inputProfile(_ systemID: String) -> String { "inputProfile.\(systemID)" }
     static func coreChoice(_ systemID: String) -> String { "coreChoice.\(systemID)" }
     static func coreOptions(_ coreID: String) -> String { "coreOptions.\(coreID)" }
@@ -38,7 +51,7 @@ nonisolated enum PrefKey {
 
 /// Display filter applied when scaling the emulator image.
 nonisolated enum VideoFilter: String, CaseIterable, Identifiable, Sendable {
-    case sharp, nearest, smooth, scanlines
+    case sharp, nearest, smooth, scanlines, crt, crtCurved, lcd
 
     var id: String { rawValue }
 
@@ -48,6 +61,48 @@ nonisolated enum VideoFilter: String, CaseIterable, Identifiable, Sendable {
         case .nearest: String(localized: "Pixel Perfect")
         case .smooth: String(localized: "Smooth")
         case .scanlines: String(localized: "Scanlines")
+        case .crt: String(localized: "CRT")
+        case .crtCurved: String(localized: "CRT, Curved")
+        case .lcd: String(localized: "Handheld LCD")
+        }
+    }
+
+    /// Index of the filter in the presentation shader.
+    var shaderIndex: UInt32 {
+        switch self {
+        case .sharp: 0
+        case .nearest: 1
+        case .smooth: 2
+        case .scanlines: 3
+        case .crt: 4
+        case .crtCurved: 5
+        case .lcd: 6
+        }
+    }
+
+    /// The filter a system uses: its own choice, or the one for all systems.
+    static func current(for systemID: String?) -> VideoFilter {
+        if let systemID, let raw = UserDefaults.standard.string(forKey: PrefKey.systemVideoFilter(systemID)),
+           let filter = VideoFilter(rawValue: raw) {
+            return filter
+        }
+        return Preferences.videoFilter
+    }
+}
+
+/// What fills the space around the game picture.
+nonisolated enum BezelStyle: String, CaseIterable, Identifiable, Sendable {
+    /// Black.
+    case none
+    /// A blurred, dimmed copy of the picture, as if it lit the room.
+    case ambient
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none: String(localized: "None")
+        case .ambient: String(localized: "Ambient Light")
         }
     }
 }
@@ -77,6 +132,16 @@ nonisolated enum Preferences {
             PrefKey.resumeAutomatically: true,
             PrefKey.stickDeadZone: 0.15,
             PrefKey.groupsVariants: true,
+            PrefKey.fastForwardSpeed: 4.0,
+            PrefKey.rewindEnabled: false,
+            PrefKey.rewindBufferSize: 256,
+            PrefKey.runAheadFrames: 0,
+            PrefKey.turboRate: 3,
+            PrefKey.rumble: true,
+            PrefKey.bezel: BezelStyle.none.rawValue,
+            PrefKey.achievementsEnabled: false,
+            PrefKey.achievementsHardcore: false,
+            PrefKey.achievementsShowsProgress: true,
         ])
     }
 
@@ -97,6 +162,20 @@ nonisolated enum Preferences {
     static var periodicAutosave: Bool { defaults.bool(forKey: PrefKey.periodicAutosave) }
     static var resumeAutomatically: Bool { defaults.bool(forKey: PrefKey.resumeAutomatically) }
     static var stickDeadZone: Float { Float(defaults.double(forKey: PrefKey.stickDeadZone)) }
+    /// Times normal speed; 0 is as fast as possible.
+    static var fastForwardSpeed: Double { defaults.double(forKey: PrefKey.fastForwardSpeed) }
+    static var rewindEnabled: Bool { defaults.bool(forKey: PrefKey.rewindEnabled) }
+    /// Megabytes of memory for rewinding.
+    static var rewindBufferSize: Int { defaults.integer(forKey: PrefKey.rewindBufferSize) }
+    static var runAheadFrames: Int { defaults.integer(forKey: PrefKey.runAheadFrames) }
+    /// Frames a turbo button stays pressed and released.
+    static var turboRate: Int { max(1, defaults.integer(forKey: PrefKey.turboRate)) }
+    static var rumble: Bool { defaults.bool(forKey: PrefKey.rumble) }
+    static var bezel: BezelStyle { BezelStyle(rawValue: defaults.string(forKey: PrefKey.bezel) ?? "") ?? .none }
+    static var achievementsEnabled: Bool { defaults.bool(forKey: PrefKey.achievementsEnabled) }
+    static var achievementsUsername: String { defaults.string(forKey: PrefKey.achievementsUsername) ?? "" }
+    static var achievementsHardcore: Bool { defaults.bool(forKey: PrefKey.achievementsHardcore) }
+    static var achievementsShowsProgress: Bool { defaults.bool(forKey: PrefKey.achievementsShowsProgress) }
 
     /// The user's collections in sidebar order, including empty ones.
     static var collections: [String] {
@@ -136,10 +215,13 @@ nonisolated enum Preferences {
         PrefKey.autoScrape, PrefKey.videoFilter, PrefKey.integerScaling, PrefKey.volume, PrefKey.pauseInBackground,
         PrefKey.showFPS, PrefKey.gridSize, PrefKey.keyboardMapping, PrefKey.librarySort,
         PrefKey.autosaveOnQuit, PrefKey.periodicAutosave, PrefKey.resumeAutomatically,
-        PrefKey.controllerMapping, PrefKey.hotkeys, PrefKey.portAssignments, PrefKey.stickDeadZone,
+        PrefKey.controllerMapping, PrefKey.turboButtons, PrefKey.hotkeys, PrefKey.portAssignments, PrefKey.stickDeadZone,
         PrefKey.collections, PrefKey.libraryViewMode, PrefKey.groupsVariants,
+        PrefKey.fastForwardSpeed, PrefKey.rewindEnabled, PrefKey.rewindBufferSize, PrefKey.runAheadFrames,
+        PrefKey.turboRate, PrefKey.rumble, PrefKey.bezel, PrefKey.achievementsEnabled, PrefKey.achievementsUsername,
+        PrefKey.achievementsHardcore, PrefKey.achievementsShowsProgress,
     ]
-    private static let backedUpPrefixes = ["coreChoice.", "coreOptions.", "hidGamepadMapping.", "inputProfile."]
+    private static let backedUpPrefixes = ["coreChoice.", "coreOptions.", "hidGamepadMapping.", "inputProfile.", "videoFilter."]
 
     private static func isBackedUp(_ key: String) -> Bool {
         backedUpKeys.contains(key) || backedUpPrefixes.contains { key.hasPrefix($0) }

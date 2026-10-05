@@ -73,6 +73,9 @@ nonisolated struct GameSystem: Sendable, Hashable, Identifiable {
 
     var defaultCore: CoreDefinition { cores[0] }
 
+    /// Whether ROM patches (IPS, UPS, BPS) can be applied to its games.
+    var supportsPatches: Bool { SystemCatalog.supportsPatches(self) }
+
     func core(withID id: String?) -> CoreDefinition {
         cores.first { $0.id == id } ?? defaultCore
     }

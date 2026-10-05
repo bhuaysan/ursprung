@@ -39,6 +39,11 @@ targets:
           - "**/.DS_Store"
       - path: Ursprung/Support/Secrets.generated.swift
         optional: true
+      # RetroAchievements runtime (MIT), see ThirdParty/rcheevos/README.md.
+      - path: ThirdParty/rcheevos/src
+        compilerFlags: ["-w"]
+        excludes:
+          - "**/*.h"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.bhuaysan.Ursprung
@@ -51,8 +56,11 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
-        GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "GL_SILENCE_DEPRECATION=1"]
-        OTHER_LDFLAGS: ["$(inherited)", "-lz"]
+        GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "GL_SILENCE_DEPRECATION=1", "RC_DISABLE_LUA=1",
+                                       "RC_CLIENT_SUPPORTS_HASH=1", "RC_HASH_NO_ENCRYPTED=1"]
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/ThirdParty/rcheevos/include", "$(SRCROOT)/ThirdParty/rcheevos/src",
+                             "$(SRCROOT)/Ursprung/Bridge"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lz", "-lcompression"]
         LOCALIZATION_PREFERS_STRING_CATALOGS: YES
         SWIFT_EMIT_LOC_STRINGS: YES
     dependencies:

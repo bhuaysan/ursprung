@@ -11,11 +11,14 @@ import UniformTypeIdentifiers
 /// Why a game cannot be prepared for its core.
 nonisolated enum LaunchError: LocalizedError {
     case unsupportedArchive(coreName: String)
+    case patchFailed(name: String, reason: String)
 
     var errorDescription: String? {
         switch self {
         case .unsupportedArchive(let core):
             String(localized: "\(core) can't open .7z archives. Unpack the game or turn it into a .zip file, then rescan.")
+        case .patchFailed(let name, let reason):
+            String(localized: "The patch “\(name)” couldn't be applied. \(reason) Choose another patch or the original in the game's info panel.")
         }
     }
 }
@@ -38,19 +41,53 @@ final class EmulationSession {
     }
 
     struct Toast: Identifiable, Equatable {
-        enum Kind { case info, saved, loaded, warning }
+        enum Kind { case info, saved, loaded, warning, screenshot, achievement }
         let id = UUID()
         let text: String
         var kind = Kind.info
+        /// A badge shown instead of the symbol (achievements).
+        var imageURL: URL?
+        var detail: String?
+    }
+
+    /// An achievement indicator on screen: a challenge that is running, the
+    /// progress of an achievement, or a leaderboard's live value.
+    struct AchievementIndicator: Identifiable, Equatable {
+        enum Kind { case challenge, progress, tracker }
+        let kind: Kind
+        let itemID: Int
+        var value: String?
+        var imageURL: URL?
+        var id: String { "\(kind)-\(itemID)" }
     }
 
     private(set) var phase: Phase = .idle
     private(set) var gameID: PersistentIdentifier?
+    /// The library ID of the running game.
+    var runningGameID: UUID? { gameUUID }
     private(set) var gameTitle = ""
     private(set) var systemID: String?
     private(set) var coreName = ""
     private(set) var isPaused = false
     private(set) var isFastForwarding = false
+    private(set) var isRewinding = false
+    /// The Mac keyboard types on the emulated computer's keyboard; keys do
+    /// not press RetroPad buttons and hotkeys are off (except Typing).
+    private(set) var isTyping = false
+    /// The system of the running game has a keyboard of its own.
+    private(set) var hasComputerKeyboard = false
+    /// The ROM patch the running game was started with.
+    private(set) var patchName: String?
+    /// Cheats of the running game, applied when enabled.
+    private(set) var cheats: [Cheat] = []
+    private(set) var supportsCheats = false
+    /// The running game as RetroAchievements knows it; nil without achievements.
+    private(set) var achievementGame: AchievementGameInfo?
+    /// Hardcore restrictions apply: no state loading, rewind or cheats.
+    private(set) var isHardcore = false
+    private(set) var achievementIndicators: [AchievementIndicator] = []
+    /// Bumped when the running game gains a screenshot.
+    private(set) var screenshotRevision = 0
     private(set) var toasts: [Toast] = []
     private(set) var slots: [SaveStateSlot] = []
     /// States of the running game and core that newer ones replaced or that were deleted.
@@ -80,6 +117,9 @@ final class EmulationSession {
     private var runner: EmulationRunner?
     private var gameUUID: UUID?
     private var coreID: String?
+    /// Where the running game's states live below its folder: the core, or
+    /// the core and patch (a patched game keeps its states apart).
+    private var stateFolder: String?
     /// The running core and game, recorded in every state's manifest.
     private(set) var stateContext: SaveStateContext?
     private var startedAt: Date?
@@ -98,11 +138,16 @@ final class EmulationSession {
     let input = InputRouter()
     let cores: CoreManager
     let bios: BIOSManager
+    let achievements: AchievementService
 
-    init(cores: CoreManager, bios: BIOSManager) {
+    init(cores: CoreManager, bios: BIOSManager, achievements: AchievementService) {
         self.cores = cores
         self.bios = bios
+        self.achievements = achievements
         input.onMenuButton = { [weak self] in self?.toggleMenu() }
+        achievements.client.eventHandler = { [weak self] event in
+            MainActor.assumeIsolated { self?.handleAchievementEvent(event) }
+        }
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.setAppInactive(true) }
         }
@@ -187,14 +232,34 @@ final class EmulationSession {
             settingsTab = nil
 
             phase = .preparing(String(localized: "Loading game…"))
-            let contentURL = try await prepareContent(for: game, system: system, core: core)
+            var contentURL = try await prepareContent(for: game, system: system, core: core)
             try checkCurrent(generation)
+            var contentCRC = game.crc32
+            let patch = system.supportsPatches ? PatchStore.active(in: AppPaths.extras, gameID: game.id) : nil
+            if let patch {
+                do {
+                    let patched = try await Self.patch(contentURL, with: patch,
+                                                       into: AppPaths.extracted.appending(path: "\(game.id.uuidString)-patched"))
+                    contentURL = patched.url
+                    contentCRC = patched.crc
+                } catch {
+                    throw LaunchError.patchFailed(name: patch.deletingPathExtension().lastPathComponent,
+                                                  reason: error.localizedDescription)
+                }
+                try checkCurrent(generation)
+            }
+            let patchFolder = patch.map(PatchStore.saveFolderName(for:))
 
             let saveDirectory = AppPaths.saves.appending(path: system.id, directoryHint: .isDirectory)
             try? FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
             core.systemDirectory = AppPaths.system.path(percentEncoded: false)
             core.saveDirectory = saveDirectory.path(percentEncoded: false)
-            let batterySave = batterySaveURL(for: game, systemID: system.id, context: context)
+            var batterySave = batterySaveURL(for: game, systemID: system.id, context: context)
+            if let patchFolder {
+                // A hack must not write over the original's save.
+                batterySave = batterySave.deletingLastPathComponent().appending(path: "Patches", directoryHint: .isDirectory)
+                    .appending(path: patchFolder, directoryHint: .isDirectory).appending(path: batterySave.lastPathComponent)
+            }
             core.saveRAMPath = batterySave.path(percentEncoded: false)
             core.rtcPath = BatterySave.rtcURL(forSave: batterySave).path(percentEncoded: false)
             core.saveErrorHandler = { [weak self] reason in
@@ -213,16 +278,30 @@ final class EmulationSession {
             }
 
             let stateContext = SaveStateContext(coreID: definition.id, coreVersion: core.libraryVersion,
-                                                gameCRC32: game.crc32, gameFileName: game.fileName, gameFileSize: game.fileSize)
-            let autosaveDirectory = SaveStateStore.directory(in: AppPaths.states, gameID: game.id, coreID: definition.id)
+                                                gameCRC32: contentCRC, gameFileName: game.fileName, gameFileSize: game.fileSize)
+            let stateFolder = patchFolder.map { "\(definition.id)/Patches/\($0)" } ?? definition.id
+            let autosaveDirectory = SaveStateStore.directory(in: AppPaths.states, gameID: game.id, coreID: stateFolder)
+            let consoleID = AchievementService.consoleID(for: system.id)
+            // Hardcore forbids continuing from a state; the game starts fresh.
+            let expectsHardcore = achievements.isActive && Preferences.achievementsHardcore && consoleID != nil
+            core.turboPeriod = Preferences.turboRate
+            core.rumbleHandler = { [weak self] port, strong, strength in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.input.setRumble(port: port, strong: strong, strength: strength) }
+                }
+            }
 
             let runner = EmulationRunner(core: core)
             runner.volume = Float(Preferences.volume)
+            applyPlaybackSettings(to: runner, hardcore: expectsHardcore)
             let writeAutosave: (@Sendable (LibretroCore) -> Void)? = Preferences.autosaveOnQuit
                 ? { @Sendable core in Self.writeAutosave(of: core, context: stateContext, in: autosaveDirectory) }
                 : nil
-            let resumeState = state
-                ?? (resume ? SaveStateStore.autosave(in: AppPaths.states, gameID: game.id, coreID: definition.id) : nil)
+            let resumeState = expectsHardcore ? nil : state
+                ?? (resume ? SaveStateStore.autosave(in: AppPaths.states, gameID: game.id, coreID: stateFolder) : nil)
+            if expectsHardcore, state != nil || resume, SaveStateStore.autosave(in: AppPaths.states, gameID: game.id, coreID: stateFolder) != nil {
+                showToast(String(localized: "Hardcore mode starts games from the beginning."), duration: 4)
+            }
             if resumeState == nil { runner.willUnloadHandler = writeAutosave }
             runner.terminationHandler = { [weak self] in
                 MainActor.assumeIsolated { self?.handleUnexpectedTermination() }
@@ -244,8 +323,17 @@ final class EmulationSession {
 
             self.core = core
             self.stateContext = stateContext
+            cores.recordVersion(core.libraryVersion, for: definition)
+            self.stateFolder = stateFolder
+            patchName = patch?.deletingPathExtension().lastPathComponent
+            hasComputerKeyboard = system.kind == .computer
+            isHardcore = expectsHardcore
+            supportsCheats = core.supportsCheats
+            cheats = CheatStore.cheats(in: AppPaths.extras, gameID: game.id)
+            applyCheats()
             autosave = resumeState == nil ? writeAutosave : nil
             input.core = core
+            input.isTurboActive = true
             input.profile = InputProfile.resolved(gameProfile: game.inputProfileData, systemID: system.id)
             startedAt = .now
             phase = .running
@@ -259,7 +347,21 @@ final class EmulationSession {
             startFPSTimer()
             applyPause()
             if let resumeState { continueFromAutosave(resumeState, then: writeAutosave) }
+            if achievements.isActive, let consoleID {
+                loadAchievements(path: path, consoleID: consoleID, core: core, runner: runner, hardcore: expectsHardcore)
+            }
             #if DEBUG
+            if ProcessInfo.processInfo.environment["URSPRUNG_DEBUG_PLAY"] != nil {
+                // Development aid: screenshot, rewind and fast forward, then quit.
+                Task {
+                    try? await Task.sleep(for: .seconds(5)); takeScreenshot()
+                    try? await Task.sleep(for: .seconds(1)); setRewinding(true)
+                    try? await Task.sleep(for: .seconds(2)); setRewinding(false)
+                    try? await Task.sleep(for: .seconds(1)); setFastForward(true)
+                    try? await Task.sleep(for: .seconds(2)); setFastForward(false)
+                    try? await Task.sleep(for: .seconds(2)); NSApp.terminate(nil)
+                }
+            }
             if ProcessInfo.processInfo.environment["URSPRUNG_DEBUG_STATES"] != nil {
                 // Development aid: exercise save, load and termination automatically.
                 Task {
@@ -317,6 +419,13 @@ final class EmulationSession {
         return try ZipArchive.extractCached(entry, from: zip, into: directory)
     }
 
+    /// Writes the patched ROM to the cache; the original stays untouched.
+    @concurrent
+    private static func patch(_ rom: URL, with patch: URL, into directory: URL) async throws -> (url: URL, crc: String) {
+        let url = try PatchStore.patchedCopy(of: rom, with: patch, into: directory)
+        return (url, Checksum.hex(try Checksum.crc(of: url)))
+    }
+
     // MARK: - Stop
 
     func stop(context: ModelContext?) async {
@@ -363,14 +472,24 @@ final class EmulationSession {
         fpsTimer?.invalidate()
         input.core = nil
         input.reset()
+        input.stopRumble()
         input.reloadMapping()
+        if achievementGame != nil || achievements.client.isGameLoaded { achievements.client.unloadGame() }
         runner = nil
         core = nil
         stateContext = nil
+        stateFolder = nil
         autosave = nil
         startedAt = nil
         isMenuVisible = false
         isFastForwarding = false
+        isRewinding = false
+        isTyping = false
+        patchName = nil
+        cheats = []
+        achievementGame = nil
+        achievementIndicators = []
+        isHardcore = false
     }
 
     // MARK: - Controls
@@ -390,10 +509,143 @@ final class EmulationSession {
         runner?.fastForward = enabled
     }
 
+    func toggleFastForward() {
+        setFastForward(!isFastForwarding)
+    }
+
+    /// Runs the game backwards while `enabled` (the Rewind key is held).
+    func setRewinding(_ enabled: Bool) {
+        guard let runner else { return }
+        if enabled {
+            if isHardcore {
+                return showToast(String(localized: "Rewind is off in hardcore mode."), kind: .warning)
+            }
+            guard Preferences.rewindEnabled else {
+                return showToast(String(localized: "Rewind is off. Turn it on in Settings › Emulation."), duration: 4)
+            }
+            if runner.rewindAvailability == .unsupported {
+                return showToast(String(localized: "\(coreName) can't rewind this game."), kind: .warning)
+            }
+        }
+        guard enabled != isRewinding else { return }
+        isRewinding = enabled
+        runner.isRewinding = enabled
+    }
+
+    /// Turbo buttons of the controls fire repeatedly, or not.
+    func toggleTurbo() {
+        guard input.profile.turboMask != 0 else {
+            return showToast(String(localized: "No turbo buttons are set. Choose them in Settings › Controls."), duration: 4)
+        }
+        input.isTurboActive.toggle()
+        showToast(input.isTurboActive ? String(localized: "Turbo on") : String(localized: "Turbo off"))
+    }
+
+    /// Switches the Mac keyboard between typing on the emulated computer and
+    /// playing with the key bindings.
+    func toggleTyping() {
+        guard let core, hasComputerKeyboard || core.wantsKeyboard else { return }
+        isTyping.toggle()
+        input.reset()
+        core.releaseAllKeys()
+        let key = input.hotkeys.bindings[.typing]?.label
+        if isTyping {
+            showToast(key.map { String(localized: "The keyboard types on the computer. Press \($0) to play with keys again.") }
+                      ?? String(localized: "The keyboard types on the computer."), duration: 4)
+        } else {
+            showToast(String(localized: "Keys play the game again."))
+        }
+    }
+
+    /// A key of the emulated computer keyboard, while typing.
+    func typeKey(_ event: NSEvent, isDown: Bool) {
+        guard let core, isTyping, let key = EmulatedKeyboard.retroKey(forKeyCode: event.keyCode) else { return }
+        let character = isDown && event.type != .flagsChanged ? EmulatedKeyboard.character(of: event) : 0
+        core.setKey(key, pressed: isDown, character: character, modifiers: EmulatedKeyboard.modifiers(event.modifierFlags))
+    }
+
     func reset() {
-        runner?.performOnEmulationThread { core in core.reset() }
+        runner?.performOnEmulationThread { [achievements] core in
+            core.reset()
+            achievements.client.resetGame()
+        }
         isMenuVisible = false
         showToast(String(localized: "Reset"))
+    }
+
+    // MARK: - Playback settings
+
+    /// Fast forward speed, rewind and run-ahead from Settings, for the running
+    /// game too (Settings may change them while it plays).
+    func reloadPlaybackSettings() {
+        guard let runner else { return }
+        applyPlaybackSettings(to: runner, hardcore: isHardcore)
+        core?.turboPeriod = Preferences.turboRate
+        if !Preferences.rewindEnabled { setRewinding(false) }
+    }
+
+    private func applyPlaybackSettings(to runner: EmulationRunner, hardcore: Bool) {
+        runner.fastForwardSpeed = Preferences.fastForwardSpeed
+        runner.rewindEnabled = Preferences.rewindEnabled && !hardcore
+        runner.rewindBufferMegabytes = Preferences.rewindBufferSize
+        runner.runAheadFrames = Preferences.runAheadFrames
+    }
+
+    // MARK: - Screenshots
+
+    func takeScreenshot() {
+        guard let core, let gameUUID, let frame = core.copyFrameImage() else { return }
+        let aspect = Double(core.aspectRatio)
+        let rotation = core.rotation
+        let url = ScreenshotStore.newURL(in: AppPaths.extras, gameID: gameUUID)
+        Task {
+            do {
+                try await Self.saveScreenshot(frame, aspect: aspect, rotation: rotation, to: url)
+                screenshotRevision += 1
+                showToast(String(localized: "Screenshot saved"), kind: .screenshot)
+            } catch {
+                showToast(String(localized: "The screenshot couldn't be saved. \(error.localizedDescription)"), kind: .warning, duration: 5)
+            }
+        }
+    }
+
+    /// Screenshots were deleted or added outside the player.
+    func noteScreenshotsChanged() {
+        screenshotRevision += 1
+    }
+
+    @concurrent
+    private static func saveScreenshot(_ frame: CGImage, aspect: Double, rotation: Int, to url: URL) async throws {
+        guard let image = ScreenshotStore.render(frame, aspectRatio: aspect, rotation: rotation) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try ScreenshotStore.writePNG(image, to: url)
+    }
+
+    // MARK: - Cheats
+
+    /// Replaces the running game's cheats and applies them.
+    func setCheats(_ cheats: [Cheat]) {
+        guard let gameUUID else { return }
+        self.cheats = cheats
+        do {
+            try CheatStore.save(cheats, in: AppPaths.extras, gameID: gameUUID)
+        } catch {
+            showToast(String(localized: "The cheats couldn't be saved. \(error.localizedDescription)"), kind: .warning, duration: 5)
+        }
+        applyCheats()
+    }
+
+    /// Hands the cheats to the core: all of them in order, each enabled or not.
+    private func applyCheats() {
+        guard let runner, supportsCheats else { return }
+        let cheats = isHardcore ? [] : cheats
+        runner.performOnEmulationThread { core in
+            core.resetCheats()
+            for (index, cheat) in cheats.enumerated() {
+                core.setCheatAt(UInt(index), enabled: cheat.isEnabled, code: cheat.code)
+            }
+        }
     }
 
     func setVolume(_ volume: Double) {
@@ -411,7 +663,12 @@ final class EmulationSession {
         let paused = userPaused || isMenuVisible || (appInactive && Preferences.pauseInBackground)
         isPaused = paused
         runner?.isPaused = paused
-        if paused { input.reset() }
+        if paused {
+            input.reset()
+            input.stopRumble()
+            core?.releaseAllKeys()
+            setRewinding(false)
+        }
     }
 
     private func startFPSTimer() {
@@ -440,7 +697,9 @@ final class EmulationSession {
         let directory = URL(filePath: path, directoryHint: .isDirectory)
         if let image = core.copyFrameImage() { Self.writePNG(image, to: directory.appending(path: "frame.png")) }
         let state = "phase=\(phase) paused=\(isPaused) fps=\(measuredFPS) core=\(coreName) size=\(core.baseWidth)x\(core.baseHeight) aspect=\(core.aspectRatio) hw=\(core.usesHardwareRendering)"
-            + " controllers=\(input.controllerNames)\n"
+            + " controllers=\(input.controllerNames)"
+            + " rewind=\(runner.map { "\($0.rewindAvailability.rawValue)/\(String(format: "%.1f", $0.rewindSeconds))s" } ?? "-") rewinding=\(isRewinding)"
+            + " ff=\(isFastForwarding) runAhead=\(Preferences.runAheadFrames) cheats=\(supportsCheats) patch=\(patchName ?? "-")\n"
         try? state.write(to: directory.appending(path: "session.txt"), atomically: true, encoding: .utf8)
     }
     #endif
@@ -489,8 +748,9 @@ final class EmulationSession {
             return
         }
         guard let runner, let data = try? Data(contentsOf: state.stateURL) else { return armAutosave(writeAutosave) }
-        runner.performOnEmulationThread { [weak self] core in
+        runner.performOnEmulationThread { [weak self, achievements] core in
             let success = core.unserializeState(data)
+            if success { achievements.client.stateLoaded() }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, generation == self.generation, self.runner === runner else { return }
@@ -527,13 +787,13 @@ final class EmulationSession {
     // MARK: - Save states
 
     func reloadSlots() {
-        guard let gameUUID, let coreID else {
+        guard let gameUUID, let stateFolder else {
             slots = []
             history = []
             return
         }
-        slots = SaveStateStore.slots(in: AppPaths.states, gameID: gameUUID, coreID: coreID)
-        history = SaveStateStore.history(in: AppPaths.states, gameID: gameUUID, coreID: coreID)
+        slots = SaveStateStore.slots(in: AppPaths.states, gameID: gameUUID, coreID: stateFolder)
+        history = SaveStateStore.history(in: AppPaths.states, gameID: gameUUID, coreID: stateFolder)
     }
 
     /// Why the state in `slot` may not load or may belong to another file.
@@ -542,8 +802,8 @@ final class EmulationSession {
     }
 
     func saveState(slot: Int) {
-        guard let runner, let gameUUID, let context = stateContext else { return }
-        let directory = SaveStateStore.directory(in: AppPaths.states, gameID: gameUUID, coreID: context.coreID)
+        guard let runner, let gameUUID, let context = stateContext, let stateFolder else { return }
+        let directory = SaveStateStore.directory(in: AppPaths.states, gameID: gameUUID, coreID: stateFolder)
         runner.performOnEmulationThread { [weak self] core in
             let message: String
             var kind = Toast.Kind.warning
@@ -583,13 +843,17 @@ final class EmulationSession {
     /// Loads any state of the running game and core, e.g. one from the history.
     func loadState(_ state: SaveStateSlot) {
         guard let runner else { return }
+        if isHardcore {
+            return showToast(String(localized: "Loading states is off in hardcore mode."), kind: .warning)
+        }
         guard let data = try? Data(contentsOf: state.stateURL) else {
             showToast(String(localized: "No saved state in this slot"))
             return
         }
         let issues = issues(for: state)
-        runner.performOnEmulationThread { [weak self] core in
+        runner.performOnEmulationThread { [weak self, achievements] core in
             let success = core.unserializeState(data)
+            if success { achievements.client.stateLoaded() }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self else { return }
@@ -627,11 +891,11 @@ final class EmulationSession {
 
     /// Puts a state from the history back into its slot (or `slot`).
     func restoreState(_ entry: SaveStateSlot, toSlot slot: Int? = nil) {
-        guard let gameUUID, let coreID else { return }
+        guard let gameUUID, let stateFolder else { return }
         let target = slot ?? entry.slot
         do {
             try SaveStateStore.restore(entry, toSlot: target,
-                                       in: SaveStateStore.directory(in: AppPaths.states, gameID: gameUUID, coreID: coreID))
+                                       in: SaveStateStore.directory(in: AppPaths.states, gameID: gameUUID, coreID: stateFolder))
             showToast(target == 0 ? String(localized: "Restored as Quick Save") : String(localized: "Restored to slot \(target)"),
                       kind: .saved)
         } catch {
@@ -754,11 +1018,135 @@ final class EmulationSession {
         }
     }
 
+    // MARK: - Achievements
+
+    /// Identifies the running game for RetroAchievements and starts
+    /// evaluating its achievements every frame.
+    private func loadAchievements(path: String, consoleID: Int, core: LibretroCore, runner: EmulationRunner, hardcore: Bool) {
+        let client = achievements.client
+        guard AchievementClient.isCore(core.libraryName, allowedForConsole: consoleID) else {
+            isHardcore = false
+            applyPlaybackSettings(to: runner, hardcore: false)
+            return showToast(String(localized: "RetroAchievements doesn't support \(coreName) for this system. Choose another core to earn achievements."),
+                             kind: .warning, duration: 6)
+        }
+        var hardcore = hardcore
+        if hardcore {
+            let options = Dictionary(core.options.map { ($0.key, core.value(forOption: $0.key) ?? $0.defaultValue) },
+                                     uniquingKeysWith: { first, _ in first })
+            if let option = AchievementClient.disallowedOption(forCore: core.libraryName, console: consoleID, options: options) {
+                hardcore = false
+                let title = core.options.first { $0.key == option }?.title ?? option
+                showToast(String(localized: "Hardcore mode is off for this game: the core option “\(title)” isn't allowed."),
+                          kind: .warning, duration: 6)
+            }
+        }
+        setHardcore(hardcore, runner: runner)
+        client.hardcoreEnabled = hardcore
+        runner.frameHandler = { [client] core, ranFrame in
+            if ranFrame { client.doFrame(with: core) } else { client.idle(with: core) }
+        }
+        let generation = generation
+        client.loadGame(atPath: path, consoleID: consoleID) { [weak self] game, error in
+            MainActor.assumeIsolated {
+                guard let self, generation == self.generation, self.runner === runner else { return }
+                if let error {
+                    self.setHardcore(false, runner: runner)
+                    self.showToast(String(localized: "Achievements couldn't be loaded. \(error.localizedDescription)"),
+                                   kind: .warning, duration: 5)
+                } else if let game, game.achievementCount > 0 {
+                    self.achievementGame = game
+                    self.showToast(String(localized: "Achievements: \(game.unlockedCount) of \(game.achievementCount) unlocked"),
+                                   kind: .achievement, duration: 4, imageURL: game.imageURL.flatMap(URL.init(string:)),
+                                   detail: hardcore ? String(localized: "Hardcore") : nil)
+                } else {
+                    // No achievements: no reason for hardcore restrictions.
+                    self.setHardcore(false, runner: runner)
+                }
+            }
+        }
+    }
+
+    private func setHardcore(_ hardcore: Bool, runner: EmulationRunner) {
+        guard hardcore != isHardcore else { return }
+        isHardcore = hardcore
+        applyPlaybackSettings(to: runner, hardcore: hardcore)
+        if hardcore { setRewinding(false) }
+        applyCheats()
+    }
+
+    /// The achievements of the running game, freshly read.
+    func achievementList() -> [AchievementInfo] {
+        achievementGame == nil ? [] : achievements.client.achievements
+    }
+
+    private func handleAchievementEvent(_ event: AchievementEvent) {
+        guard phase == .running else { return }
+        let image = event.imageURL.flatMap(URL.init(string:))
+        let itemID = Int(event.itemID)
+        switch event.kind {
+        case .unlocked:
+            showToast(event.title, kind: .achievement, duration: 5, imageURL: image,
+                      detail: String(localized: "Achievement unlocked · \(event.points) points"))
+            refreshAchievementGame()
+        case .gameCompleted:
+            showToast(isHardcore ? String(localized: "Mastered \(event.title)") : String(localized: "Completed \(event.title)"),
+                      kind: .achievement, duration: 6, imageURL: image)
+        case .subsetCompleted:
+            showToast(String(localized: "Completed \(event.title)"), kind: .achievement, duration: 5, imageURL: image)
+        case .leaderboardStarted:
+            showToast(event.title, duration: 3, detail: String(localized: "Leaderboard attempt started"))
+        case .leaderboardFailed:
+            showToast(event.title, duration: 3, detail: String(localized: "Leaderboard attempt failed"))
+        case .leaderboardSubmitted:
+            showToast(event.title, duration: 4, detail: event.value.map { String(localized: "Submitted \($0)") })
+        case .challengeShown:
+            setIndicator(AchievementIndicator(kind: .challenge, itemID: itemID, imageURL: image))
+        case .challengeHidden:
+            achievementIndicators.removeAll { $0.kind == .challenge && $0.itemID == itemID }
+        case .progressShown:
+            if Preferences.achievementsShowsProgress {
+                achievementIndicators.removeAll { $0.kind == .progress }
+                setIndicator(AchievementIndicator(kind: .progress, itemID: itemID, value: event.value, imageURL: image))
+            }
+        case .progressHidden:
+            achievementIndicators.removeAll { $0.kind == .progress }
+        case .trackerShown, .trackerUpdated:
+            setIndicator(AchievementIndicator(kind: .tracker, itemID: itemID, value: event.value))
+        case .trackerHidden:
+            achievementIndicators.removeAll { $0.kind == .tracker && $0.itemID == itemID }
+        case .serverError:
+            showToast(String(localized: "RetroAchievements reported a problem. \(event.detail ?? "")"), kind: .warning, duration: 5)
+        case .disconnected:
+            showToast(String(localized: "RetroAchievements can't be reached. Unlocks are sent when the connection is back."),
+                      kind: .warning, duration: 5)
+        case .reconnected:
+            showToast(String(localized: "RetroAchievements is reachable again."))
+        case .resetRequired:
+            reset()
+        @unknown default:
+            break
+        }
+    }
+
+    private func setIndicator(_ indicator: AchievementIndicator) {
+        if let index = achievementIndicators.firstIndex(where: { $0.id == indicator.id }) {
+            achievementIndicators[index] = indicator
+        } else {
+            achievementIndicators.append(indicator)
+        }
+    }
+
+    private func refreshAchievementGame() {
+        if achievementGame != nil { achievementGame = achievements.client.gameInfo }
+    }
+
     // MARK: - Toasts
 
-    func showToast(_ text: String, kind: Toast.Kind = .info, duration: TimeInterval = 2.5) {
-        let toast = Toast(text: text, kind: kind)
-        AccessibilityNotification.Announcement(text).post()
+    func showToast(_ text: String, kind: Toast.Kind = .info, duration: TimeInterval = 2.5, imageURL: URL? = nil,
+                   detail: String? = nil) {
+        let toast = Toast(text: text, kind: kind, imageURL: imageURL, detail: detail)
+        AccessibilityNotification.Announcement([text, detail].compactMap { $0 }.joined(separator: ", ")).post()
         toasts.append(toast)
         if toasts.count > 3 { toasts.removeFirst() }
         Task { [weak self] in

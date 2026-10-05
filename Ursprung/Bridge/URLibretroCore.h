@@ -89,6 +89,12 @@ NS_SWIFT_SENDABLE
 @property (nonatomic, readonly) BOOL supportsSaveStates;
 - (nullable NSData *)serializeState;
 - (BOOL)unserializeState:(NSData *)state;
+/// Bytes a state of the loaded game takes; 0 without state support.
+@property (nonatomic, readonly) size_t stateSize;
+/// Serializes into `buffer`, resizing it to the state size. For states taken
+/// every frame (rewind, run-ahead), without allocating each time.
+- (BOOL)serializeStateIntoBuffer:(NSMutableData *)buffer;
+- (BOOL)unserializeStateFromBytes:(const void *)bytes length:(size_t)length;
 /// Writes battery-backed save RAM and RTC data if they changed since the last
 /// write. A failure is reported once through `saveErrorHandler` until a
 /// write succeeds again.
@@ -114,6 +120,10 @@ NS_SWIFT_SENDABLE
 - (BOOL)consumeAVInfoChange;
 
 @property (atomic) BOOL fastForwarding;
+/// While NO, frames and sound the core produces are dropped (run-ahead,
+/// rewinding); the core is told so through GET_AUDIO_VIDEO_ENABLE.
+@property (atomic) BOOL videoEnabled;
+@property (atomic) BOOL audioEnabled;
 
 // Video — thread-safe.
 @property (nonatomic, readonly) uint64_t frameSerial;
@@ -128,16 +138,49 @@ NS_SWIFT_SENDABLE
 - (void)setAnalogStick:(URAnalogStick)stick x:(int16_t)x y:(int16_t)y forPort:(NSInteger)port;
 /// Pointer/touch position in libretro coordinates (-0x7FFF…0x7FFF).
 - (void)setPointerX:(int16_t)x y:(int16_t)y pressed:(BOOL)pressed;
+/// Buttons of `port` that fire repeatedly while held (RetroPad bit mask).
+- (void)setTurboMask:(uint32_t)mask forPort:(NSInteger)port;
+/// Frames a turbo button stays pressed, and then released (default 3).
+@property (atomic) NSInteger turboPeriod;
+/// Advances the turbo rhythm by one emulated frame; the runner calls it once
+/// per frame that counts (not for run-ahead frames).
+- (void)advanceTurboClock;
+
+/// Whether the core reads a keyboard (it registered a keyboard callback).
+@property (nonatomic, readonly) BOOL wantsKeyboard;
+/// A key of the emulated keyboard (`retroKey` is a RETROK_* value).
+/// `character` is the UTF-32 text the key produces, 0 for none;
+/// `modifiers` are RETROKMOD_* flags. Thread-safe; the core sees the key
+/// before its next frame.
+- (void)setKey:(unsigned)retroKey pressed:(BOOL)pressed character:(uint32_t)character modifiers:(uint16_t)modifiers;
+/// Releases every key of the emulated keyboard.
+- (void)releaseAllKeys;
 
 // Options — thread-safe.
 @property (nonatomic, readonly, copy) NSArray<URCoreOption *> *options;
 - (nullable NSString *)valueForOption:(NSString *)key;
 - (void)setValue:(NSString *)value forOption:(NSString *)key;
 
+// Cheats — emulation thread.
+/// Whether the core exports the cheat functions; many still ignore them.
+@property (nonatomic, readonly) BOOL supportsCheats;
+- (void)resetCheats;
+- (void)setCheatAtIndex:(NSUInteger)index enabled:(BOOL)enabled code:(NSString *)code;
+
+// Memory — emulation thread.
+/// A memory region of the loaded game (RETRO_MEMORY_*), or NULL.
+- (nullable void *)memoryDataOfType:(unsigned)type size:(size_t *)size NS_RETURNS_INNER_POINTER;
+/// Bumped whenever the core declares a new memory map (SET_MEMORY_MAPS).
+@property (nonatomic, readonly) NSUInteger memoryMapRevision;
+
 // Events — delivered on the main queue.
 @property (nonatomic, copy, nullable) void (^NS_SWIFT_SENDABLE messageHandler)(NSString *message, NSTimeInterval duration);
 /// A battery save or clock file could not be written; the reason is the system's description.
 @property (nonatomic, copy, nullable) void (^NS_SWIFT_SENDABLE saveErrorHandler)(NSString *reason);
+/// The core changed a rumble motor of `port`: `strong` is the large motor,
+/// otherwise the small one; `strength` 0…0xFFFF. Called on the emulation
+/// thread, only when the value changed.
+@property (atomic, copy, nullable) void (^NS_SWIFT_SENDABLE rumbleHandler)(NSInteger port, BOOL strong, uint16_t strength);
 
 @end
 

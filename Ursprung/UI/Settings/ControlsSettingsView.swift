@@ -7,6 +7,8 @@ import SwiftUI
 struct ControlsSettingsView: View {
     @Environment(EmulationSession.self) private var session
     @AppStorage(PrefKey.stickDeadZone) private var deadZone = 0.15
+    @AppStorage(PrefKey.rumble) private var rumble = true
+    @AppStorage(PrefKey.turboRate) private var turboRate = 3
     @State private var configuring: HIDGamepad?
     @State private var windowHeight: CGFloat = 560
     @State private var hotkeys = HotkeyMapping.current
@@ -38,6 +40,20 @@ struct ControlsSettingsView: View {
             } footer: {
                 Text("Press buttons or keys to see what the game receives. Raise the dead zone if a stick moves on its own.")
                     .settingsFootnote()
+            }
+            Section("Playing") {
+                Toggle(isOn: $rumble) {
+                    Text("Rumble")
+                    Text("Controllers vibrate when the game uses rumble. Works with controllers macOS supports and Xbox 360 type pads.")
+                }
+                .onChange(of: rumble) { if !rumble { session.input.stopRumble() } }
+                Picker("Turbo Speed", selection: $turboRate) {
+                    Text("Slow (5 presses per second)").tag(6)
+                    Text("Medium (7.5 presses per second)").tag(4)
+                    Text("Fast (10 presses per second)").tag(3)
+                    Text("Very Fast (15 presses per second)").tag(2)
+                }
+                .onChange(of: turboRate) { session.reloadPlaybackSettings() }
             }
             hotkeysSection
             profileSection

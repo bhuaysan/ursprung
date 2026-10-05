@@ -20,6 +20,10 @@ nonisolated enum AppPaths {
     static var states: URL { directory("States") }
     /// Artwork downloaded from ScreenScraper.
     static var media: URL { directory("Media") }
+    /// Screenshots, manuals, ROM patches and cheats, one folder per game (`GameExtras`).
+    static var extras: URL { directory("Extras") }
+    /// Images framing the game picture, one per system (`<system id>.png`).
+    static var bezels: URL { directory("Bezels") }
     /// System logos and console photos downloaded from ScreenScraper.
     static var systemMedia: URL {
         let url = media.appending(path: "Systems", directoryHint: .isDirectory)

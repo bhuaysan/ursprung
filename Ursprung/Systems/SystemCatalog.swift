@@ -322,6 +322,12 @@ nonisolated enum SystemCatalog {
     /// Systems whose games are commonly stored as disc images.
     static let discSystems: Set<String> = ["psx", "psp", "segacd", "saturn", "dreamcast", "pcecd", "3do", "gamecube", "wii"]
 
+    /// Cartridge systems whose ROMs Ursprung can patch (IPS, UPS, BPS):
+    /// not disc images, and not arcade sets, which cores read as archives.
+    static func supportsPatches(_ system: GameSystem) -> Bool {
+        !discSystems.contains(system.id) && !system.archivesAreNative
+    }
+
     private static let extensionIndex: [String: [GameSystem]] = {
         var index: [String: [GameSystem]] = [:]
         for system in all {

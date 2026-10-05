@@ -12,6 +12,19 @@ struct InputProfileEditor: View {
     @State private var listening: Listening?
     @State private var monitor: Any?
 
+    /// Buttons that can fire repeatedly; the D-pad, Start and Select can't.
+    private static let turboCandidates: [RetroInput] = [.b, .a, .y, .x, .l, .r, .l2, .r2]
+
+    private func turboBinding(_ input: RetroInput) -> Binding<Bool> {
+        Binding(
+            get: { profile.turboButtons?.contains(input) ?? false },
+            set: { isOn in
+                var buttons = profile.turboButtons ?? []
+                if isOn { buttons.insert(input) } else { buttons.remove(input) }
+                profile.turboButtons = buttons.isEmpty ? nil : buttons
+            })
+    }
+
     private enum Listening: Equatable {
         case key(RetroInput)
         case button(RetroInput)
@@ -45,6 +58,22 @@ struct InputProfileEditor: View {
                 Text("Controller Buttons")
             } footer: {
                 Text("Applies to every controller. Buttons are named by position, like on a Super Nintendo pad: the bottom face button is B.")
+                    .settingsFootnote()
+            }
+
+            Section {
+                LabeledContent("Turbo Buttons") {
+                    HStack(spacing: AppSpacing.m) {
+                        ForEach(Self.turboCandidates) { input in
+                            Toggle(input.title, isOn: turboBinding(input))
+                                .toggleStyle(.checkbox)
+                        }
+                    }
+                }
+            } header: {
+                Text("Turbo")
+            } footer: {
+                Text("A held turbo button presses itself repeatedly, on the keyboard and on every controller. The Turbo hotkey switches turbo off and on while playing.")
                     .settingsFootnote()
             }
 

@@ -45,9 +45,25 @@
 - **libretro cores on demand.** The right core is downloaded automatically from
   the libretro buildbot the first time you start a game — nothing to configure.
 - **Save states with thumbnails and names**, quick save/load, battery saves,
-  fast forward, core options per core or per game. Overwritten and deleted
-  states can be brought back, and every state can start its game from the
-  library. Quitting a game keeps where you are, and Play resumes there.
+  core options per core or per game. Overwritten and deleted states can be
+  brought back, and every state can start its game from the library. Quitting
+  a game keeps where you are, and Play resumes there.
+- **Rewind, fast forward and run-ahead.** Hold a key to run the game
+  backwards, fast forward at 2× to 8× (held or switched on), and hide a game's
+  built-in input lag with run-ahead. Turbo buttons fire repeatedly while held.
+- **Looks like the real thing.** CRT (flat or curved), handheld LCD,
+  scanlines and sharp-pixel filters, per system if you like, with ambient
+  light or your own bezel image around the picture.
+- **Screenshots, manuals, patches and cheats.** Take screenshots while playing
+  and browse them with the game's artwork; keep a manual (PDF or picture)
+  that opens next to the game; play translations and hacks from IPS, UPS and
+  BPS patches without touching the original ROM, each with its own saves;
+  switch cheat codes on and off from the pause menu, or import RetroArch
+  `.cht` files.
+- **RetroAchievements.** Sign in with your
+  [RetroAchievements](https://retroachievements.org) account to unlock
+  achievements while you play, with badges, progress and leaderboards in the
+  player and an optional hardcore mode.
 - **Multi-disc games** with disc playlists Ursprung creates from loose discs,
   disc labels, reordering and a check for missing discs.
 - **Your progress stays put.** Renamed or moved ROMs keep their favourites,
@@ -61,7 +77,11 @@
   for all systems, per system or per game; live input test; mouse as touch
   screen / pointer (Nintendo DS). Browse the library with a controller: the
   D-pad moves, the right face button plays, the top one toggles a favourite
-  and the shoulder buttons switch lists.
+  and the shoulder buttons switch lists. Rumble on controllers that have it;
+  computers such as the MSX get the Mac keyboard as their keyboard.
+- **Cores you can trust.** Check the buildbot for newer core builds; after an
+  update the previous version stays installed, so you can go back if a game
+  breaks.
 - **BIOS management.** Drop BIOS files in and Ursprung recognises them by
   checksum and names them the way each core expects.
 - **English and German** user interface.
@@ -139,10 +159,13 @@ Players can optionally enter their personal ScreenScraper account in
 | L3 / R3 | 1 / 2 | Left stick | I J K L |
 | Right stick | T F G H | | |
 
-**Esc** opens the game menu, hold **Space** to fast forward, **F2 / F4** quick
-save / load, **⌘S / ⌘L** likewise from the menu bar, **⌃⌘F** full screen. All
-keys, including these hotkeys (esc always opens the menu as well), can be
-changed in **Settings → Controls**.
+**Esc** opens the game menu, hold **Space** to fast forward, hold **⌫** to
+rewind (turn rewinding on in **Settings → Emulation** first), **F2 / F4** quick
+save / load, **⌘S / ⌘L** likewise from the menu bar, **F8** takes a
+screenshot, **F12** switches the keyboard to typing on an emulated computer
+(MSX) and back, **⌃⌘F** full screen. Fast forward on/off and turbo on/off have
+no key until you give them one. All keys, including these hotkeys (esc always
+opens the menu as well), can be changed in **Settings → Controls**.
 
 ## Your data
 
@@ -156,9 +179,12 @@ Everything lives in `~/Library/Application Support/Ursprung/`:
 | `Saves/<system>/<game-id>/` | Battery saves (`.srm`), one folder per game. Memory cards and other core saves live in `Saves/<system>/` |
 | `States/<game-id>/<core>/` | Save states with thumbnails and manifests, one folder per core; `History/` keeps recently replaced ones |
 | `Media/<game>/` | Artwork from ScreenScraper |
+| `Extras/<game-id>/` | Your screenshots, the game's manual, ROM patches and cheats |
+| `Bezels/` | Bezel images, one per system |
 
-Your game files are only ever read, never modified. File › Back Up Library…
-writes all of this except cores and BIOS files into one zip file. See
+Your game files are only ever read, never modified; a patched game is written
+to the cache. File › Back Up Library… writes all of this except cores and BIOS
+files into one zip file. See
 [docs/SAVES.md](docs/SAVES.md) for game identity, save state compatibility and
 the backup format.
 
@@ -190,9 +216,12 @@ Software Foundation, either version 3 of the License, or (at your option) any
 later version.
 
 `Ursprung/Bridge/libretro.h` is © The RetroArch team, MIT licensed.
+`ThirdParty/rcheevos` is [rcheevos](https://github.com/RetroAchievements/rcheevos)
+© RetroAchievements.org, MIT licensed.
 
 ## Acknowledgements
 
 - [libretro](https://www.libretro.com) and all core authors
 - [ScreenScraper](https://www.screenscraper.fr) and its community of contributors
+- [RetroAchievements](https://retroachievements.org) and the rcheevos authors
 - [OpenEmu](https://openemu.org), for showing how good an emulator frontend on the Mac can be

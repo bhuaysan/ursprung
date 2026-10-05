@@ -13,6 +13,7 @@ struct PauseMenuView: View {
     @Environment(EmulationSession.self) private var session
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.appearsActive) private var appearsActive
+    @Environment(\.openWindow) private var openWindow
     @FocusState private var isFocused: Bool
     // Reset every time the menu opens: focus starts on Resume.
     @State private var page = Page.main
@@ -23,10 +24,14 @@ struct PauseMenuView: View {
     @State private var slotToDelete: SaveStateSlot?
     @State private var stateToRename: SaveStateSlot?
     @State private var newStateName = ""
+    @State private var isAddingCheat = false
+    @State private var newCheatName = ""
+    @State private var newCheatCode = ""
+    @State private var achievementList: [AchievementInfo] = []
     @State private var pointer = PointerAnchor()
 
     enum Page {
-        case main, states, history, discs, options
+        case main, states, history, discs, options, cheats, achievements
 
         var width: CGFloat { self == .main || self == .discs ? 340 : 560 }
 
@@ -37,6 +42,8 @@ struct PauseMenuView: View {
             case .states, .history: .saveStates
             case .discs: .changeDisc
             case .options: .coreOptions
+            case .cheats: .cheats
+            case .achievements: .achievements
             }
         }
 
@@ -45,9 +52,13 @@ struct PauseMenuView: View {
     }
 
     enum Row: Hashable {
-        case resume, quickSave, quickLoad, saveStates, changeDisc, coreOptions, reset, quit
+        case resume, quickSave, quickLoad, saveStates, screenshot, changeDisc, cheats, achievements, manual, typing
+        case coreOptions, reset, quit
         case disc(Int)
         case history(Int)
+        case cheat(Int)
+        case addCheat
+        case achievement(Int)
     }
 
     /// The Recently Replaced row below the 3 × 3 slot grid, as a focus position.
@@ -70,6 +81,8 @@ struct PauseMenuView: View {
                         case .history: FittingScrollView { historyPage }
                         case .discs: FittingScrollView { discsPage }
                         case .options: CoreOptionsPage()
+                        case .cheats: FittingScrollView { cheatsPage }
+                        case .achievements: FittingScrollView { achievementsPage }
                         }
                     }
                     .id(page)
@@ -133,6 +146,15 @@ struct PauseMenuView: View {
         } message: { state in
             Text("A name for the state in \(state.slotTitle).")
         }
+        .alert("Add Cheat", isPresented: $isAddingCheat) {
+            TextField("Name", text: $newCheatName)
+            TextField("Code", text: $newCheatCode)
+            Button("Add") { addCheat() }
+                .disabled(newCheatCode.trimmingCharacters(in: .whitespaces).isEmpty)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Game Genie, Action Replay or GameShark codes, as the core understands them. Join several codes with “+”.")
+        }
     }
 
     /// Focus highlights disappear when the panel is not where keys go.
@@ -176,8 +198,19 @@ struct PauseMenuView: View {
             row(.quickLoad, "Quick Load", symbol: "square.and.arrow.up", hint: .keys(session.input.hotkeys.bindings[.quickLoad]?.label ?? ""))
             row(.saveStates, "Save States…", symbol: "square.stack.3d.up", hint: .chevron)
             GroupDivider()
+            row(.screenshot, "Take Screenshot", symbol: "camera", hint: .keys(session.input.hotkeys.bindings[.screenshot]?.label ?? ""))
             if session.diskCount > 1 {
                 row(.changeDisc, "Change Disc (\(session.currentDisk + 1)/\(session.diskCount))", symbol: "opticaldisc", hint: .chevron)
+            }
+            if session.achievementGame != nil {
+                row(.achievements, "Achievements…", symbol: "trophy", hint: .chevron)
+            }
+            row(.cheats, "Cheats…", symbol: "wand.and.stars", hint: .chevron)
+            if hasManual {
+                row(.manual, "Manual", symbol: "book")
+            }
+            if session.hasComputerKeyboard {
+                row(.typing, "Type on Keyboard", symbol: "keyboard", hint: session.isTyping ? .checkmark : nil)
             }
             row(.coreOptions, "Core Options…", symbol: "slider.horizontal.3", hint: .chevron)
             GroupDivider()
@@ -211,6 +244,11 @@ struct PauseMenuView: View {
 
     private func row(_ row: Row, _ title: LocalizedStringKey, symbol: String, hint: MenuRow.Hint? = nil,
                      isDestructive: Bool = false) -> some View {
+        self.row(row, Text(title), symbol: symbol, hint: hint, isDestructive: isDestructive)
+    }
+
+    private func row(_ row: Row, _ title: Text, symbol: String, hint: MenuRow.Hint? = nil,
+                     isDestructive: Bool = false) -> some View {
         MenuRow(title: title, symbol: symbol, hint: hint, isDestructive: isDestructive,
                 isFocused: showsFocus && focusedRow == row) { activate(row) }
             .disabled(!isEnabled(row))
@@ -225,20 +263,35 @@ struct PauseMenuView: View {
     private var rows: [Row] {
         switch page {
         case .main:
-            [.resume, .quickSave, .quickLoad, .saveStates] + (session.diskCount > 1 ? [.changeDisc] : [])
+            [.resume, .quickSave, .quickLoad, .saveStates, .screenshot] + (session.diskCount > 1 ? [.changeDisc] : [])
+                + (session.achievementGame != nil ? [.achievements] : []) + [.cheats]
+                + (hasManual ? [.manual] : []) + (session.hasComputerKeyboard ? [.typing] : [])
                 + [.coreOptions, .reset, .quit]
         case .discs:
             (0..<session.diskCount).map(Row.disc)
         case .history:
             session.history.indices.map(Row.history)
+        case .cheats:
+            canUseCheats ? session.cheats.indices.map(Row.cheat) + [.addCheat] : []
+        case .achievements:
+            achievementList.indices.map(Row.achievement)
         case .states, .options:
             []
         }
     }
 
     private func isEnabled(_ row: Row) -> Bool {
-        row != .quickLoad || session.slots.contains { $0.slot == 0 }
+        switch row {
+        case .quickLoad: session.slots.contains { $0.slot == 0 } && !session.isHardcore
+        default: true
+        }
     }
+
+    private var hasManual: Bool {
+        session.runningGameID.map { ManualStore.manual(in: AppPaths.extras, gameID: $0) != nil } ?? false
+    }
+
+    private var canUseCheats: Bool { session.supportsCheats && !session.isHardcore }
 
     private func activate(_ row: Row) {
         switch row {
@@ -250,6 +303,30 @@ struct PauseMenuView: View {
             focusedRow = .disc(session.currentDisk)
             show(.discs)
         case .coreOptions: show(.options)
+        case .screenshot: session.takeScreenshot()
+        case .cheats:
+            focusedRow = canUseCheats ? (session.cheats.isEmpty ? .addCheat : .cheat(0)) : .cheats
+            show(.cheats)
+        case .achievements:
+            achievementList = session.achievementList()
+            focusedRow = .achievement(0)
+            show(.achievements)
+        case .manual:
+            if let id = session.runningGameID { openWindow(id: WindowID.manual, value: id) }
+        case .typing:
+            session.toggleTyping()
+            if session.isTyping { resume() }
+        case .cheat(let index):
+            guard session.cheats.indices.contains(index) else { return }
+            var cheats = session.cheats
+            cheats[index].isEnabled.toggle()
+            session.setCheats(cheats)
+        case .addCheat:
+            newCheatName = ""
+            newCheatCode = ""
+            isAddingCheat = true
+        case .achievement:
+            break
         case .reset: session.reset()
         case .quit: close()
         case .disc(let index):
@@ -279,7 +356,7 @@ struct PauseMenuView: View {
                 }
             }
             if !session.history.isEmpty {
-                MenuRow(title: "Recently Replaced (\(session.history.count))", symbol: "clock.arrow.circlepath",
+                MenuRow(title: Text("Recently Replaced (\(session.history.count))"), symbol: "clock.arrow.circlepath",
                         hint: .chevron, isDestructive: false,
                         isFocused: showsFocus && focusedSlot == Self.historySlot) { openHistory() }
                     .id(Self.historySlot)
@@ -310,6 +387,65 @@ struct PauseMenuView: View {
         }
     }
 
+    // MARK: Cheats page
+
+    @ViewBuilder
+    private var cheatsPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if session.isHardcore {
+                pageNote("Cheats are off in hardcore mode.")
+            } else if !session.supportsCheats {
+                pageNote("\(session.coreName) doesn't support cheats.")
+            } else {
+                if session.cheats.isEmpty {
+                    pageNote("Add a code, or import a cheat file (.cht) in the game's info panel.")
+                }
+                ForEach(Array(session.cheats.enumerated()), id: \.element.id) { index, cheat in
+                    row(.cheat(index), Text(verbatim: cheat.name),
+                        symbol: cheat.isEnabled ? "checkmark.circle.fill" : "circle")
+                        .help(cheat.code)
+                        .accessibilityValue(cheat.isEnabled ? Text("On") : Text("Off"))
+                }
+                row(.addCheat, "Add Cheat…", symbol: "plus")
+                pageNote("Cheats can make games misbehave; if one does, switch the cheat off and load a state.")
+                    .padding(.top, AppSpacing.s)
+            }
+        }
+    }
+
+    private func addCheat() {
+        let code = newCheatCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { return }
+        let name = newCheatName.trimmingCharacters(in: .whitespacesAndNewlines)
+        session.setCheats(session.cheats + [Cheat(name: name.isEmpty ? code : name, code: code, isEnabled: true)])
+        focusedRow = .cheat(session.cheats.count - 1)
+    }
+
+    // MARK: Achievements page
+
+    @ViewBuilder
+    private var achievementsPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let game = session.achievementGame {
+                pageNote("\(game.unlockedCount) of \(game.achievementCount) unlocked · \(game.unlockedPoints) of \(game.points) points")
+            }
+            ForEach(Array(achievementList.enumerated()), id: \.element.achievementID) { index, achievement in
+                AchievementRow(achievement: achievement, isFocused: showsFocus && focusedRow == .achievement(index))
+                    .id(Row.achievement(index))
+                    .onHover { if $0, pointer.hasMoved { focusedRow = .achievement(index) } }
+            }
+        }
+    }
+
+    private func pageNote(_ text: LocalizedStringKey) -> some View {
+        Text(text)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, AppSpacing.s)
+    }
+
     private func openHistory() {
         focusedRow = .history(0)
         show(.history)
@@ -335,7 +471,7 @@ struct PauseMenuView: View {
             return true
         }
         switch page {
-        case .main, .discs, .history:
+        case .main, .discs, .history, .cheats, .achievements:
             switch command {
             case .up, .down:
                 if let next = PauseMenuFocus.row(after: focusedRow, by: command == .up ? -1 : 1, in: rows.filter(isEnabled)) {
@@ -443,7 +579,7 @@ private struct MenuRow: View {
         case checkmark
     }
 
-    let title: LocalizedStringKey
+    let title: Text
     let symbol: String
     let hint: Hint?
     let isDestructive: Bool
@@ -457,7 +593,8 @@ private struct MenuRow: View {
             HStack(spacing: 0) {
                 Image(systemName: symbol)
                     .frame(width: 24, alignment: .leading)
-                Text(title)
+                title
+                    .lineLimit(1)
                 Spacer(minLength: AppSpacing.s)
                 hintView
                     .font(.subheadline)
@@ -714,6 +851,67 @@ private struct HistoryRow: View {
 
     private var restoreTitle: LocalizedStringKey {
         entry.slot == 0 ? "Restore as Quick Save" : "Restore to Slot \(entry.slot)"
+    }
+}
+
+// MARK: - Achievements
+
+/// One achievement: badge, title, description, progress and points.
+private struct AchievementRow: View {
+    let achievement: AchievementInfo
+    let isFocused: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppSpacing.m) {
+            Group {
+                if let url = achievement.imageURL.flatMap(URL.init(string:)) {
+                    RemoteBadge(url: url, size: 40)
+                } else {
+                    Image(systemName: "trophy").frame(width: 40, height: 40)
+                }
+            }
+            .opacity(achievement.isUnlocked ? 1 : 0.6)
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                Text(achievement.title)
+                    .font(.body.weight(.semibold))
+                Text(achievement.detail)
+                    .font(.subheadline)
+                    .foregroundStyle(isFocused ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+                if !achievement.isUnlocked, !achievement.progress.isEmpty {
+                    HStack(spacing: AppSpacing.s) {
+                        ProgressView(value: Double(achievement.progressFraction))
+                            .frame(maxWidth: 160)
+                        Text(achievement.progress)
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+                if let date = achievement.unlockDate {
+                    Text("Unlocked \(date.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.caption)
+                        .foregroundStyle(isFocused ? AnyShapeStyle(.white.opacity(0.8)) : AnyShapeStyle(.secondary))
+                } else if achievement.isUnsupported {
+                    Text("Not supported by this version of Ursprung")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+            Spacer(minLength: AppSpacing.s)
+            Text("\(achievement.points) pts")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(isFocused ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.secondary))
+        }
+        .foregroundStyle(isFocused ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background {
+            if isFocused {
+                RoundedRectangle(cornerRadius: AppMetrics.rowHighlightRadius, style: .continuous)
+                    .fill(Color.accentColor)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(achievement.isUnlocked ? Text("Unlocked") : Text("Locked"))
     }
 }
 

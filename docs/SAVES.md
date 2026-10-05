@@ -144,6 +144,62 @@ state and leaves the old one untouched for other cores.
 Battery saves are the portable form of progress: unlike states, they work
 across cores and core versions of the same system.
 
+Core updates keep the previous version of the core (`Cores/Previous/`,
+recorded with its version in `Cores/versions.json`). If an update can no
+longer load a state, Settings › Cores › Go Back to Version … puts the old core
+back; the newer one becomes the previous version, so this can be undone.
+
+### Rewind and run-ahead
+
+Rewinding and run-ahead use save states in memory only; nothing is written to
+disk. Rewind records a state every frame (every second or fourth frame for
+larger states) and keeps the differences between them, compressed, in a
+buffer of the size chosen in Settings › Emulation; when it is full, the
+oldest seconds go. Cores without save states, and states over 24 MB, can't
+rewind. Run-ahead saves and loads a state every frame and is skipped for
+hardware-rendered cores and while fast forwarding.
+
+## ROM patches
+
+A game's patches (`.ips`, `.ups`, `.bps`) are copied to
+`Extras/<game id>/Patches/`; `patches.json` names the one the game starts
+with. The ROM file is never changed: at launch the patched ROM is written to
+the cache (`~/Library/Caches/Ursprung/Extracted/<game id>-patched/`) and
+handed to the core. UPS and BPS patches carry the checksum of the ROM they
+expect, so a patch for another revision is refused with a message instead of
+producing a broken game. Disc images and arcade sets can't be patched.
+
+A patched game keeps its progress apart from the original, so a hack never
+overwrites the original's save:
+
+    Saves/<system>/<game id>/Patches/<patch name>/<ROM name>.srm
+    States/<game id>/<core id>/Patches/<patch name>/slotN.state
+
+The pause menu shows the patched game's own slots; the library's Save States
+window lists the original's.
+
+## Screenshots, manuals and cheats
+
+    Extras/<game id>/Screenshots/<date>.png   taken while playing
+    Extras/<game id>/Manual/<file>            the manual the user added
+    Extras/<game id>/cheats.json              cheat names, codes and on/off
+
+Screenshots are the picture as the player shows it (the core's aspect ratio,
+rotated upright, small frames doubled), without filters. Cheats are handed to
+the core in their order whenever they change; in RetroAchievements hardcore
+mode they are not applied.
+
+## RetroAchievements
+
+Signing in sends the password once; RetroAchievements returns a token that is
+kept in the keychain (`retroachievements:<username>`) and signs in at the next
+launch. The password is not stored. When a game starts, rcheevos computes the
+RetroAchievements checksum of the file the core receives (the patched ROM, if
+any) and loads its achievements; unlocks that can't be sent are retried until
+the connection is back. Hardcore mode starts games from the beginning and
+turns off loading states, rewind and cheats; core options RetroAchievements
+doesn't allow in hardcore mode turn it off for that game.
+
 ## Backups
 
 File › Back Up Library… (or Settings › General › Data) writes one zip file:
@@ -158,9 +214,11 @@ File › Back Up Library… (or Settings › General › Data) writes one zip fi
       Saves/           battery saves and core save folders
       States/          save states with thumbnails and manifests
       Media/           artwork
+      Extras/          screenshots, manuals, ROM patches and cheats
+      Bezels/          bezel images per system
 
 Not included: BIOS files, cores (downloaded again on demand), and the
-ScreenScraper password, which stays in the keychain.
+ScreenScraper password and RetroAchievements token, which stay in the keychain.
 
 File › Restore from Backup… first extracts and checks the backup. If it is not
 an Ursprung backup, comes from a newer version, or misses or garbles any file
@@ -179,8 +237,9 @@ confirmation (optionally including settings), and then
 - entries without a match are added. If their file is elsewhere on this Mac,
   they are missing until the next scan recognises the file or the user
   locates it;
-- saves and states are placed under the matching entry's ID, renamed to its
-  file name where needed;
+- saves, states and extras are placed under the matching entry's ID, renamed
+  to its file name where needed; artwork and bezel images only fill in what
+  is missing;
 - library folders from the backup are added to the current ones.
 
 A game must not be running during a backup or restore.

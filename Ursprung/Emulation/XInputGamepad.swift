@@ -100,6 +100,7 @@ nonisolated final class XInputConnection: @unchecked Sendable {
     private let buffer: NSMutableData
     private var lastReport: XInputReport?
     private var ledData: NSMutableData?
+    private var rumbleData: NSMutableData?
     private var isClosed = false
 
     init(service: io_service_t) throws {
@@ -139,6 +140,16 @@ nonisolated final class XInputConnection: @unchecked Sendable {
             let pattern: UInt8 = index.map { 0x06 + UInt8(min($0, 3)) } ?? 0x00
             data.mutableBytes.copyMemory(from: [0x01, 0x03, pattern] as [UInt8], byteCount: 3)
             ledData = data // keeps the buffer alive while the request is pending
+            try? outPipe.enqueueIORequest(with: data, completionTimeout: 0) { _, _ in }
+        }
+    }
+
+    /// Runs the large (`strong`) and small (`weak`) motor, 0…255 each.
+    func setRumble(strong: UInt8, weak: UInt8) {
+        queue.async { [self] in
+            guard !isClosed, let outPipe, let data = try? interface.ioData(withCapacity: 8) else { return }
+            data.mutableBytes.copyMemory(from: [0x00, 0x08, 0x00, strong, weak, 0x00, 0x00, 0x00] as [UInt8], byteCount: 8)
+            rumbleData = data // keeps the buffer alive while the request is pending
             try? outPipe.enqueueIORequest(with: data, completionTimeout: 0) { _, _ in }
         }
     }
@@ -185,6 +196,7 @@ final class XInputGamepad: Identifiable {
     @ObservationIgnored fileprivate var report = XInputReport()
     @ObservationIgnored fileprivate let connection: XInputConnection
     @ObservationIgnored fileprivate var playerIndex: Int?
+    @ObservationIgnored fileprivate var rumble = RumbleState()
 
     fileprivate init(id: UInt64, name: String, connection: XInputConnection) {
         self.id = id
@@ -262,6 +274,13 @@ final class XInputGamepadManager {
     private func remove(_ id: UInt64) {
         gamepads.removeAll { $0.id == id }
         onInput?()
+    }
+
+    /// Runs the motors of `gamepad`.
+    func setRumble(_ state: RumbleState, for gamepad: XInputGamepad) {
+        guard gamepad.rumble != state else { return }
+        gamepad.rumble = state
+        gamepad.connection.setRumble(strong: UInt8(min(state.strong, 1) * 255), weak: UInt8(min(state.weak, 1) * 255))
     }
 
     /// Lights the player indicator of `gamepad` for `port` (nil: none).

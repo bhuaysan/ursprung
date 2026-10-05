@@ -30,6 +30,7 @@ final class LibraryStore {
     @ObservationIgnored private let matcher: Matcher
     @ObservationIgnored private let saves: URL
     @ObservationIgnored private let states: URL
+    @ObservationIgnored private let extras: URL
     @ObservationIgnored private let persistFolders: ([URL]) -> Void
     @ObservationIgnored private let scrapesAutomatically: () -> Bool
     /// Bumped whenever the folder list changes, so a scan that started with an
@@ -46,13 +47,15 @@ final class LibraryStore {
          persistFolders: @escaping ([URL]) -> Void = { Preferences.libraryFolders = $0 },
          scrapesAutomatically: @escaping () -> Bool = { Preferences.autoScrape },
          saves: URL = AppPaths.saves,
-         states: URL = AppPaths.states) {
+         states: URL = AppPaths.states,
+         extras: URL = AppPaths.extras) {
         self.metadata = metadata
         self.folders = folders
         self.scanner = scanner
         self.matcher = matcher
         self.saves = saves
         self.states = states
+        self.extras = extras
         self.persistFolders = persistFolders
         self.scrapesAutomatically = scrapesAutomatically
     }
@@ -601,6 +604,13 @@ final class LibraryStore {
                                             labels: labels)
         _ = try? GameSaveFiles.merge(from: duplicate.id, into: game.id, systemID: game.systemID, baseName: baseName,
                                      saves: saves, states: states, labels: labels)
+        // Screenshots, manual, patches and cheats come along too.
+        let duplicateExtras = GameExtras.directory(in: extras, gameID: duplicate.id)
+        if FileManager.default.fileExists(atPath: duplicateExtras.path(percentEncoded: false)),
+           (try? FileMerge.mergeDirectory(duplicateExtras, into: GameExtras.directory(in: extras, gameID: game.id),
+                                          moving: true, labels: labels)) != nil {
+            try? FileManager.default.removeItem(at: duplicateExtras)
+        }
         removeMedia(for: duplicate)
     }
 }

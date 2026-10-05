@@ -7,9 +7,14 @@ nonisolated struct DataLocations: Sendable {
     var saves: URL
     var states: URL
     var media: URL
+    /// Screenshots, manuals, patches and cheats (`GameExtras`).
+    var extras: URL
+    /// Bezel images, one per system.
+    var bezels: URL
 
     static var standard: DataLocations {
-        DataLocations(saves: AppPaths.saves, states: AppPaths.states, media: AppPaths.media)
+        DataLocations(saves: AppPaths.saves, states: AppPaths.states, media: AppPaths.media, extras: AppPaths.extras,
+                      bezels: AppPaths.bezels)
     }
 }
 
@@ -86,6 +91,8 @@ nonisolated struct BackupManifest: Codable, Sendable {
 ///       Saves/           battery saves and core save folders
 ///       States/          save states with their manifests
 ///       Media/           artwork
+///       Extras/          screenshots, manuals, ROM patches and cheats per game
+///       Bezels/          bezel images per system
 ///
 /// BIOS files and cores are not included. See docs/SAVES.md.
 nonisolated enum Backup {
@@ -122,7 +129,8 @@ nonisolated enum Backup {
 
         try recordEncoder.encode(records).write(to: root.appending(path: "library.json"))
         try settings.write(to: root.appending(path: "settings.plist"))
-        for (name, source) in [("Saves", locations.saves), ("States", locations.states), ("Media", locations.media)]
+        for (name, source) in [("Saves", locations.saves), ("States", locations.states), ("Media", locations.media),
+                               ("Extras", locations.extras), ("Bezels", locations.bezels)]
         where fileManager.fileExists(atPath: source.path(percentEncoded: false)) {
             // Clones on APFS: instant and without extra space.
             try fileManager.copyItem(at: source, to: root.appending(path: name, directoryHint: .isDirectory))
@@ -332,19 +340,22 @@ nonisolated enum Backup {
         let labels = FileMerge.Labels(existing: String(localized: "before restore \(FileMerge.stamp(now))"),
                                       incoming: String(localized: "from backup \(FileMerge.stamp(contents.manifest.created))"))
         var report = FileMerge.Report()
-        for (name, destination) in [("Saves", locations.saves), ("States", locations.states)] {
+        for (name, destination) in [("Saves", locations.saves), ("States", locations.states), ("Extras", locations.extras)] {
             let source = contents.root.appending(path: name, directoryHint: .isDirectory)
             guard fileManager.fileExists(atPath: source.path(percentEncoded: false)) else { continue }
             report = report + (try FileMerge.mergeDirectory(source, into: destination, moving: true, labels: labels,
                                                             mapComponent: mapComponent))
         }
-        let media = contents.root.appending(path: "Media", directoryHint: .isDirectory)
-        for (file, components) in FileMerge.files(below: media) {
-            var target = locations.media
-            for component in components { target = target.appending(path: mapComponent(component)) }
-            guard !fileManager.fileExists(atPath: target.path(percentEncoded: false)) else { continue }
-            try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try fileManager.moveItem(at: file, to: target)
+        // Artwork and bezel images only fill in what is missing.
+        for (name, destination) in [("Media", locations.media), ("Bezels", locations.bezels)] {
+            let source = contents.root.appending(path: name, directoryHint: .isDirectory)
+            for (file, components) in FileMerge.files(below: source) {
+                var target = destination
+                for component in components { target = target.appending(path: mapComponent(component)) }
+                guard !fileManager.fileExists(atPath: target.path(percentEncoded: false)) else { continue }
+                try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try fileManager.moveItem(at: file, to: target)
+            }
         }
         return report
     }

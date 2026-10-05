@@ -2,6 +2,8 @@
 
 #import "UREmulationRunner.h"
 
+#import "URRewindBuffer.h"
+
 #import <AVFoundation/AVFoundation.h>
 #include <mach/mach_time.h>
 #include <stdatomic.h>
@@ -29,7 +31,18 @@ typedef struct {
 
     mach_timebase_info_data_t _timebase;
     dispatch_semaphore_t _finished;
+
+    // Emulation thread only.
+    URRewindBuffer *_rewind;
+    NSInteger _rewindCapacityMB;
+    NSUInteger _rewindInterval; // frames between recorded states
+    NSMutableData *_state;      // the state of the latest frame (rewind, run-ahead)
+    NSMutableData *_rewindState;
+    BOOL _runAheadUsable;
 }
+
+/// States larger than this are not recorded for rewinding.
+static const size_t URRewindMaxStateSize = 24 * 1024 * 1024;
 
 - (instancetype)initWithCore:(URLibretroCore *)core {
     self = [super init];
@@ -41,12 +54,18 @@ typedef struct {
         _audio = calloc(1, sizeof(URAudioState));
         atomic_store(&_audio->volume, 1.0f);
         mach_timebase_info(&_timebase);
+        _fastForwardSpeed = 4.0;
+        _rewindBufferMegabytes = 256;
+        _state = [NSMutableData data];
+        _rewindState = [NSMutableData data];
+        _runAheadUsable = YES;
     }
     return self;
 }
 
 - (void)dealloc {
     free(_audio);
+    URRewindBufferFree(_rewind);
 }
 
 - (void)setVolume:(float)volume {
@@ -134,6 +153,7 @@ typedef struct {
     uint64_t lastSRAMWrite = nextFrame;
     uint64_t fpsWindowStart = nextFrame;
     NSInteger fpsFrames = 0;
+    NSUInteger frameCount = 0;
     const uint64_t sramInterval = [self ticksFromSeconds:10.0];
 
     while (!atomic_load(&_stopRequested) && !core.shutdownRequested) {
@@ -141,14 +161,21 @@ typedef struct {
             [self drainCommands];
 
             if (self.paused) {
+                void (^frameHandler)(URLibretroCore *, BOOL) = self.frameHandler;
+                if (frameHandler) frameHandler(core, NO);
                 [NSThread sleepForTimeInterval:0.008];
                 nextFrame = mach_absolute_time();
                 continue;
             }
 
+            [self updateRewindBuffer];
             BOOL fastForward = self.fastForward;
             core.fastForwarding = fastForward;
-            [core runFrame];
+            if (self.rewinding && _rewind) {
+                [self stepBack];
+            } else {
+                [self runVisibleFrame:frameCount++ fastForward:fastForward];
+            }
             fpsFrames++;
 
             if ([core consumeAVInfoChange] && fabs(core.sampleRate - _audioSampleRate) > 1.0) {
@@ -171,7 +198,8 @@ typedef struct {
             // duration by up to ±0.5 % to keep the ring buffer near its target.
             double frameDuration = 1.0 / core.framesPerSecond;
             if (fastForward) {
-                frameDuration /= 4.0;
+                double speed = self.fastForwardSpeed;
+                frameDuration = speed > 0 ? frameDuration / speed : 0;
                 URAudioRingClear(core.audioRing);
             } else {
                 double target = (double)atomic_load(&_audio->primeFrames);
@@ -222,6 +250,97 @@ typedef struct {
         if (stopCompletion) stopCompletion();
         if (ranGame && !wasRequested && termination) termination();
     });
+}
+
+#pragma mark - Frames
+
+/// Runs the frame the player sees and hears, with run-ahead when enabled,
+/// and records it for rewinding.
+- (void)runVisibleFrame:(NSUInteger)frameIndex fastForward:(BOOL)fastForward {
+    URLibretroCore *core = self.core;
+    NSInteger runAhead = MIN(MAX(self.runAheadFrames, 0), 3);
+    BOOL usesRunAhead = runAhead > 0 && _runAheadUsable && !fastForward && !core.usesHardwareRendering;
+    BOOL records = _rewind && frameIndex % MAX(_rewindInterval, 1) == 0;
+
+    if (usesRunAhead) core.videoEnabled = NO;
+    [core runFrame];
+    [core advanceTurboClock];
+    void (^frameHandler)(URLibretroCore *, BOOL) = self.frameHandler;
+    if (frameHandler) frameHandler(core, YES);
+
+    BOOL hasState = (usesRunAhead || records) && [core serializeStateIntoBuffer:_state];
+    if (records) [self recordState:hasState];
+
+    if (!usesRunAhead) return;
+    if (!hasState) {
+        // The core cannot save states: no run-ahead for this game.
+        _runAheadUsable = NO;
+        core.videoEnabled = YES;
+        return;
+    }
+    // Run ahead silently, show the last of those frames, and go back to the
+    // real frame so the next input applies to it.
+    core.audioEnabled = NO;
+    for (NSInteger i = 0; i < runAhead; i++) {
+        core.videoEnabled = i == runAhead - 1;
+        [core runFrame];
+    }
+    core.videoEnabled = YES;
+    [core unserializeStateFromBytes:_state.bytes length:_state.length];
+    core.audioEnabled = YES;
+}
+
+/// Runs the game one recorded state backwards, silently.
+- (void)stepBack {
+    URLibretroCore *core = self.core;
+    size_t size = _state.length;
+    if (_rewindState.length != size) _rewindState.length = size;
+    if (size == 0 || !URRewindBufferStepBack(_rewind, _rewindState.mutableBytes, size)) return; // nothing older
+    [core unserializeStateFromBytes:_rewindState.bytes length:size];
+    core.audioEnabled = NO;
+    [core runFrame];
+    core.audioEnabled = YES;
+    double fps = core.framesPerSecond;
+    _rewindSeconds = fps > 0 ? (double)(URRewindBufferDepth(_rewind) * MAX(_rewindInterval, 1)) / fps : 0;
+    // The frame that follows rewinding continues from here.
+    memcpy(_state.mutableBytes, _rewindState.bytes, size);
+}
+
+- (void)recordState:(BOOL)hasState {
+    size_t size = _state.length;
+    if (!hasState || size > URRewindMaxStateSize) {
+        _rewindAvailability = URRewindAvailabilityUnsupported;
+        URRewindBufferFree(_rewind);
+        _rewind = NULL;
+        return;
+    }
+    if (_rewindAvailability != URRewindAvailabilityAvailable) {
+        // Larger states are recorded less often to keep the frame time down.
+        _rewindInterval = size <= 512 * 1024 ? 1 : size <= 2 * 1024 * 1024 ? 2 : 4;
+        _rewindAvailability = URRewindAvailabilityAvailable;
+    }
+    URRewindBufferPush(_rewind, _state.bytes, size);
+    double fps = self.core.framesPerSecond;
+    _rewindSeconds = fps > 0 ? (double)(URRewindBufferDepth(_rewind) * _rewindInterval) / fps : 0;
+}
+
+/// Creates, resizes or frees the rewind buffer to follow the settings.
+- (void)updateRewindBuffer {
+    BOOL enabled = self.rewindEnabled && _rewindAvailability != URRewindAvailabilityUnsupported;
+    NSInteger megabytes = MAX(self.rewindBufferMegabytes, 16);
+    if (!enabled) {
+        if (_rewind) {
+            URRewindBufferFree(_rewind);
+            _rewind = NULL;
+            _rewindSeconds = 0;
+        }
+        return;
+    }
+    if (_rewind && megabytes == _rewindCapacityMB) return;
+    URRewindBufferFree(_rewind);
+    _rewind = URRewindBufferCreate((size_t)megabytes * 1024 * 1024);
+    _rewindCapacityMB = megabytes;
+    _rewindSeconds = 0;
 }
 
 - (void)drainCommands {
