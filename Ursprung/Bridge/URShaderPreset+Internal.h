@@ -15,7 +15,7 @@ NSError *URShaderError(libra_error_t error);
 /// it is an error.
 BOOL URShaderCheck(libra_error_t result, NSError **error);
 
-/// The parameters of a parsed preset, in declaration order; nil on error.
+/// The parameters of a parsed preset, in librashader's order; nil on error.
 NSArray<URShaderParameter *> *_Nullable URShaderPresetParameters(libra_shader_preset_t _Nonnull *_Nonnull preset,
                                                                   NSError **error);
 

@@ -203,6 +203,23 @@ struct SlangSourceTests {
         #expect(files == ["pass.slang", "common.h", "deeper.h", "local.inc"])
     }
 
+    @Test func listsParametersInDeclarationOrder() throws {
+        let folder = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try write("#pragma parameter ZOOM \"Zoom\" 1 0 2 0.1\n#include \"common.h\"\n#pragma parameter ALPHA \"Alpha\" 1 0 1 0.1\n",
+                  to: folder.appending(path: "first.slang"))
+        try write("#pragma parameter MASK \"Mask\" 1 0 3 1\n", to: folder.appending(path: "common.h"))
+        try write("#include \"common.h\"\n#pragma parameter BLUR \"Blur\" 0 0 1 0.1\n#pragma parameter ZOOM \"Zoom\" 1 0 2 0.1\n",
+                  to: folder.appending(path: "second.slang"))
+        try write("shaders = 2\nshader0 = first.slang\nshader1 = second.slang\n", to: folder.appending(path: "two.slangp"))
+
+        let order = SlangSource.declarationOrder(ofPresetAt: folder.appending(path: "two.slangp"))
+        #expect(order == ["ZOOM", "ALPHA", "MASK", "BLUR"])
+        #expect(SlangSource.sorted(["UNKNOWN", "BLUR", "MASK", "OTHER", "ZOOM"], by: order, name: { $0 })
+                == ["ZOOM", "MASK", "BLUR", "UNKNOWN", "OTHER"])
+        #expect(SlangSource.declarationOrder(ofPresetAt: folder.appending(path: "missing.slangp")).isEmpty)
+    }
+
     @Test func readsCompileErrorsFromLibrashader() throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

@@ -191,7 +191,12 @@ struct ShaderPanel: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, AppSpacing.xs)
         case .ready:
-            EmptyView()
+            if let detail = workspace.tooSlowDetail {
+                StatusLabel("Too demanding for this Mac", kind: .warning, detail: detail)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, AppSpacing.xs)
+            }
         }
     }
 

@@ -184,6 +184,12 @@ struct PlayerView: View {
     /// game's own filter or preset, its system's, or the one for all systems.
     private var shaderSelection: ShaderSelection {
         if let draft = session.shader.editorPreset { return .preset(draft) }
+        #if DEBUG
+        // Development aid: URSPRUNG_SHADER=<filter|preset:library/…|preset:user/…> replaces the choice.
+        if let value = ProcessInfo.processInfo.environment["URSPRUNG_SHADER"], let selection = ShaderSelection(rawValue: value) {
+            return selection
+        }
+        #endif
         _ = (preferencesRevision, globalFilter)
         return ShaderSelection.current(for: session.systemID, gameID: session.runningGameID)
     }

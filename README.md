@@ -52,8 +52,16 @@
   backwards, fast forward at 2× to 8× (held or switched on), and hide a game's
   built-in input lag with run-ahead. Turbo buttons fire repeatedly while held.
 - **Looks like the real thing.** CRT (flat or curved), handheld LCD,
-  scanlines and sharp-pixel filters, per system if you like, with ambient
+  scanlines and sharp-pixel filters, per system or per game, with ambient
   light or your own bezel image around the picture.
+- **RetroArch shaders and a shader editor.** More than 2,500 slang presets
+  from the libretro shader pack (downloaded on demand) through
+  [librashader](https://github.com/SnowflakePowered/librashader). Tune their
+  parameters live in a panel beside the game, save your own presets
+  (RetroArch can load them too), or build and edit shaders in the shader
+  editor with syntax highlighting, inline errors, live recompiling and a
+  preview on the running game or on test pictures. See
+  [docs/SHADERS.md](docs/SHADERS.md).
 - **Screenshots, manuals, patches and cheats.** Take screenshots while playing
   and browse them with the game's artwork; keep a manual (PDF or picture)
   that opens next to the game; play translations and hacks from IPS, UPS and
@@ -181,10 +189,11 @@ Everything lives in `~/Library/Application Support/Ursprung/`:
 | `Media/<game>/` | Artwork from ScreenScraper |
 | `Extras/<game-id>/` | Your screenshots, the game's manual, ROM patches and cheats |
 | `Bezels/` | Bezel images, one per system |
+| `Shaders/` | The downloaded RetroArch shader pack, your own presets (`User/`) and the shader editor's draft |
 
 Your game files are only ever read, never modified; a patched game is written
-to the cache. File › Back Up Library… writes all of this except cores and BIOS
-files into one zip file. See
+to the cache. File › Back Up Library… writes all of this except cores, BIOS
+files, the shader pack and the editor's draft into one zip file. See
 [docs/SAVES.md](docs/SAVES.md) for game identity, save state compatibility and
 the backup format.
 

@@ -111,27 +111,71 @@ frame (a high mip level, mipmaps generated per frame) behind the picture, and
 an overlay pass draws a per-system bezel PNG over everything with alpha
 blending.
 
-Instead of a built-in filter, a system can use a RetroArch slang preset
-(`ShaderSelection`, stored as `preset:<library|user>/<path>` in the same
-`videoFilter` keys). `ShaderChain` (Bridge) compiles it through librashader on
-a background task; the current picture keeps rendering until the chain is
-swapped in on the main thread, which alone uses it from then on. Each new core
-frame runs through the chain in its own command buffer, committed before the
-presentation buffer, into an offscreen texture of exactly the picture's
-on-screen size before rotation (`PresentationLayout`, aligned to whole
-pixels). The presentation pass then draws that texture 1:1 with the usual
-rotation, ambient light and bezel. A missing or failing preset falls back to
-the Sharp filter with a toast. See `docs/SHADER_PLAN.md`.
+Instead of a built-in filter, the picture can go through a RetroArch slang
+preset; see *Shaders* below.
 
-`ShaderLibrary` provides the presets: it downloads the libretro
-`shaders_slang.zip` on demand into `Shaders/slang-shaders/` (unpacked next to
-it and swapped in only when complete; updates are checked via Last-Modified
-like cores) and imports the user's own presets into `Shaders/User/`, which
-backups carry. Its index lists every `.slangp` with category, pass count
-(`SlangPresetFile`, Ursprung's own reader) and parameter count (librashader,
-parse only); `Shaders/index.json` caches it by file date, so only new or
-changed presets are read again. The filter menus (`ShaderPicker`) show the
-built-in filters, favourite presets and the shader browser.
+## Shaders
+
+**Selection.** `ShaderSelection` is a built-in `VideoFilter` or a
+`ShaderPresetRef` (a path below the pack, `User/` or the editor's drafts),
+stored as `preset:<library|user>/<path>` in the same `videoFilter` keys as the
+built-in filters. `ShaderScope` resolves game (`videoFilter.game.<uuid>`) →
+system (`videoFilter.<systemID>`) → all systems (`videoFilter`).
+
+**Render path.** `MetalRenderer` draws from a `FrameSource`: the running core,
+or a `StillFrame` (test patterns, captured frames, images) for the shader
+editor's own preview. `ShaderChain` (Bridge, `URShaderChain`) compiles a
+preset through librashader on a background task; the current picture keeps
+rendering until the chain is swapped in on the main thread, which alone uses
+it from then on. A failed recompile of the preset that is showing keeps the
+old chain. Each new core frame (or a parameter change) runs through the chain
+in its own command buffer, committed before the presentation buffer, into an
+offscreen texture of exactly the picture's on-screen size before rotation
+(`PresentationLayout`, aligned to whole pixels). The presentation pass then
+draws that texture 1:1 with the usual rotation, ambient light and bezel, so
+masks stay pixel-exact and rotated games get scanlines along their own lines.
+`frameCount` follows the core's frame serial, `frame_direction` is −1 while
+rewinding. A missing or failing preset falls back to the Sharp filter with a
+toast.
+
+**Workspace.** `ShaderWorkspace` (one per renderer; the player's is
+`EmulationSession.shader`) connects the renderer with the UI: compile status
+and errors, the preset's parameters and live values (`set_param`, no
+recompile), and the GPU time per frame from the chain's command buffer.
+librashader lists parameters in an order of its own, so the renderer sorts
+them by `SlangSource.declarationOrder` (the `#pragma parameter` lines of each
+pass and its includes). When the averaged GPU time exceeds the frame budget
+(`1 / fps` of the source) twice in a row, the workspace reports the preset as
+too slow: the panel and the editor show it, and the player shows one toast
+per preset.
+
+**Library.** `ShaderLibrary` downloads the libretro `shaders_slang.zip` on
+demand into `Shaders/slang-shaders/` (unpacked next to it and swapped in only
+when complete; updates are checked via Last-Modified like cores) and imports
+the user's own presets into `Shaders/User/` (`ShaderImport` copies the files a
+preset reads along), which backups carry. Its index lists every `.slangp`
+with category, pass count (`SlangPresetFile`, Ursprung's own reader) and
+parameter count (librashader, parse only); `Shaders/index.json` caches it by
+file date. The filter menus (`ShaderPicker`) show the built-in filters,
+favourite presets and the shader browser.
+
+**Player panel.** `ShaderPanel` overlays the player (it doesn't shrink the
+picture, whose size the shaders depend on). It stores choices per scope and
+writes "Save as Preset" files with `ShaderPresetWriter`: a RetroArch simple
+preset (`#reference` plus changed parameters).
+
+**Editor.** `ShaderEditor` (one per app, window `WindowID.shaderEditor`)
+edits a draft in `Shaders/Drafts/<id>/` (`ShaderDrafts`): `SlangPreset` reads
+and writes every pass, texture and value key and resolves `#reference`
+chains; pack files are copied into the draft on their first change, never
+edited in place. Source tabs are TextKit 2 `NSTextView`s highlighted by
+`SlangTokenizer`; `SlangSource` reads parameters, `#include` closures and
+glslang errors for inline marks. With a game running the player renders the
+draft (`ShaderWorkspace.editorPreset`); otherwise the editor's own `MTKView`
+with its own `MetalRenderer` and workspace does. "Show after pass N" compiles
+a shortened copy of the preset, because librashader's
+`set_active_pass_count` can panic. Details and history: `docs/SHADER_PLAN.md`;
+for users: `docs/SHADERS.md`.
 
 ## Input
 

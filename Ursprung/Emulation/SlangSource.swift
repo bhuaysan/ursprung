@@ -66,6 +66,37 @@ nonisolated enum SlangSource {
         return files
     }
 
+    // MARK: Order
+
+    /// The names of the parameters the passes of the preset at `url`
+    /// declare, pass by pass in the order the shaders declare them, each
+    /// once. librashader lists a preset's parameters in an order of its own.
+    static func declarationOrder(ofPresetAt url: URL,
+                                 wildcards: [String: String] = SlangPreset.defaultWildcards) -> [String] {
+        guard let preset = try? SlangPreset.load(from: url, wildcards: wildcards) else { return [] }
+        var names: [String] = []
+        var seen: Set<String> = []
+        var read: Set<String> = []
+        for pass in preset.passes where pass.shader.hasPrefix("/") {
+            for file in closure(of: URL(filePath: pass.shader)) where read.insert(file.path(percentEncoded: false)).inserted {
+                guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+                for parameter in parameters(in: text) where seen.insert(parameter.name).inserted {
+                    names.append(parameter.name)
+                }
+            }
+        }
+        return names
+    }
+
+    /// `items` in the order of `names`; items whose name it lacks follow, in their own order.
+    static func sorted<Item>(_ items: [Item], by names: [String], name: (Item) -> String) -> [Item] {
+        let rank = Dictionary(names.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        return items.enumerated()
+            .map { (rank: rank[name($0.element)] ?? names.count + $0.offset, item: $0.element) }
+            .sorted { $0.rank < $1.rank }
+            .map(\.item)
+    }
+
     // MARK: Errors
 
     /// A compile error glslang reported for a line of a shader or include file.

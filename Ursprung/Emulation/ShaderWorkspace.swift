@@ -56,8 +56,18 @@ final class ShaderWorkspace {
     var previewTools = ShaderPreviewTools()
     /// GPU time of the preset per frame, in seconds (averaged); nil without a preset.
     private(set) var gpuTime: Double?
+    /// How long one frame of the game lasts, in seconds; nil without a preset.
+    private(set) var frameBudget: Double?
+    /// The preset has needed more GPU time than a frame lasts for a second:
+    /// the game misses frames.
+    private(set) var isTooSlow = false
+    /// Told the first time a preset is too slow (once per preset).
+    @ObservationIgnored var onTooSlow: ((ShaderPresetRef) -> Void)?
     @ObservationIgnored private var gpuSamples: [Double] = []
     @ObservationIgnored private var gpuWindowStart: Double = 0
+    /// Consecutive averages over the budget (positive) or within it (negative).
+    @ObservationIgnored private var budgetStreak = 0
+    @ObservationIgnored private var slowPresets: Set<ShaderPresetRef> = []
 
     /// Sends a parameter change to the renderer's chain.
     @ObservationIgnored private var apply: ((String, Float) -> Void)?
@@ -150,6 +160,7 @@ final class ShaderWorkspace {
     /// The renderer shows `preset` now; `apply` changes a parameter of its chain.
     func loaded(_ preset: ShaderPresetRef, parameters: [ShaderParameter], values: [String: Float], passCount: Int,
                 apply: @escaping (String, Float) -> Void, reload: @escaping () -> Void) {
+        if preset != self.preset { resetGPUTime() }
         status = .ready(preset)
         isRecompiling = false
         compileError = nil
@@ -160,6 +171,13 @@ final class ShaderWorkspace {
         initials = Dictionary(parameters.map { ($0.name, $0.initial) }, uniquingKeysWith: { first, _ in first })
         self.apply = apply
         self.reload = reload
+        #if DEBUG
+        // Development aid: URSPRUNG_SHADER_PARAMS=NAME=value,… changes parameters of every preset that loads.
+        for pair in (ProcessInfo.processInfo.environment["URSPRUNG_SHADER_PARAMS"] ?? "").split(separator: ",") {
+            let parts = pair.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            if parts.count == 2, let value = Float(parts[1]) { setValue(value, for: parts[0]) }
+        }
+        #endif
     }
 
     func failed(_ preset: ShaderPresetRef, message: String) {
@@ -168,27 +186,55 @@ final class ShaderWorkspace {
         clear()
     }
 
-    /// GPU time of one run of the preset; published averaged twice a second.
-    func recordGPUTime(_ seconds: Double, at time: Double) {
+    /// GPU time of one run of the preset, which should take at most
+    /// `budget` seconds; published averaged twice a second.
+    func recordGPUTime(_ seconds: Double, budget: Double, at time: Double) {
         guard seconds > 0, seconds < 1 else { return }
         gpuSamples.append(seconds)
-        if time - gpuWindowStart >= 0.5 {
-            gpuTime = gpuSamples.reduce(0, +) / Double(gpuSamples.count)
-            gpuSamples = []
-            gpuWindowStart = time
+        guard time - gpuWindowStart >= 0.5 else { return }
+        let average = gpuSamples.reduce(0, +) / Double(gpuSamples.count)
+        gpuTime = average
+        if frameBudget != budget { frameBudget = budget }
+        gpuSamples = []
+        gpuWindowStart = time
+        // Two averages in a row, so a hiccup (the first frames after a compile) doesn't count.
+        budgetStreak = average > budget ? max(budgetStreak, 0) + 1 : min(budgetStreak, 0) - 1
+        if budgetStreak >= 2, !isTooSlow {
+            isTooSlow = true
+            if let preset, slowPresets.insert(preset).inserted { onTooSlow?(preset) }
+        } else if budgetStreak <= -2, isTooSlow {
+            isTooSlow = false
         }
+    }
+
+    private func resetGPUTime() {
+        gpuTime = nil
+        frameBudget = nil
+        isTooSlow = false
+        budgetStreak = 0
+        gpuSamples = []
     }
 
     private func clear() {
         isRecompiling = false
         compileError = nil
         passCount = 0
-        gpuTime = nil
-        gpuSamples = []
+        resetGPUTime()
         parameters = []
         values = [:]
         initials = [:]
         apply = nil
+    }
+}
+
+extension ShaderWorkspace {
+    /// GPU time against the frame budget, when the preset is too slow.
+    var tooSlowDetail: String? {
+        guard isTooSlow, let gpuTime, let frameBudget else { return nil }
+        func milliseconds(_ seconds: Double) -> String {
+            (seconds * 1000).formatted(.number.precision(.fractionLength(1)))
+        }
+        return String(localized: "The GPU needs \(milliseconds(gpuTime)) ms per frame, but a frame lasts only \(milliseconds(frameBudget)) ms. Lower its quality settings or choose a lighter shader.")
     }
 }
 

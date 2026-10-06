@@ -21,6 +21,9 @@ struct GameMetalView: NSViewRepresentable {
         view.renderer?.onShaderError = { [weak session] message in
             session?.showToast(message, kind: .warning, duration: 5)
         }
+        #if DEBUG
+        view.renderer?.debugSnapshotName = "shader-output"
+        #endif
         return view
     }
 

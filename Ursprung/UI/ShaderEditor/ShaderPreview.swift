@@ -138,10 +138,17 @@ private struct PreviewBar: View {
             }
             Spacer(minLength: AppSpacing.s)
             if let gpu = workspace.gpuTime {
-                Text("GPU \(gpu * 1000, format: .number.precision(.fractionLength(1))) ms")
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(gpu > 1 / 60 ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
-                    .help("Time the GPU needs for the shader per frame")
+                HStack(spacing: AppSpacing.xxs) {
+                    if workspace.isTooSlow {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .accessibilityLabel("Too demanding for this Mac")
+                    }
+                    Text("GPU \(gpu * 1000, format: .number.precision(.fractionLength(1))) ms")
+                        .font(.callout.monospacedDigit())
+                }
+                .foregroundStyle(workspace.isTooSlow ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                .help(workspace.tooSlowDetail.map { Text(verbatim: $0) } ?? Text("Time the GPU needs for the shader per frame"))
+                .accessibilityElement(children: .combine)
             }
         }
         .controlSize(.small)
@@ -242,6 +249,9 @@ private struct StillPreviewView: NSViewRepresentable {
         let view = MTKView(frame: .zero, device: nil)
         let renderer = MetalRenderer(view: view)
         renderer?.workspace = workspace
+        #if DEBUG
+        renderer?.debugSnapshotName = "shader-editor-preview"
+        #endif
         context.coordinator.renderer = renderer
         view.setAccessibilityLabel(String(localized: "Shader Preview"))
         return view

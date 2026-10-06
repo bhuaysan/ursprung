@@ -291,7 +291,16 @@ private struct ResizableSplit<Top: View, Bottom: View>: View {
                                 }
                                 .onEnded { _ in dragStart = nil })
                     }
-                    .accessibilityHidden(true)
+                    .accessibilityElement()
+                    .accessibilityLabel("Preview Height")
+                    .accessibilityValue(Text(verbatim: (height / max(available, 1)).formatted(.percent.precision(.fractionLength(0)))))
+                    .accessibilityAdjustableAction { direction in
+                        switch direction {
+                        case .increment: topHeight = min(height + 40, available - Self.minimumBottom - 1)
+                        case .decrement: topHeight = max(height - 40, Self.minimumTop)
+                        @unknown default: break
+                        }
+                    }
                 bottom
                     .frame(maxHeight: .infinity)
             }
@@ -395,9 +404,11 @@ private struct PassRow: View {
                 Image(systemName: "eye.slash")
                     .foregroundStyle(.tertiary)
                     .help("Not shown in the preview")
+                    .accessibilityLabel("Not shown in the preview")
             }
         }
         .help(pass.shader)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -446,6 +457,7 @@ private struct SourcePane: View {
         if !own {
             HStack(spacing: AppSpacing.xs) {
                 Image(systemName: "info.circle")
+                    .accessibilityHidden(true)
                 Text(isPack ? "A file of the shader pack. Your first change edits a copy in this shader."
                      : "Your first change edits a copy; Save writes it back.")
                 Spacer()
@@ -562,6 +574,7 @@ private struct IssueList: View {
                             HStack(alignment: .firstTextBaseline, spacing: AppSpacing.s) {
                                 Image(systemName: "xmark.octagon.fill")
                                     .foregroundStyle(.red)
+                                    .accessibilityLabel("Error")
                                 if let file = issue.fileName, let line = issue.line {
                                     Text(verbatim: "\(file):\(line)")
                                         .font(.callout.monospaced())

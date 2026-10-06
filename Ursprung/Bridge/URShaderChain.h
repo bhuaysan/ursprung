@@ -38,7 +38,8 @@ NS_SWIFT_NAME(ShaderChain)
 
 - (instancetype)init NS_UNAVAILABLE;
 
-/// The preset's parameters in declaration order, with the values it starts with.
+/// The preset's parameters with the values it starts with, in librashader's
+/// order, which is not always the order the shaders declare them in.
 @property (nonatomic, readonly, copy) NSArray<URShaderParameter *> *parameters;
 /// The number of passes in the preset.
 @property (nonatomic, readonly) NSInteger passCount;

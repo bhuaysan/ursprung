@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import ImageIO
 import Metal
 import MetalKit
 import OSLog
@@ -356,8 +357,10 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         Task { [weak self, queue] in
             var compiled: ShaderChain?
             var failure: Error?
+            var order: [String] = []
             do {
                 compiled = try await Self.compile(url, queue: queue, coreName: coreName, rotation: rotation)
+                order = await Self.declarationOrder(url, coreName: coreName, rotation: rotation)
             } catch {
                 failure = error
             }
@@ -368,7 +371,8 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                 self.chain = compiled
                 self.chainPreset = preset
                 self.needsShaderPass = true
-                self.workspace?.loaded(preset, parameters: compiled.parameters, values: Self.values(of: compiled),
+                let parameters = SlangSource.sorted(compiled.parameters, by: order, name: \.name)
+                self.workspace?.loaded(preset, parameters: parameters, values: Self.values(of: compiled),
                                        passCount: compiled.passCount,
                                        apply: { [weak self, weak compiled] name, value in
                                            guard let self, let compiled, self.chain === compiled else { return }
@@ -393,6 +397,16 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         }
         return try ShaderChain(presetAtPath: url.path(percentEncoded: false), queue: queue, coreName: coreName,
                                rotation: rotation)
+    }
+
+    /// The parameter names in the order the preset's shaders declare them,
+    /// with the wildcards the chain was compiled with.
+    @concurrent
+    private static func declarationOrder(_ url: URL, coreName: String?, rotation: Int) async -> [String] {
+        var wildcards = SlangPreset.defaultWildcards
+        wildcards["CORE-REQ-ROT"] = "CORE-REQ-ROT-\((max(rotation, 0) % 4) * 90)"
+        if let coreName { wildcards["CORE"] = coreName }
+        return SlangSource.declarationOrder(ofPresetAt: url, wildcards: wildcards)
     }
 
     /// Compiles the selected preset again; the current chain renders meanwhile.
@@ -464,16 +478,56 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             return nil
         }
         if let workspace {
+            let budget = 1 / max(source.framesPerSecond, 1)
             buffer.addCompletedHandler { [weak workspace] buffer in
                 let seconds = buffer.gpuEndTime - buffer.gpuStartTime
-                Task { @MainActor in workspace?.recordGPUTime(seconds, at: CACurrentMediaTime()) }
+                Task { @MainActor in workspace?.recordGPUTime(seconds, budget: budget, at: CACurrentMediaTime()) }
             }
         }
+        #if DEBUG
+        writeDebugSnapshot(of: output, in: buffer)
+        #endif
         buffer.commit()
         needsShaderPass = false
         lastShaderPassTime = now
         return output
     }
+
+    #if DEBUG
+    /// With URSPRUNG_SNAPSHOT_DIR set, the preset's output is written there
+    /// as `<debugSnapshotName>.png` every two seconds; window snapshots
+    /// can't show Metal layers.
+    var debugSnapshotName: String?
+    private var lastDebugSnapshot: CFTimeInterval = 0
+
+    private func writeDebugSnapshot(of texture: MTLTexture, in buffer: MTLCommandBuffer) {
+        guard let name = debugSnapshotName, let path = ProcessInfo.processInfo.environment["URSPRUNG_SNAPSHOT_DIR"],
+              CACurrentMediaTime() - lastDebugSnapshot >= 2 else { return }
+        let width = texture.width, height = texture.height, bytesPerRow = width * 4
+        guard let copy = device.makeBuffer(length: bytesPerRow * height, options: .storageModeShared),
+              let blit = buffer.makeBlitCommandEncoder() else { return }
+        lastDebugSnapshot = CACurrentMediaTime()
+        blit.copy(from: texture, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(),
+                  sourceSize: MTLSize(width: width, height: height, depth: 1), to: copy, destinationOffset: 0,
+                  destinationBytesPerRow: bytesPerRow, destinationBytesPerImage: bytesPerRow * height)
+        blit.endEncoding()
+        let url = URL(filePath: path, directoryHint: .isDirectory).appending(path: "\(name).png")
+        // Only read after the GPU is done with it.
+        nonisolated(unsafe) let pixels = copy
+        buffer.addCompletedHandler { _ in
+            let data = Data(bytes: pixels.contents(), count: bytesPerRow * height)
+            let info = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+            guard let provider = CGDataProvider(data: data as CFData),
+                  let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                                      bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info,
+                                      provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent),
+                  let destination = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil)
+            else { return }
+            CGImageDestinationAddImage(destination, image, nil)
+            CGImageDestinationFinalize(destination)
+        }
+    }
+    #endif
 }
 
 /// Bezel images: one per system, chosen in Settings › Emulation.

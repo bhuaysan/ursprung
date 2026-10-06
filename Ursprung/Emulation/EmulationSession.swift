@@ -154,6 +154,12 @@ final class EmulationSession {
         self.bios = bios
         self.achievements = achievements
         input.onMenuButton = { [weak self] in self?.toggleMenu() }
+        shader.onTooSlow = { [weak self] preset in
+            // The shader editor shows the GPU time itself.
+            guard let self, shader.editorPreset == nil else { return }
+            showToast(String(localized: "“\(preset.name)” is too demanding for this Mac’s GPU, so the game stutters."),
+                      kind: .warning, duration: 5)
+        }
         achievements.client.eventHandler = { [weak self] event in
             MainActor.assumeIsolated { self?.handleAchievementEvent(event) }
         }
@@ -756,7 +762,10 @@ final class EmulationSession {
         let state = "phase=\(phase) paused=\(isPaused) fps=\(measuredFPS) core=\(coreName) size=\(core.baseWidth)x\(core.baseHeight) aspect=\(core.aspectRatio) hw=\(core.usesHardwareRendering)"
             + " controllers=\(input.controllerNames)"
             + " rewind=\(runner.map { "\($0.rewindAvailability.rawValue)/\(String(format: "%.1f", $0.rewindSeconds))s" } ?? "-") rewinding=\(isRewinding)"
-            + " ff=\(isFastForwarding) runAhead=\(Preferences.runAheadFrames) cheats=\(supportsCheats) patch=\(patchName ?? "-")\n"
+            + " ff=\(isFastForwarding) runAhead=\(Preferences.runAheadFrames) cheats=\(supportsCheats) patch=\(patchName ?? "-")"
+            + " shader=\(shader.status) gpu=\(shader.gpuTime.map { String(format: "%.2fms", $0 * 1000) } ?? "-")"
+            + " budget=\(shader.frameBudget.map { String(format: "%.2fms", $0 * 1000) } ?? "-") tooSlow=\(shader.isTooSlow)"
+            + " params=\(shader.parameters.prefix(6).map { "\($0.name)=\(shader.values[$0.name] ?? $0.initial)" })\n"
         try? state.write(to: directory.appending(path: "session.txt"), atomically: true, encoding: .utf8)
     }
     #endif

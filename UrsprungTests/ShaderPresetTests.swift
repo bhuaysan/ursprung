@@ -280,4 +280,36 @@ struct ShaderWorkspaceTests {
         workspace.setValue(1, for: "STRENGTH")
         #expect(applied.count == 2, "Nothing is sent without a preset")
     }
+
+    @Test func warnsOnceWhenAPresetIsTooSlowForTheFrameRate() throws {
+        let workspace = ShaderWorkspace()
+        let preset = try #require(ShaderPresetRef(source: .library, path: "crt/heavy.slangp"))
+        var warnings: [ShaderPresetRef] = []
+        workspace.onTooSlow = { warnings.append($0) }
+        workspace.loaded(preset, parameters: [], values: [:], passCount: 1, apply: { _, _ in }, reload: {})
+        let budget = 1.0 / 60
+        var time = 0.0
+        func record(_ seconds: Double) {
+            time += 0.6
+            workspace.recordGPUTime(seconds, budget: budget, at: time)
+        }
+
+        record(0.030)
+        #expect(!workspace.isTooSlow, "One slow average is a hiccup")
+        #expect(workspace.gpuTime == 0.030 && workspace.frameBudget == budget)
+        record(0.030)
+        #expect(workspace.isTooSlow && workspace.tooSlowDetail != nil)
+        #expect(warnings == [preset])
+        record(0.010)
+        #expect(workspace.isTooSlow)
+        record(0.010)
+        #expect(!workspace.isTooSlow && workspace.tooSlowDetail == nil)
+        record(0.030)
+        record(0.030)
+        #expect(workspace.isTooSlow)
+        #expect(warnings.count == 1, "A preset warns once")
+
+        workspace.useBuiltin()
+        #expect(!workspace.isTooSlow && workspace.gpuTime == nil)
+    }
 }

@@ -1,6 +1,6 @@
 # Ursprung — RetroArch Shaders and Shader Editor: Plan
 
-5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike), 1 (dependency), 2 (render path), 3 (shader library), 4 (player panel) and 5 (shader editor) done; phase 6 next.
+5 October 2026 · based on commit 164002d (main). Status: all phases done (0 spike, 1 dependency, 2 render path, 3 shader library, 4 player panel, 5 shader editor, 6 polish).
 
 Ursprung renders every frame through one built-in Metal shader (`Ursprung/Emulation/ShaderSource.swift`, 7 fixed filters). This plan adds RetroArch slang shader presets through librashader, and a shader editor with live preview on top of it.
 
@@ -283,6 +283,14 @@ If a game starts while the editor is open, the editor switches to live preview; 
 - Performance warning when GPU time exceeds the frame budget.
 - Docs: README feature list, ARCHITECTURE.md (render path, ShaderLibrary), a user-facing shader doc.
 - `debug-without-ui` additions: `URSPRUNG_SHADER=<preset>`, `URSPRUNG_SHADER_PARAMS=…`, and a snapshot of the shader editor.
+
+**Done 6 October 2026.**
+- Localization: an `xcodebuild -exportLocalizations` run showed every shader string translated; the four new strings of this phase have German too. Accessibility: the editor's pass rows read as one element, icon-only marks (edited, not in preview, errors, GPU warning) have labels, decorative symbols are hidden, and the divider between preview and source is an adjustable element ("Preview Height").
+- Parameter order: librashader lists parameters in an order of its own (crt-royale starts with `bloom_*`). `SlangSource.declarationOrder` reads the `#pragma parameter` lines pass by pass (each pass's file, then its includes); the renderer sorts the compiled chain's parameters by it on the compile task, so the panel and the editor's parameter list see the shaders' order. Names the files don't declare keep librashader's order at the end.
+- Performance warning: the renderer passes the frame budget (`1 / fps` of the source) with every GPU time. `ShaderWorkspace.isTooSlow` turns on after two half-second averages over the budget and off after two within it. The panel shows "Too demanding for this Mac" with the times, the editor's GPU time turns orange with a warning symbol and the times in its help, and the player shows one toast per preset and app run (not while the editor previews on the game). Mega Bezel (SMOOTH-ADV-GLASS) on Super Mario Bros. in a 1024×768 window measured about 13 ms against 16.6 ms, so it doesn't warn there.
+- Docs: `docs/SHADERS.md` (user guide), README feature list and data table, an ARCHITECTURE.md *Shaders* section.
+- Debug builds: `URSPRUNG_SHADER=<filter|preset:…>` replaces the player's choice (the panel still shows the stored one), `URSPRUNG_SHADER_PARAMS=NAME=value,…` sets parameters of every preset that loads; with `URSPRUNG_SNAPSHOT_DIR`, the renderer writes the preset's output as `shader-output.png` (player) and `shader-editor-preview.png` (editor still preview) every two seconds, and `session.txt` adds status, GPU time, budget, `tooSlow` and the first parameters.
+- Verified in the app: crt-royale on Super Mario Bros. with two parameters set from the environment (`session.txt` and the panel list the parameters in declaration order, `shader-output.png` shows the mask); with the budget divided by four in a temporary patch, the German toast and the panel's warning appeared; the editor's still preview snapshot. Not verified: the editor's orange GPU label (crt-royale stays under the budget in the small preview) and VoiceOver itself. `make test`: 317 tests.
 
 ## Tests
 

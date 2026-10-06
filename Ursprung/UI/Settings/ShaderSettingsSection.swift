@@ -79,6 +79,7 @@ struct ShaderSettingsSection: View {
                 Image(systemName: "chevron.down")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
         }
         .menuStyle(.button)

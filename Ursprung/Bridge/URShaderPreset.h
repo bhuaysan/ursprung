@@ -27,7 +27,7 @@ NS_SWIFT_SENDABLE
 NS_SWIFT_NAME(ShaderPreset)
 @interface URShaderPreset : NSObject
 
-/// The parameters of the `.slangp` preset at `path`, in declaration order.
+/// The parameters of the `.slangp` preset at `path`, in librashader's order.
 + (nullable NSArray<URShaderParameter *> *)parametersOfPresetAtPath:(NSString *)path error:(NSError **)error;
 
 - (instancetype)init NS_UNAVAILABLE;
