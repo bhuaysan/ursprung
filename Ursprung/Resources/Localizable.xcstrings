@@ -11274,6 +11274,76 @@
           }
         }
       }
+    },
+    "1 save state": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Spielstand"
+          }
+        }
+      }
+    },
+    "%lld save states": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Spielstände"
+          }
+        }
+      }
+    },
+    "In library since %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In der Bibliothek seit %@."
+          }
+        }
+      }
+    },
+    "Not played yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nicht gespielt."
+          }
+        }
+      }
+    },
+    "Last played %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zuletzt %@ gespielt."
+          }
+        }
+      }
+    },
+    "%@ in one session.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ in einer Sitzung."
+          }
+        }
+      }
+    },
+    "%@ in %lld sessions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ in %lld Sitzungen."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

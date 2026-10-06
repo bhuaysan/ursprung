@@ -52,11 +52,11 @@ struct GameInspector: View {
                     if let overview = game.overview, !overview.isEmpty {
                         overviewSection(overview)
                     }
+                    activitySection
                     organizeSection
                     if versions.count > 1 {
                         versionsSection
                     }
-                    activitySection
                     MediaSection(game: game)
                     emulationSection
                     discsSection
@@ -398,23 +398,35 @@ struct GameInspector: View {
         return versions.contains { $0 !== version && $0.crc32?.caseInsensitiveCompare(crc) == .orderedSame }
     }
 
+    /// The player's history with the game, in sentences rather than rows.
     private var activitySection: some View {
         InfoSection("Activity") {
-            InfoRow("Last Played", game.lastPlayed.map { $0.formatted(.relative(presentation: .named)) } ?? String(localized: "Never"))
-            InfoRow("Play Time", game.playTime > 0 ? Duration.seconds(game.playTime).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)) : "–")
-            InfoRow("Sessions", game.playCount > 0 ? String(game.playCount) : "–")
-            InfoRow("Added", game.dateAdded.formatted(date: .abbreviated, time: .omitted))
-            InfoRowLayout("Save States") {
+            Text(verbatim: playedText)
+                .fixedSize(horizontal: false, vertical: true)
+            let count = stateCount
+            if count > 0 {
                 HStack(spacing: AppSpacing.s) {
-                    let count = stateCount
-                    Text(count > 0 ? String(count) : "–")
-                    if count > 0 {
-                        Button("Show…", action: actions.showSaveStates)
-                            .buttonStyle(.link)
-                    }
+                    Text(count == 1 ? String(localized: "1 save state") : String(localized: "\(count) save states"))
+                    Button("Show…", action: actions.showSaveStates)
+                        .buttonStyle(.link)
                 }
             }
+            Text("In library since \(game.dateAdded.formatted(date: .abbreviated, time: .omitted)).")
+                .foregroundStyle(.secondary)
         }
+        .font(.callout)
+    }
+
+    /// “Last played last week. 2 min in 20 sessions.”
+    private var playedText: String {
+        guard let lastPlayed = game.lastPlayed else { return String(localized: "Not played yet.") }
+        var sentences = [String(localized: "Last played \(lastPlayed.formatted(.relative(presentation: .named))).")]
+        if game.playTime > 0 {
+            let time = Duration.seconds(game.playTime).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
+            sentences.append(game.playCount == 1 ? String(localized: "\(time) in one session.")
+                                                 : String(localized: "\(time) in \(game.playCount) sessions."))
+        }
+        return sentences.joined(separator: " ")
     }
 
     /// Slots and automatic states of all cores; replaced ones are not counted.
