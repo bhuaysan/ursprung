@@ -3,8 +3,8 @@
 import SwiftData
 import SwiftUI
 
-/// Masked artwork, a compact title block, one action row and plain text
-/// sections. See docs/DESIGN_SPEC.md, section G.
+/// Masked artwork, a title block, one action row, then the game as the back
+/// of its box (facts and blurb) before the plain text sections.
 struct GameInspector: View {
     let game: Game
     let actions: GameActions
@@ -43,10 +43,15 @@ struct GameInspector: View {
                     if game.isMissing {
                         missingFileRow
                     }
+                    if let metadataStatus {
+                        metadataStatusRow(metadataStatus)
+                    }
+                    if !facts.isEmpty {
+                        FactStrip(facts: facts)
+                    }
                     if let overview = game.overview, !overview.isEmpty {
                         overviewSection(overview)
                     }
-                    detailsSection
                     organizeSection
                     if versions.count > 1 {
                         versionsSection
@@ -133,15 +138,20 @@ struct GameInspector: View {
 
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            // Expanded width, like the lettering on a cartridge or a console case.
             Text(game.title)
-                .font(.title3.weight(.semibold))
+                .font(.title2.bold().width(.expanded))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(verbatim: [game.system?.name ?? game.systemID, game.releaseYear]
-                .compactMap { $0 }
-                .joined(separator: " · "))
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            HStack(spacing: AppSpacing.s) {
+                if let system = game.system {
+                    SystemIcon(system: system)
+                }
+                Text(verbatim: game.system?.name ?? game.systemID)
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .padding(.top, AppSpacing.xxs)
             if let rating = game.rating {
                 RatingView(value: rating)
                     .padding(.top, AppSpacing.xxs)
@@ -272,8 +282,9 @@ struct GameInspector: View {
 
     // MARK: Sections
 
+    /// The blurb, without a heading: it follows the facts as on a box.
     private func overviewSection(_ overview: String) -> some View {
-        InfoSection("Overview") {
+        VStack(alignment: .leading, spacing: 6) {
             Text(overview)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -287,26 +298,29 @@ struct GameInspector: View {
         }
     }
 
-    @ViewBuilder
-    private var detailsSection: some View {
-        let details: [(LocalizedStringKey, String?)] = [
-            ("Developer", game.developer),
-            ("Publisher", game.publisher),
-            ("Genre", game.genre),
-            ("Players", game.players),
-            ("Released", game.formattedReleaseDate),
-        ]
-        let hasDetails = details.contains { !($0.1 ?? "").isEmpty }
-        if hasDetails || metadataStatus != nil {
-            InfoSection("Details") {
-                if let metadataStatus {
-                    metadataStatusRow(metadataStatus)
-                }
-                ForEach(details.indices, id: \.self) { index in
-                    InfoRow(details[index].0, details[index].1)
-                }
-            }
+    /// Players, genre, release date and the companies, the strip on the back of a box.
+    private var facts: [Fact] {
+        var facts: [Fact] = []
+        if let players = game.players, !players.isEmpty {
+            let count = LibraryFilter.maximumPlayers(players) ?? 1
+            let range = players.replacing("-", with: "–")
+            facts.append(Fact(title: String(localized: "Players"),
+                              text: players == "1" ? String(localized: "1 Player") : String(localized: "\(range) Players"),
+                              symbol: count >= 3 ? "person.3" : count == 2 ? "person.2" : "person"))
         }
+        if let genre = game.genre, !genre.isEmpty {
+            facts.append(Fact(title: String(localized: "Genre"), text: genre, symbol: "tag"))
+        }
+        if let released = game.formattedReleaseDate {
+            facts.append(Fact(title: String(localized: "Released"), text: released, symbol: "calendar"))
+        }
+        if let developer = game.developer, !developer.isEmpty {
+            facts.append(Fact(title: String(localized: "Developer"), text: developer, symbol: "hammer"))
+        }
+        if let publisher = game.publisher, !publisher.isEmpty, publisher != game.developer {
+            facts.append(Fact(title: String(localized: "Publisher"), text: publisher, symbol: "shippingbox"))
+        }
+        return facts
     }
 
     private var metadataStatus: ScrapeState? {
@@ -613,6 +627,38 @@ private struct RoundGlassLabel: ViewModifier {
             .font(.body)
             .frame(width: 28, height: 28)
             .contentShape(.circle)
+    }
+}
+
+/// One entry of the fact strip; the title is for the tooltip and VoiceOver.
+private struct Fact {
+    let title: String
+    let text: String
+    let symbol: String
+}
+
+/// Symbol-and-phrase facts that wrap like the strip on the back of a game
+/// box, instead of a label column.
+private struct FactStrip: View {
+    let facts: [Fact]
+
+    var body: some View {
+        FlowLayout(horizontalSpacing: AppSpacing.l, verticalSpacing: AppSpacing.s) {
+            ForEach(facts, id: \.symbol) { fact in
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Image(systemName: fact.symbol)
+                        .foregroundStyle(.secondary)
+                    Text(fact.text)
+                        .textSelection(.enabled)
+                }
+                .help(fact.title)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(fact.title)
+                .accessibilityValue(fact.text)
+            }
+        }
+        .font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

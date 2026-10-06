@@ -11244,6 +11244,36 @@
           }
         }
       }
+    },
+    "Drop BIOS files or a whole folder here. Ursprung recognizes them by checksum and renames them to what the cores expect. You must own the original hardware to use its BIOS.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zieh BIOS-Dateien oder einen ganzen Ordner hierher. Ursprung erkennt sie anhand der Prüfsumme und benennt sie so, wie die Cores sie erwarten. Du musst die Originalhardware besitzen, um ihr BIOS zu verwenden."
+          }
+        }
+      }
+    },
+    "1 Player": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Spieler"
+          }
+        }
+      }
+    },
+    "%@ Players": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Spieler"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
