@@ -8114,6 +8114,26 @@
           }
         }
       }
+    },
+    "The shader “%@” is missing, so the game uses the Sharp filter.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Shader „%@“ fehlt, daher nutzt das Spiel den Filter „Scharf“."
+          }
+        }
+      }
+    },
+    "The shader “%@” couldn’t be loaded, so the game uses the Sharp filter.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Shader „%@“ konnte nicht geladen werden, daher nutzt das Spiel den Filter „Scharf“."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

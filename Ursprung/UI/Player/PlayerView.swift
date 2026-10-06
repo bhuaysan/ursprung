@@ -14,7 +14,7 @@ struct PlayerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    @AppStorage(PrefKey.videoFilter) private var globalFilter: VideoFilter = .sharp
+    @AppStorage(PrefKey.videoFilter) private var globalFilter = VideoFilter.sharp.rawValue
     @AppStorage(PrefKey.bezel) private var bezel: BezelStyle = .none
     @AppStorage(PrefKey.integerScaling) private var integerScaling = false
     /// Bumped when any preference changes: per-system filters and bezel
@@ -36,7 +36,7 @@ struct PlayerView: View {
             // Created per game: SwiftUI reuses the player's views when the
             // window reopens, and a reused MTKView never resumes drawing.
             if session.phase == .running {
-                GameMetalView(session: session, filter: filter, integerScaling: integerScaling, bezel: bezel,
+                GameMetalView(session: session, selection: shaderSelection, integerScaling: integerScaling, bezel: bezel,
                               bezelImage: bezelImage)
                     .ignoresSafeArea()
             }
@@ -148,10 +148,10 @@ struct PlayerView: View {
         cores.downloads.values.first
     }
 
-    /// The system's own filter, or the one for all systems.
-    private var filter: VideoFilter {
+    /// The system's own filter or preset, or the one for all systems.
+    private var shaderSelection: ShaderSelection {
         _ = (preferencesRevision, globalFilter)
-        return VideoFilter.current(for: session.systemID)
+        return ShaderSelection.current(for: session.systemID)
     }
 
     /// The system's bezel image, when the user chose one.

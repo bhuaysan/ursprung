@@ -45,7 +45,7 @@ and [librashader](https://github.com/SnowflakePowered/librashader)
 | `Ursprung/Metadata` | ScreenScraper API client and the scraping queue |
 | `Ursprung/Cores` | Core download/installation and BIOS management |
 | `Ursprung/Emulation` | Session control, input routing, Metal renderer, shaders |
-| `Ursprung/Bridge` | Objective-C/C libretro host, `libretro.h`, rewind buffer, rcheevos client, librashader preset reading, bridging header |
+| `Ursprung/Bridge` | Objective-C/C libretro host, `libretro.h`, rewind buffer, rcheevos client, librashader presets and filter chains, bridging header |
 | `Ursprung/UI` | SwiftUI views (library, player, settings, components) |
 | `Ursprung/Support` | Paths, preferences, keychain, ZIP reader, secrets |
 | `ThirdParty/rcheevos` | rcheevos 12.5.0 (see its README for what was left out) |
@@ -110,6 +110,18 @@ are optional: an *ambient light* pass draws a heavily blurred copy of the
 frame (a high mip level, mipmaps generated per frame) behind the picture, and
 an overlay pass draws a per-system bezel PNG over everything with alpha
 blending.
+
+Instead of a built-in filter, a system can use a RetroArch slang preset
+(`ShaderSelection`, stored as `preset:<library|user>/<path>` in the same
+`videoFilter` keys). `ShaderChain` (Bridge) compiles it through librashader on
+a background task; the current picture keeps rendering until the chain is
+swapped in on the main thread, which alone uses it from then on. Each new core
+frame runs through the chain in its own command buffer, committed before the
+presentation buffer, into an offscreen texture of exactly the picture's
+on-screen size before rotation (`PresentationLayout`, aligned to whole
+pixels). The presentation pass then draws that texture 1:1 with the usual
+rotation, ambient light and bezel. A missing or failing preset falls back to
+the Sharp filter with a toast. See `docs/SHADER_PLAN.md`.
 
 ## Input
 

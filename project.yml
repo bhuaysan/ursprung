@@ -109,14 +109,21 @@ targets:
       - path: Ursprung/Bridge/URLibretroCore.m
       - path: Ursprung/Bridge/URGLContext.m
       - path: Ursprung/Bridge/URAudioRing.c
+      - path: Ursprung/Bridge/URShaderChain.m
+      - path: Ursprung/Bridge/URShaderPreset.m
     settings:
       base:
-        HEADER_SEARCH_PATHS: ["$(SRCROOT)/Ursprung/Bridge"]
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/Ursprung/Bridge", "$(SRCROOT)/ThirdParty/librashader/include"]
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/ThirdParty/librashader/lib"]
+        LD_RUNPATH_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/ThirdParty/librashader/lib"]
         GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "GL_SILENCE_DEPRECATION=1"]
         ENABLE_HARDENED_RUNTIME: NO
     dependencies:
+      - framework: ThirdParty/librashader/lib/librashader.dylib
+        embed: false
       - sdk: OpenGL.framework
       - sdk: ImageIO.framework
+      - sdk: Metal.framework
 
 schemes:
   ursprung-smoke:

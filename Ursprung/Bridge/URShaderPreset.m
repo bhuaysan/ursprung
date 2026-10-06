@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#import "URShaderPreset.h"
-
-#define LIBRA_RUNTIME_METAL
-#include "librashader.h"
+#import "URShaderPreset+Internal.h"
 
 NSErrorDomain const URShaderErrorDomain = @"Ursprung.Shader";
 
-/// Turns a librashader error into an NSError and frees it.
-static NSError *URShaderError(libra_error_t error) {
+NSError *URShaderError(libra_error_t error) {
     char *message = NULL;
     libra_error_write(error, &message);
     NSString *description = message ? @(message) : @"Unknown librashader error";
@@ -16,6 +12,13 @@ static NSError *URShaderError(libra_error_t error) {
     NSInteger code = libra_error_errno(error);
     libra_error_free(&error);
     return [NSError errorWithDomain:URShaderErrorDomain code:code userInfo:@{NSLocalizedDescriptionKey: description}];
+}
+
+BOOL URShaderCheck(libra_error_t result, NSError **error) {
+    if (!result) return YES;
+    if (error) *error = URShaderError(result);
+    else libra_error_free(&result);
+    return NO;
 }
 
 @implementation URShaderParameter
@@ -39,19 +42,13 @@ static NSError *URShaderError(libra_error_t error) {
 + (NSArray<URShaderParameter *> *)parametersOfPresetAtPath:(NSString *)path error:(NSError **)error {
     libra_shader_preset_t preset = NULL;
     libra_preset_opt_t options = {.version = LIBRASHADER_CURRENT_VERSION};
-    libra_error_t result = libra_preset_create_with_options(path.fileSystemRepresentation, NULL, &options, &preset);
-    if (result) {
-        if (error) *error = URShaderError(result);
-        else libra_error_free(&result);
+    if (!URShaderCheck(libra_preset_create_with_options(path.fileSystemRepresentation, NULL, &options, &preset), error)) {
         return nil;
     }
 
     libra_preset_param_list_t list = {0};
-    result = libra_preset_get_runtime_params(&preset, &list);
-    if (result) {
+    if (!URShaderCheck(libra_preset_get_runtime_params(&preset, &list), error)) {
         libra_preset_free(&preset);
-        if (error) *error = URShaderError(result);
-        else libra_error_free(&result);
         return nil;
     }
     NSMutableArray<URShaderParameter *> *parameters = [NSMutableArray arrayWithCapacity:(NSUInteger)list.length];

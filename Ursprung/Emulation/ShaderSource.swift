@@ -17,6 +17,7 @@ struct Uniforms {
     float2 fillExtent;   // ambient light: half size of a quad that covers the drawable (unrotated)
     float2 overlaySpan;  // bezel image: the part of the image the drawable shows (0…1 per axis)
     float ambientLevel;  // mip level that blurs the frame for the ambient light
+    float2 offset;       // centre of the quad relative to the drawable's centre, in pixels
 };
 
 struct VertexOut {
@@ -33,7 +34,7 @@ vertex VertexOut ursprung_vertex(uint vid [[vertex_id]], constant Uniforms &u [[
     const float2 corners[4] = { float2(-1, -1), float2(1, -1), float2(-1, 1), float2(1, 1) };
     const float2 uvs[4] = { float2(0, 1), float2(1, 1), float2(0, 0), float2(1, 0) };
 
-    float2 p = rotate(corners[vid] * u.extent, float(u.rotation) * M_PI_F * 0.5f) / u.viewportHalf;
+    float2 p = (rotate(corners[vid] * u.extent, float(u.rotation) * M_PI_F * 0.5f) + u.offset) / u.viewportHalf;
 
     VertexOut out;
     out.position = float4(p, 0, 1);

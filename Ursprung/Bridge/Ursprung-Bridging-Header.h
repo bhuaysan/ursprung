@@ -7,5 +7,6 @@
 #import "URAchievements.h"
 #import "URRewindBuffer.h"
 #import "URShaderPreset.h"
+#import "URShaderChain.h"
 
 #include <zlib.h>

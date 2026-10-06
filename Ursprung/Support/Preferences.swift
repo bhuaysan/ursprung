@@ -79,15 +79,6 @@ nonisolated enum VideoFilter: String, CaseIterable, Identifiable, Sendable {
         case .lcd: 6
         }
     }
-
-    /// The filter a system uses: its own choice, or the one for all systems.
-    static func current(for systemID: String?) -> VideoFilter {
-        if let systemID, let raw = UserDefaults.standard.string(forKey: PrefKey.systemVideoFilter(systemID)),
-           let filter = VideoFilter(rawValue: raw) {
-            return filter
-        }
-        return Preferences.videoFilter
-    }
 }
 
 /// What fills the space around the game picture.

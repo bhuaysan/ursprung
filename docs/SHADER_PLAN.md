@@ -1,6 +1,6 @@
 # Ursprung — RetroArch Shaders and Shader Editor: Plan
 
-5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike) and 1 (dependency) done; phase 2 next.
+5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike), 1 (dependency) and 2 (render path) done; phase 3 next.
 
 Ursprung renders every frame through one built-in Metal shader (`Ursprung/Emulation/ShaderSource.swift`, 7 fixed filters). This plan adds RetroArch slang shader presets through librashader, and a shader editor with live preview on top of it.
 
@@ -158,6 +158,16 @@ The spike ran as a standalone Objective-C program in a scratch folder instead of
   - frame bookkeeping (serial, direction, history clear).
 - `EmulationSession` exposes rewind direction and history-clear events to the renderer.
 - Acceptance: a library preset, set in prefs, runs on NES/SNES/GBA/PSX/N64 (GL core) with rotation, integer scaling, bezel and ambient light. Fallback works when a file is missing. A smoke render test runs in CI.
+
+**Done 6 October 2026.**
+- `ShaderChain` (Objective-C, `Bridge/URShaderChain`) wraps preset parsing with a wildcard context (core name, rotation), chain creation, `frame`, parameters and the active pass count.
+- `ShaderSelection` / `ShaderPresetRef` decode the `videoFilter` keys (system → all systems; the per-game key follows in phase 4). Preset paths that leave their folder are rejected.
+- `MetalRenderer`: `PresentationLayout` (pure, tested) places the picture on whole pixels, and the vertex shader got an `offset` uniform for it, so the chain output maps 1:1. The chain pass runs only when a new frame, a new output size or a new chain arrives. `frameCount` is the core's `frameSerial`, `frame_direction` is -1 while rewinding, and frame time and FPS feed the frametime uniforms.
+- **No history clearing.** librashader 0.12.0 (also on master) clears the frame history in a render pass with one colour attachment per history texture. For presets without history the pass has no attachments: `frame` fails with `FailedToCreateCommandBuffer`, and under Metal API validation it is an assertion. The C API does not say whether a preset has history, so `clear_history` is never set and the session sends no history-clear events. After a state load or reset, history effects (motion blur, phosphor persistence) blend a few old frames. Revisit when `SlangPreset` (phase 5) can tell whether a preset uses `OriginalHistory`/feedback, or when upstream fixes it.
+- librashader's `*_free` functions panic (and print) on null handles, although the header says they do nothing; the bridge only frees non-null handles.
+- Verified: `ursprung-smoke` with `URSMOKE_SHADER=<preset>` (and `URSMOKE_SHADER_HEIGHT`) rendered crt-royale (NES), crt-guest-advanced (SNES), lcd-grid-v2 (GBA), zfast-crt (PSX, Swanstation hardware) and crt-easymode (N64, GLideN64). In the app: crt-royale with integer scaling and ambient light, a live switch to an LCD preset, the missing-file fallback with its toast, and crt-guest-advanced while rewinding, all at 60 fps. Rotation is covered by `PresentationLayoutTests` only; no vertical game was at hand.
+- CI: `ShaderChainTests` render a fixture preset on the GPU and check pixels, parameter changes and compile errors. `make test`: 276 tests green.
+- Prefs written from outside the app (`defaults write videoFilter.<system>`) only reach a running player when an `@AppStorage` key changes too; `UserDefaults.didChangeNotification` is in-process only. Settings changes made in the app are not affected.
 
 ### Phase 3 — Shader library (M)
 

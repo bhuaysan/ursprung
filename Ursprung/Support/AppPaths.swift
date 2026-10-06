@@ -24,6 +24,12 @@ nonisolated enum AppPaths {
     static var extras: URL { directory("Extras") }
     /// Images framing the game picture, one per system (`<system id>.png`).
     static var bezels: URL { directory("Bezels") }
+    /// RetroArch slang shaders: the downloaded pack and the user's own.
+    static var shaders: URL { directory("Shaders") }
+    /// The libretro `slang-shaders` pack, replaced as a whole on update.
+    static var shaderLibrary: URL { shaders.appending(path: "slang-shaders", directoryHint: .isDirectory) }
+    /// Presets and shaders the user saved or imported (backed up).
+    static var userShaders: URL { shaders.appending(path: "User", directoryHint: .isDirectory) }
     /// System logos and console photos downloaded from ScreenScraper.
     static var systemMedia: URL {
         let url = media.appending(path: "Systems", directoryHint: .isDirectory)

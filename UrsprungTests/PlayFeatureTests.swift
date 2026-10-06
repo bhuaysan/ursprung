@@ -427,15 +427,6 @@ struct CoreVersionTests {
 
 @Suite("Video presets")
 struct VideoPresetTests {
-    @Test func aSystemCanHaveItsOwnFilter() {
-        let key = PrefKey.systemVideoFilter("test-system")
-        defer { UserDefaults.standard.removeObject(forKey: key) }
-        UserDefaults.standard.removeObject(forKey: key)
-        #expect(VideoFilter.current(for: "test-system") == Preferences.videoFilter)
-        UserDefaults.standard.set(VideoFilter.lcd.rawValue, forKey: key)
-        #expect(VideoFilter.current(for: "test-system") == .lcd)
-    }
-
     @Test func everyFilterHasItsOwnShaderIndex() {
         #expect(Set(VideoFilter.allCases.map(\.shaderIndex)).count == VideoFilter.allCases.count)
     }

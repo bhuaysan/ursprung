@@ -8,7 +8,7 @@ import SwiftUI
 /// receives keyboard and mouse input.
 struct GameMetalView: NSViewRepresentable {
     let session: EmulationSession
-    let filter: VideoFilter
+    let selection: ShaderSelection
     let integerScaling: Bool
     let bezel: BezelStyle
     let bezelImage: URL?
@@ -17,15 +17,19 @@ struct GameMetalView: NSViewRepresentable {
         let view = GameMTKView(frame: .zero, device: nil)
         view.session = session
         view.renderer = MetalRenderer(view: view)
+        view.renderer?.onShaderError = { [weak session] message in
+            session?.showToast(message, kind: .warning, duration: 5)
+        }
         return view
     }
 
     func updateNSView(_ view: GameMTKView, context: Context) {
         view.renderer?.core = session.core
-        view.renderer?.filter = filter
+        view.renderer?.selection = selection
         view.renderer?.integerScaling = integerScaling
         view.renderer?.bezel = bezel
         view.renderer?.bezelImageURL = bezelImage
+        view.renderer?.isRewinding = session.isRewinding
         if session.phase == .running, !session.isMenuVisible {
             view.window?.makeFirstResponder(view)
         }
