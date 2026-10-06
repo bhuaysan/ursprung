@@ -94,12 +94,31 @@ targets:
       - path: UrsprungTests
     dependencies:
       - target: Ursprung
+      # Loaded with dlopen like a downloaded core, so copied, not linked.
+      - target: ursprung-test-core
+        link: false
+        embed: true
+        copy:
+          destination: resources
     settings:
       base:
         BUNDLE_LOADER: $(TEST_HOST)
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/Ursprung.app/Contents/MacOS/Ursprung
         PRODUCT_BUNDLE_IDENTIFIER: io.github.bhuaysan.UrsprungTests
         GENERATE_INFOPLIST_FILE: YES
+
+  # A libretro core for the tests (UrsprungTests/EmulationRunnerTests.swift).
+  ursprung-test-core:
+    type: library.dynamic
+    platform: macOS
+    sources:
+      - path: Tools/ursprung-test-core
+    settings:
+      base:
+        PRODUCT_NAME: ursprung-test-core
+        EXECUTABLE_PREFIX: ""
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/Ursprung/Bridge"]
+        SKIP_INSTALL: YES
 
   ursprung-smoke:
     type: tool

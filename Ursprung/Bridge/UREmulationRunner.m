@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #import "UREmulationRunner.h"
+#import "UREmulationRunner+Testing.h"
 
 #import "URRewindBuffer.h"
 
@@ -300,8 +301,12 @@ static const size_t URRewindMaxStateSize = 24 * 1024 * 1024;
         [core runFrame];
     }
     core.videoEnabled = YES;
-    [core unserializeStateFromBytes:_state.bytes length:_state.length];
     core.audioEnabled = YES;
+    if (![core unserializeStateFromBytes:_state.bytes length:_state.length]) {
+        // The game stays ahead: no run-ahead for this game, or it would run
+        // that many frames too fast from now on.
+        _runAheadUsable = NO;
+    }
 }
 
 /// Runs the game one recorded state backwards, silently.
@@ -310,7 +315,15 @@ static const size_t URRewindMaxStateSize = 24 * 1024 * 1024;
     size_t size = _state.length;
     if (_rewindState.length != size) _rewindState.length = size;
     if (size == 0 || !URRewindBufferStepBack(_rewind, _rewindState.mutableBytes, size)) return; // nothing older
-    [core unserializeStateFromBytes:_rewindState.bytes length:size];
+    if (![core unserializeStateFromBytes:_rewindState.bytes length:size]) {
+        // The core takes states but can't go back to them: running on would
+        // play forwards while rewinding.
+        _rewindAvailability = URRewindAvailabilityUnsupported;
+        URRewindBufferFree(_rewind);
+        _rewind = NULL;
+        _rewindSeconds = 0;
+        return;
+    }
     core.audioEnabled = NO;
     [core runFrame];
     core.audioEnabled = YES;

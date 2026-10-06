@@ -3,6 +3,7 @@
 
 #import "URLibretroCore.h"
 #import "UREmulationRunner.h"
+#import "UREmulationRunner+Testing.h"
 #import "URAudioRing.h"
 #import "URAchievements.h"
 #import "URRewindBuffer.h"

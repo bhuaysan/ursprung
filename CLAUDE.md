@@ -10,6 +10,7 @@ GPL-3.0-or-later. See `docs/ARCHITECTURE.md` for the full picture.
 - `make build` / `make test` / `make run`
 - `make smoke CORE=<dylib> ROM=<file>` — headless core check, writes `smoke.png`.
 - Tests use Swift Testing (`import Testing`), in `UrsprungTests/`.
+- `Tools/ursprung-test-core` is a tiny libretro core copied into the test bundle; `EmulationRunnerTests` drive it frame by frame via `UREmulationRunner+Testing.h`.
 
 ## Hard rules
 
