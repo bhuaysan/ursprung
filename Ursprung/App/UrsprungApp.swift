@@ -24,6 +24,7 @@ struct UrsprungApp: App {
     @State private var updates = UpdateChecker()
     @State private var achievements: AchievementService
     @State private var shaders: ShaderLibrary
+    @State private var shaderEditor: ShaderEditor
 
     private let container: ModelContainer
 
@@ -40,6 +41,7 @@ struct UrsprungApp: App {
         let session = EmulationSession(cores: cores, bios: bios, achievements: achievements)
         let shaders = ShaderLibrary()
         _shaders = State(initialValue: shaders)
+        _shaderEditor = State(initialValue: ShaderEditor(session: session, shaders: shaders))
         _achievements = State(initialValue: achievements)
         _metadata = State(initialValue: metadata)
         _library = State(initialValue: library)
@@ -80,6 +82,7 @@ struct UrsprungApp: App {
         .environment(session)
         .environment(systemMedia)
         .environment(shaders)
+        .environment(shaderEditor)
         .modelContainer(container)
 
         Window(String(localized: "Player"), id: WindowID.player) {
@@ -94,7 +97,18 @@ struct UrsprungApp: App {
         .environment(session)
         .environment(cores)
         .environment(shaders)
+        .environment(shaderEditor)
         .modelContainer(container)
+
+        Window(String(localized: "Shader Editor"), id: WindowID.shaderEditor) {
+            ShaderEditorWindow()
+                .frame(minWidth: 960, minHeight: 600)
+        }
+        .defaultSize(width: 1320, height: 880)
+        .restorationBehavior(.disabled)
+        .environment(session)
+        .environment(shaders)
+        .environment(shaderEditor)
 
         WindowGroup(String(localized: "Manual"), id: WindowID.manual, for: UUID.self) { $gameID in
             ManualView(gameID: gameID)
@@ -118,6 +132,7 @@ struct UrsprungApp: App {
         .environment(backup)
         .environment(achievements)
         .environment(shaders)
+        .environment(shaderEditor)
         .modelContainer(container)
     }
 }
@@ -126,4 +141,5 @@ enum WindowID {
     static let library = "library"
     static let player = "player"
     static let manual = "manual"
+    static let shaderEditor = "shader-editor"
 }

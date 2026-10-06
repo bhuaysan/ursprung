@@ -48,6 +48,8 @@ final class ShaderLibrary {
 
     @ObservationIgnored let libraryDirectory: URL
     @ObservationIgnored let userDirectory: URL
+    /// The shader editor's drafts.
+    @ObservationIgnored let draftsDirectory: URL
     @ObservationIgnored private let rootDirectory: URL
     @ObservationIgnored private let downloader: HTTPDownload.Downloader
     @ObservationIgnored private let lastModified: HTTPDownload.LastModifiedFetcher
@@ -63,6 +65,7 @@ final class ShaderLibrary {
         rootDirectory = root
         libraryDirectory = root.appending(path: "slang-shaders", directoryHint: .isDirectory)
         userDirectory = root.appending(path: "User", directoryHint: .isDirectory)
+        draftsDirectory = root.appending(path: "Drafts", directoryHint: .isDirectory)
         self.downloader = downloader
         self.lastModified = lastModified
         self.defaults = defaults
@@ -73,7 +76,7 @@ final class ShaderLibrary {
     }
 
     func url(of preset: ShaderPresetRef) -> URL {
-        preset.url(library: libraryDirectory, user: userDirectory)
+        preset.url(library: libraryDirectory, user: userDirectory, drafts: draftsDirectory)
     }
 
     func exists(_ preset: ShaderPresetRef) -> Bool {

@@ -262,7 +262,7 @@ struct ShaderWorkspaceTests {
         var applied: [(String, Float)] = []
         workspace.compiling(preset)
         #expect(workspace.isCompiling && workspace.preset == nil)
-        workspace.loaded(preset, parameters: chain.parameters, values: ["STRENGTH": 0.8],
+        workspace.loaded(preset, parameters: chain.parameters, values: ["STRENGTH": 0.8], passCount: 1,
                          apply: { applied.append(($0, $1)) }, reload: {})
         #expect(workspace.preset == preset && !workspace.isModified)
 

@@ -3,9 +3,24 @@
 import Foundation
 import Observation
 
+/// How the shader editor's preview shows the picture.
+nonisolated struct ShaderPreviewTools: Equatable, Sendable {
+    /// The part of the picture (from the left, 0…1) shown without the preset.
+    var split: Double?
+    /// Magnification of the finished picture, 1…8, without smoothing.
+    var zoom: Double = 1
+    /// The point of the picture (0…1 from the top left) the zoom centres on.
+    var focus = CGPoint(x: 0.5, y: 0.5)
+    /// Renders the preset for a screen of this size (pixels) instead of the
+    /// view's, and scales the result into the view.
+    var outputSize: CGSize?
+
+    var changesLayout: Bool { zoom != 1 || outputSize != nil }
+}
+
 /// The RetroArch preset the player renders and its parameters, shared by the
-/// renderer and the player's shader panel: a slider changes the next frame
-/// without recompiling the preset.
+/// renderer, the player's shader panel and the shader editor: a slider
+/// changes the next frame without recompiling the preset.
 @Observable
 final class ShaderWorkspace {
     enum Status: Equatable {
@@ -26,6 +41,24 @@ final class ShaderWorkspace {
     /// What the preset sets each parameter to, by name.
     @ObservationIgnored private var initials: [String: Float] = [:]
 
+    /// The shader editor's draft: shown instead of the game's choice while
+    /// the editor previews on the running game.
+    var editorPreset: ShaderPresetRef?
+    /// The preset that is showing compiles again; it keeps showing meanwhile.
+    private(set) var isRecompiling = false
+    /// Why the last compile of the preset that is showing failed; the
+    /// previous result keeps showing.
+    private(set) var compileError: String?
+    /// Bumped by every finished compile, successful or not.
+    private(set) var compileCount = 0
+    /// Passes of the preset that is showing.
+    private(set) var passCount = 0
+    var previewTools = ShaderPreviewTools()
+    /// GPU time of the preset per frame, in seconds (averaged); nil without a preset.
+    private(set) var gpuTime: Double?
+    @ObservationIgnored private var gpuSamples: [Double] = []
+    @ObservationIgnored private var gpuWindowStart: Double = 0
+
     /// Sends a parameter change to the renderer's chain.
     @ObservationIgnored private var apply: ((String, Float) -> Void)?
     /// Compiles the preset again, e.g. after its file was saved.
@@ -38,6 +71,11 @@ final class ShaderWorkspace {
 
     var isCompiling: Bool {
         if case .compiling = status { true } else { false }
+    }
+
+    /// Why the preset in use can't be shown, or why its last change didn't compile.
+    var errorMessage: String? {
+        if case .failed(_, let message) = status { message } else { compileError }
     }
 
     /// Whether `name` differs from what the preset sets it to.
@@ -78,6 +116,12 @@ final class ShaderWorkspace {
         reload?()
     }
 
+    /// The renderer that compiles for this workspace, so `reloadPreset()`
+    /// works also after a failed compile.
+    func attach(reload: @escaping () -> Void) {
+        self.reload = reload
+    }
+
     // MARK: Renderer
 
     /// No preset: the game ended or uses a built-in filter.
@@ -88,12 +132,29 @@ final class ShaderWorkspace {
 
     func compiling(_ preset: ShaderPresetRef) {
         status = .compiling(preset)
+        isRecompiling = false
+    }
+
+    /// The preset that is showing compiles again (its files changed).
+    func recompiling() {
+        isRecompiling = true
+    }
+
+    /// The new compile failed; the previous one keeps showing.
+    func recompileFailed(message: String) {
+        isRecompiling = false
+        compileError = message
+        compileCount += 1
     }
 
     /// The renderer shows `preset` now; `apply` changes a parameter of its chain.
-    func loaded(_ preset: ShaderPresetRef, parameters: [ShaderParameter], values: [String: Float],
+    func loaded(_ preset: ShaderPresetRef, parameters: [ShaderParameter], values: [String: Float], passCount: Int,
                 apply: @escaping (String, Float) -> Void, reload: @escaping () -> Void) {
         status = .ready(preset)
+        isRecompiling = false
+        compileError = nil
+        compileCount += 1
+        self.passCount = passCount
         self.parameters = parameters
         self.values = values
         initials = Dictionary(parameters.map { ($0.name, $0.initial) }, uniquingKeysWith: { first, _ in first })
@@ -103,15 +164,31 @@ final class ShaderWorkspace {
 
     func failed(_ preset: ShaderPresetRef, message: String) {
         status = .failed(preset, message)
+        compileCount += 1
         clear()
     }
 
+    /// GPU time of one run of the preset; published averaged twice a second.
+    func recordGPUTime(_ seconds: Double, at time: Double) {
+        guard seconds > 0, seconds < 1 else { return }
+        gpuSamples.append(seconds)
+        if time - gpuWindowStart >= 0.5 {
+            gpuTime = gpuSamples.reduce(0, +) / Double(gpuSamples.count)
+            gpuSamples = []
+            gpuWindowStart = time
+        }
+    }
+
     private func clear() {
+        isRecompiling = false
+        compileError = nil
+        passCount = 0
+        gpuTime = nil
+        gpuSamples = []
         parameters = []
         values = [:]
         initials = [:]
         apply = nil
-        reload = nil
     }
 }
 

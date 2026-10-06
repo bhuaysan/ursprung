@@ -88,6 +88,7 @@ struct LibraryView: View {
     @Environment(LibraryStore.self) private var library
     @Environment(MetadataService.self) private var metadata
     @Environment(EmulationSession.self) private var session
+    @Environment(ShaderEditor.self) private var shaderEditor
     @Environment(SystemMediaStore.self) private var systemMedia
     @Environment(BIOSManager.self) private var bios
 
@@ -329,6 +330,17 @@ struct LibraryView: View {
                 if let query = ProcessInfo.processInfo.environment["URSPRUNG_SELECT"] {
                     let game = games.first { $0.title.localizedStandardContains(query) }
                     gameSelection.select(game?.persistentModelID)
+                }
+                // URSPRUNG_SHADER_EDITOR=<preset:library/…|preset:user/…|system id|new> opens the shader editor.
+                if let request = ProcessInfo.processInfo.environment["URSPRUNG_SHADER_EDITOR"] {
+                    if case .preset(let preset)? = ShaderSelection(rawValue: request) {
+                        shaderEditor.open(.preset(preset))
+                    } else if request == "new" {
+                        shaderEditor.open(.newPreset)
+                    } else if SystemCatalog.system(withID: request) != nil {
+                        shaderEditor.open(.system(request))
+                    }
+                    openWindow(id: WindowID.shaderEditor)
                 }
                 // Shows the activity footer's error row.
                 if let message = ProcessInfo.processInfo.environment["URSPRUNG_METADATA_ERROR"] {
@@ -759,6 +771,10 @@ struct LibraryView: View {
             requestRemoval: { gamesPendingRemoval = [game] },
             organize: organizeActions(for: [game]),
             showSaveStates: { statesGame = game },
+            editShader: {
+                shaderEditor.open(.game(game.id, systemID: game.system?.id))
+                openWindow(id: WindowID.shaderEditor)
+            },
             discs: discAction(for: game)
         )
     }

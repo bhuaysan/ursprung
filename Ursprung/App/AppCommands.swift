@@ -15,6 +15,8 @@ struct AppCommands: Commands {
     @FocusedValue(\.isGridFocused) private var isGridFocused
     @FocusedValue(\.inspectorToggle) private var inspectorToggle
     @FocusedValue(\.saveStateSlot) private var saveStateSlot
+    @FocusedValue(\.shaderEditorSave) private var shaderEditorSave
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         // Every toolbar command is also here (docs/DESIGN_SPEC.md, section D);
@@ -26,6 +28,20 @@ struct AppCommands: Commands {
         CommandGroup(after: .appInfo) {
             Button("Check for Updates…") { updates.checkForUpdates() }
                 .disabled(updates.isChecking)
+        }
+
+        CommandGroup(replacing: .saveItem) {
+            // ⌘S saves the shader while the shader editor is the key window.
+            if let shaderEditorSave {
+                Button("Save Shader", action: shaderEditorSave)
+                    .keyboardShortcut("s")
+            }
+        }
+
+        CommandGroup(before: .windowList) {
+            Button("Shader Editor") { openWindow(id: WindowID.shaderEditor) }
+                .keyboardShortcut("e", modifiers: [.command, .option])
+            Divider()
         }
 
         CommandGroup(replacing: .importExport) {
@@ -94,7 +110,10 @@ struct AppCommands: Commands {
             Button(session.isShaderPanelVisible ? "Hide Shader Panel" : "Show Shader Panel") { session.toggleShaderPanel() }
                 .disabled(!running)
             Divider()
-            if let saveStateSlot {
+            if shaderEditorSave != nil {
+                Button("Quick Save") { session.saveState(slot: 0) }
+                    .disabled(!running)
+            } else if let saveStateSlot {
                 // The pause menu's Save States page: ⌘S saves into the focused slot.
                 Button("Save to Slot \(saveStateSlot)") { session.saveState(slot: saveStateSlot) }
                     .keyboardShortcut("s")

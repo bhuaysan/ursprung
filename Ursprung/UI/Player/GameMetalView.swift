@@ -25,7 +25,7 @@ struct GameMetalView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: GameMTKView, context: Context) {
-        view.renderer?.core = session.core
+        view.renderer?.source = session.core
         view.renderer?.selection = selection
         view.renderer?.integerScaling = integerScaling
         view.renderer?.bezel = bezel

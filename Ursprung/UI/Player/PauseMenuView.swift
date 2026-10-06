@@ -53,7 +53,7 @@ struct PauseMenuView: View {
 
     enum Row: Hashable {
         case resume, quickSave, quickLoad, saveStates, screenshot, changeDisc, cheats, achievements, manual, typing
-        case shader, coreOptions, reset, quit
+        case shader, shaderFrame, coreOptions, reset, quit
         case disc(Int)
         case history(Int)
         case cheat(Int)
@@ -213,6 +213,7 @@ struct PauseMenuView: View {
                 row(.typing, "Type on Keyboard", symbol: "keyboard", hint: session.isTyping ? .checkmark : nil)
             }
             row(.shader, "Shader…", symbol: "camera.filters", hint: .keys(session.input.hotkeys.bindings[.shaderPanel]?.label ?? ""))
+            row(.shaderFrame, "Capture Frame for Shader Editor", symbol: "camera.viewfinder")
             row(.coreOptions, "Core Options…", symbol: "slider.horizontal.3", hint: .chevron)
             GroupDivider()
             row(.reset, "Reset", symbol: "arrow.counterclockwise", hint: .keys("⌥⌘R"))
@@ -267,7 +268,7 @@ struct PauseMenuView: View {
             [.resume, .quickSave, .quickLoad, .saveStates, .screenshot] + (session.diskCount > 1 ? [.changeDisc] : [])
                 + (session.achievementGame != nil ? [.achievements] : []) + [.cheats]
                 + (hasManual ? [.manual] : []) + (session.hasComputerKeyboard ? [.typing] : [])
-                + [.shader, .coreOptions, .reset, .quit]
+                + [.shader, .shaderFrame, .coreOptions, .reset, .quit]
         case .discs:
             (0..<session.diskCount).map(Row.disc)
         case .history:
@@ -304,6 +305,7 @@ struct PauseMenuView: View {
             focusedRow = .disc(session.currentDisk)
             show(.discs)
         case .shader: session.toggleShaderPanel()
+        case .shaderFrame: session.captureShaderFrame()
         case .coreOptions: show(.options)
         case .screenshot: session.takeScreenshot()
         case .cheats:

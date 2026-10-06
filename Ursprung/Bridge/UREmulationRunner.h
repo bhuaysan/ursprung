@@ -43,6 +43,8 @@ typedef NS_ENUM(NSInteger, URRewindAvailability) {
 } NS_SWIFT_NAME(RewindAvailability);
 
 @property (atomic, getter=isPaused) BOOL paused;
+/// While paused, runs one more frame (without sound).
+- (void)stepFrame;
 @property (atomic) BOOL fastForward;
 /// How many times faster than normal fast forward runs; 0 runs as fast as
 /// the Mac can. Default 4.

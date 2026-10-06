@@ -30,6 +30,8 @@ nonisolated enum AppPaths {
     static var shaderLibrary: URL { shaders.appending(path: "slang-shaders", directoryHint: .isDirectory) }
     /// Presets and shaders the user saved or imported (backed up).
     static var userShaders: URL { shaders.appending(path: "User", directoryHint: .isDirectory) }
+    /// The shader editor's working copies, one folder per draft (not backed up).
+    static var shaderDrafts: URL { shaders.appending(path: "Drafts", directoryHint: .isDirectory) }
     /// System logos and console photos downloaded from ScreenScraper.
     static var systemMedia: URL {
         let url = media.appending(path: "Systems", directoryHint: .isDirectory)

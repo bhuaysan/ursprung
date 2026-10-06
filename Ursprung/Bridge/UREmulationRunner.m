@@ -21,6 +21,7 @@ typedef struct {
     NSLock *_commandLock;
     NSMutableArray<void (^)(URLibretroCore *)> *_commands;
     _Atomic bool _stopRequested;
+    _Atomic int _pendingSteps;
     void (^_stopCompletion)(void);
     BOOL _threadFinished; // guarded by @synchronized(self)
 
@@ -160,6 +161,14 @@ static const size_t URRewindMaxStateSize = 24 * 1024 * 1024;
         @autoreleasepool {
             [self drainCommands];
 
+            if (self.paused && atomic_load(&_pendingSteps) > 0) {
+                // One frame for the shader editor, silent: it would only click.
+                atomic_fetch_sub(&_pendingSteps, 1);
+                [self runVisibleFrame:frameCount++ fastForward:NO];
+                URAudioRingClear(core.audioRing);
+                nextFrame = mach_absolute_time();
+                continue;
+            }
             if (self.paused) {
                 void (^frameHandler)(URLibretroCore *, BOOL) = self.frameHandler;
                 if (frameHandler) frameHandler(core, NO);
@@ -168,6 +177,7 @@ static const size_t URRewindMaxStateSize = 24 * 1024 * 1024;
                 continue;
             }
 
+            atomic_store(&_pendingSteps, 0);
             [self updateRewindBuffer];
             BOOL fastForward = self.fastForward;
             core.fastForwarding = fastForward;
@@ -250,6 +260,10 @@ static const size_t URRewindMaxStateSize = 24 * 1024 * 1024;
         if (stopCompletion) stopCompletion();
         if (ranGame && !wasRequested && termination) termination();
     });
+}
+
+- (void)stepFrame {
+    if (self.paused) atomic_fetch_add(&_pendingSteps, 1);
 }
 
 #pragma mark - Frames

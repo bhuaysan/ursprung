@@ -43,6 +43,9 @@ NS_SWIFT_NAME(ShaderChain)
 /// The number of passes in the preset.
 @property (nonatomic, readonly) NSInteger passCount;
 /// Only the first passes render (for showing the output of one pass).
+/// librashader 0.12.0 aborts the process (a Rust panic) in the next frame
+/// when a later pass's output is read by an earlier pass (crt-royale); the
+/// shader editor compiles a shortened preset instead.
 @property (nonatomic) NSInteger activePassCount;
 
 /// Renders `input` through all active passes into the whole of `output`.

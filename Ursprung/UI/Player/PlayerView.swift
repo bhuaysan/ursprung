@@ -180,8 +180,10 @@ struct PlayerView: View {
         cores.downloads.values.first
     }
 
-    /// The game's own filter or preset, its system's, or the one for all systems.
+    /// The shader editor's draft while it previews on the game; else the
+    /// game's own filter or preset, its system's, or the one for all systems.
     private var shaderSelection: ShaderSelection {
+        if let draft = session.shader.editorPreset { return .preset(draft) }
         _ = (preferencesRevision, globalFilter)
         return ShaderSelection.current(for: session.systemID, gameID: session.runningGameID)
     }

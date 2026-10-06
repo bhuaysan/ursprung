@@ -1,6 +1,6 @@
 # Ursprung — RetroArch Shaders and Shader Editor: Plan
 
-5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike), 1 (dependency), 2 (render path), 3 (shader library) and 4 (player panel) done; phase 5 next.
+5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike), 1 (dependency), 2 (render path), 3 (shader library), 4 (player panel) and 5 (shader editor) done; phase 6 next.
 
 Ursprung renders every frame through one built-in Metal shader (`Ursprung/Emulation/ShaderSource.swift`, 7 fixed filters). This plan adds RetroArch slang shader presets through librashader, and a shader editor with live preview on top of it.
 
@@ -264,9 +264,22 @@ If a game starts while the editor is open, the editor switches to live preview; 
   - a syntax error shows inline within a second and the previous image keeps running;
   - all of this works without a running game.
 
+**Done 6 October 2026.**
+- Model: `SlangPreset` reads and writes every pass, texture and value key (unknown keys are kept; comments are not). `SlangPreset.load` resolves `#reference` chains into one preset with absolute paths, fills RetroArch wildcards in referenced paths (falling back to the literal path, like RetroArch) and resolves texture paths that Mega Bezel's `.params` files set for names declared elsewhere. The opt-in round trip over the pack (`TEST_RUNNER_URSPRUNG_SHADER_PACK=<zip>`) writes every resolved preset next to its original and compares librashader's parameters: 2,626 presets checked, no differences. Presets with a line without `=` (patchy-ntsc) are skipped: librashader then also drops the next line.
+- `SlangSource` reads `#pragma parameter` lines (the shader's own defaults), `#include` closures and glslang's `ERROR: file:line: message` lines; `SlangTokenizer` colours slang.
+- Drafts (`ShaderDrafts`): `Shaders/Drafts/<id>/` with `draft.json`, `preset.slangp` and `files/`. The first change to a pack or user file copies the pass shader with all its includes into `files/library/…` or `files/user/…` (shared includes once), so relative includes keep working; the pack is never written. Save writes `User/<name>.slangp` and the draft's own files into `User/<name>/`; saving over the user preset the draft came from writes copies of user files back. After saving, the editor continues on the saved preset. Export copies the preset with every file it reads into a folder that works on its own (zip via `NSFileCoordinator`'s `.forUploading`). Only the current draft is kept.
+- Renderer: `FrameSource` (the core or a `StillFrame`), so the editor's own `MTKView` uses the same `MetalRenderer`. A recompile of the preset that is showing keeps the previous chain when it fails (`ShaderWorkspace.compileError`). Preview tools in `ShaderWorkspace.previewTools`: split comparison (scissored second draw of the unprocessed frame), zoom 1–8× around a draggable focus (instead of a loupe that follows the pointer), output sizes 1080p/1440p/4K (rendered at that size and scaled into the view), GPU time from the chain's command buffer.
+- **"Show output after pass N" does not use `set_active_pass_count`**: with crt-royale it makes librashader 0.12.0 panic in the next `frame` (index out of bounds in `framebuffer.rs`), which aborts the app. The editor writes `preview-<N>.slangp` with the first N passes next to the draft and compiles that.
+- `EmulationRunner.stepFrame()` runs one frame while paused (no sound) for the editor's Next Frame.
+- Editor window (`WindowID.shaderEditor`): passes in the sidebar (add from a preset or a template pass, duplicate, remove, reorder), the preview above the source, inspector pages Pass / Parameters (grouped by the pass that declares them, in declaration order; librashader's own list is unordered) / Textures. Source editor: TextKit 2 `NSTextView` per open tab (own undo), find bar, line-number ruler with error marks, error lines highlighted, recompile 400 ms after the last keystroke, error list that jumps to the line. With a game running, the player shows the draft (`ShaderWorkspace.editorPreset`) and the tools apply there.
+- Entry points: Window › Shader Editor (⌥⌘E), the player's shader panel ("Open in Shader Editor"), Settings › Emulation, the Edit Shader… item of games and of systems in the sidebar (a game's captured frames become the still picture), pause menu "Capture Frame for Shader Editor" (`Extras/<game>/ShaderFrames/`, aspect ratio in the PNG description). ⌘S saves while the editor is the key window. Debug builds: `URSPRUNG_SHADER_EDITOR=<preset:library/…|preset:user/…|system id|new>`.
+- AppKit traps: a `VSplitView` in the detail column sent AppKit into an endless constraint update loop (the preview bar's minimum width changes); the editor uses its own draggable split and a horizontally scrolling preview bar. `NSRulerView` subclasses don't clip their drawing (macOS 14+): the ruler painted its background over the text until it clipped to its bounds.
+- Verified in the app: new shader, live recompile, syntax error inline while the last picture stays, crt-royale opened from the pack (12 passes, textures), copy on first edit, Save as "Royale Test" (file layout checked), parameters, live mode on Super Mario Bros. with compare and "up to pass 1". Not verified with real input: dragging the split divider and the zoom focus, Use For, export, adding passes from the browser. `make test`: 315 tests.
+
 ### Phase 6 — Polish (S–M)
 
 - German localization for all new strings; accessibility labels on editor controls.
+- The player's shader panel lists parameters in librashader's order, which can differ from the declaration order (crt-royale); sort them like the editor does.
 - Performance warning when GPU time exceeds the frame budget.
 - Docs: README feature list, ARCHITECTURE.md (render path, ShaderLibrary), a user-facing shader doc.
 - `debug-without-ui` additions: `URSPRUNG_SHADER=<preset>`, `URSPRUNG_SHADER_PARAMS=…`, and a snapshot of the shader editor.

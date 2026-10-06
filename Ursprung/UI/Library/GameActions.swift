@@ -37,6 +37,8 @@ struct GameActions {
     let organize: OrganizeActions
     /// Opens the game's save states.
     let showSaveStates: () -> Void
+    /// Opens the game's shader in the shader editor, with its captured frames.
+    let editShader: () -> Void
     /// Edits the disc playlist of an .m3u game, or creates one from the
     /// game's loose discs; nil when the game has neither.
     var discs: DiscAction?
@@ -123,6 +125,7 @@ struct GameActionItems: View {
                 .keyboardShortcut(shortcut("r"))
         }
         Button("Save States…", systemImage: "square.stack.3d.up", action: actions.showSaveStates)
+        Button("Edit Shader…", systemImage: "camera.filters", action: actions.editShader)
         Button("Import Battery Save…", systemImage: "square.and.arrow.down", action: actions.importBatterySave)
             .disabled(!actions.canImportBatterySave)
         if let discs = actions.discs {

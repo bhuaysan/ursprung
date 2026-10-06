@@ -13,6 +13,8 @@ import SwiftUI
 struct ShaderPanel: View {
     @Environment(EmulationSession.self) private var session
     @Environment(ShaderLibrary.self) private var shaders
+    @Environment(ShaderEditor.self) private var editor
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The level the panel shows and changes.
@@ -46,6 +48,11 @@ struct ShaderPanel: View {
                 .fadesWhileDragging(isDragging)
             if workspace.preset != nil {
                 parameters
+            } else {
+                PanelDivider()
+                    .padding(.vertical, AppSpacing.m)
+                    .fadesWhileDragging(isDragging)
+                editorButton
             }
         }
         .padding(20)
@@ -277,10 +284,22 @@ struct ShaderPanel: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button("Save as Preset…", action: startSaving)
-                .buttonStyle(.glass)
-                .disabled(workspace.preset == nil)
+            HStack(spacing: AppSpacing.s) {
+                Button("Save as Preset…", action: startSaving)
+                    .buttonStyle(.glass)
+                    .disabled(workspace.preset == nil)
+                editorButton
+            }
         }
+    }
+
+    /// Opens the game's preset in the shader editor, which shows its changes on the game.
+    private var editorButton: some View {
+        Button("Open in Shader Editor") {
+            editor.open(.current)
+            openWindow(id: WindowID.shaderEditor)
+        }
+        .buttonStyle(.glass)
     }
 
     // MARK: Values
@@ -405,7 +424,7 @@ struct ShaderPanel: View {
 
 /// A parameter's name, value and slider. While its slider is dragged, the
 /// row keeps a glass background of its own as the panel fades out.
-private struct ParameterRow: View {
+struct ParameterRow: View {
     let parameter: ShaderParameter
     @Binding var value: Float
     let isModified: Bool

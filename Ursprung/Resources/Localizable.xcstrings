@@ -9094,6 +9094,1376 @@
           }
         }
       }
+    },
+    "“%@” couldn’t be opened. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ konnte nicht geöffnet werden. %@"
+          }
+        }
+      }
+    },
+    "New Shader": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuer Shader"
+          }
+        }
+      }
+    },
+    "The passes of “%@” couldn’t be added. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Pässe von „%@“ konnten nicht hinzugefügt werden. %@"
+          }
+        }
+      }
+    },
+    "Your change couldn’t be saved. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Änderung konnte nicht gesichert werden. %@"
+          }
+        }
+      }
+    },
+    "Choose another name.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle einen anderen Namen."
+          }
+        }
+      }
+    },
+    "Nothing to save.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es gibt nichts zu sichern."
+          }
+        }
+      }
+    },
+    "The picture couldn’t be opened.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Bild konnte nicht geöffnet werden."
+          }
+        }
+      }
+    },
+    "Open in Shader Editor": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Shader-Editor öffnen"
+          }
+        }
+      }
+    },
+    "Shader Editor": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader-Editor"
+          }
+        }
+      }
+    },
+    "Save Shader": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader sichern"
+          }
+        }
+      }
+    },
+    "Pass": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pass"
+          }
+        }
+      }
+    },
+    "Textures": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texturen"
+          }
+        }
+      }
+    },
+    "Page": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seite"
+          }
+        }
+      }
+    },
+    "Choose a pass in the sidebar.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle in der Seitenleiste einen Pass aus."
+          }
+        }
+      }
+    },
+    "No Pass Selected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Pass ausgewählt"
+          }
+        }
+      }
+    },
+    "Sampling": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abtastung"
+          }
+        }
+      }
+    },
+    "Output": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgabe"
+          }
+        }
+      }
+    },
+    "Files": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien"
+          }
+        }
+      }
+    },
+    "Later passes and the shaders read this pass’s output by this name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unter diesem Namen lesen spätere Pässe und die Shader die Ausgabe dieses Passes"
+          }
+        }
+      }
+    },
+    "Choose Another Shader…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anderen Shader wählen …"
+          }
+        }
+      }
+    },
+    "Pass %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pass %lld"
+          }
+        }
+      }
+    },
+    "Width": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breite"
+          }
+        }
+      }
+    },
+    "Height": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Höhe"
+          }
+        }
+      }
+    },
+    "Input Filter": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eingabefilter"
+          }
+        }
+      }
+    },
+    "Linear": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linear"
+          }
+        }
+      }
+    },
+    "Nearest": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nächster Nachbar"
+          }
+        }
+      }
+    },
+    "Edges": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ränder"
+          }
+        }
+      }
+    },
+    "Mipmapped Input": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eingabe mit Mipmaps"
+          }
+        }
+      }
+    },
+    "Default": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        }
+      }
+    },
+    "Clamp to Border": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Randfarbe"
+          }
+        }
+      }
+    },
+    "Clamp to Edge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Randpixel wiederholen"
+          }
+        }
+      }
+    },
+    "Repeat": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kacheln"
+          }
+        }
+      }
+    },
+    "Mirrored Repeat": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gespiegelt kacheln"
+          }
+        }
+      }
+    },
+    "Float Framebuffer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Float-Framebuffer"
+          }
+        }
+      }
+    },
+    "sRGB Framebuffer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sRGB-Framebuffer"
+          }
+        }
+      }
+    },
+    "Frame Count Modulo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frame-Zähler-Modulo"
+          }
+        }
+      }
+    },
+    "FrameCount restarts at 0 after this many frames": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FrameCount beginnt nach so vielen Frames wieder bei 0"
+          }
+        }
+      }
+    },
+    "Source: a multiple of the previous pass. Viewport: of the screen. Original: of the game’s frame. Absolute: pixels.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source: ein Vielfaches des vorigen Passes. Viewport: des Bildschirms. Original: des Spielbilds. Absolute: Pixel."
+          }
+        }
+      }
+    },
+    "px": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "px"
+          }
+        }
+      }
+    },
+    "×": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "×"
+          }
+        }
+      }
+    },
+    "Source": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source"
+          }
+        }
+      }
+    },
+    "Viewport": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Viewport"
+          }
+        }
+      }
+    },
+    "Absolute": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Absolute"
+          }
+        }
+      }
+    },
+    "No Parameters": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Parameter"
+          }
+        }
+      }
+    },
+    "The shader is compiling.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Shader wird kompiliert."
+          }
+        }
+      }
+    },
+    "The shaders declare parameters with “#pragma parameter”.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader legen Parameter mit „#pragma parameter“ an."
+          }
+        }
+      }
+    },
+    "Pass %lld: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pass %lld: %@"
+          }
+        }
+      }
+    },
+    "No Textures": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Texturen"
+          }
+        }
+      }
+    },
+    "Lookup textures are images the shaders read by name, such as phosphor masks or color tables.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lookup-Texturen sind Bilder, die die Shader über ihren Namen lesen, etwa Phosphormasken oder Farbtabellen."
+          }
+        }
+      }
+    },
+    "Image": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild"
+          }
+        }
+      }
+    },
+    "Mipmaps": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mipmaps"
+          }
+        }
+      }
+    },
+    "Remove Texture": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Textur entfernen"
+          }
+        }
+      }
+    },
+    "Add Texture…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Textur hinzufügen …"
+          }
+        }
+      }
+    },
+    "Capture Frame for Shader Editor": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild für den Shader-Editor aufnehmen"
+          }
+        }
+      }
+    },
+    "Open Shader Editor": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader-Editor öffnen"
+          }
+        }
+      }
+    },
+    "Build presets from passes, edit shader code and see the result live.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baue Presets aus Pässen, bearbeite Shader-Code und sieh das Ergebnis sofort."
+          }
+        }
+      }
+    },
+    "Color Bars": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farbbalken"
+          }
+        }
+      }
+    },
+    "Gray Ramp": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Graustufenverlauf"
+          }
+        }
+      }
+    },
+    "Checkerboard Dither": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schachbrett-Dithering"
+          }
+        }
+      }
+    },
+    "Pixel Grid": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pixelraster"
+          }
+        }
+      }
+    },
+    "Small Text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kleine Schrift"
+          }
+        }
+      }
+    },
+    "Discard your changes to “%@”?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Änderungen an „%@“ verwerfen?"
+          }
+        }
+      }
+    },
+    "Revert “%@”?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ zurücksetzen?"
+          }
+        }
+      }
+    },
+    "The shader couldn’t be saved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Shader konnte nicht gesichert werden"
+          }
+        }
+      }
+    },
+    "Edited": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeitet"
+          }
+        }
+      }
+    },
+    "My Shaders › %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meine Shader › %@"
+          }
+        }
+      }
+    },
+    "Not Saved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht gesichert"
+          }
+        }
+      }
+    },
+    "Saves the shader to My Shaders, where every Filter menu offers it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichert den Shader in „Meine Shader“; jedes Filtermenü bietet ihn dann an."
+          }
+        }
+      }
+    },
+    "My Shaders already has a shader with this name.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In „Meine Shader“ gibt es schon einen Shader mit diesem Namen."
+          }
+        }
+      }
+    },
+    "Discard Changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen verwerfen"
+          }
+        }
+      }
+    },
+    "Another shader is being opened. Save first to keep your changes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein anderer Shader wird geöffnet. Sichere zuerst, um deine Änderungen zu behalten."
+          }
+        }
+      }
+    },
+    "Revert": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurücksetzen"
+          }
+        }
+      }
+    },
+    "All changes since the shader was opened or saved are lost.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Änderungen seit dem Öffnen oder letzten Sichern gehen verloren."
+          }
+        }
+      }
+    },
+    "Save to My Shaders (⌘S)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In „Meine Shader“ sichern (⌘S)"
+          }
+        }
+      }
+    },
+    "Use For": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwenden für"
+          }
+        }
+      }
+    },
+    "Save the shader to use it": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichere den Shader, um ihn zu verwenden"
+          }
+        }
+      }
+    },
+    "Choose where this shader is used": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle, wo dieser Shader verwendet wird"
+          }
+        }
+      }
+    },
+    "Open Shader…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader öffnen …"
+          }
+        }
+      }
+    },
+    "Revert…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurücksetzen …"
+          }
+        }
+      }
+    },
+    "Export as Folder…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Ordner exportieren …"
+          }
+        }
+      }
+    },
+    "Export as Zip…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als ZIP exportieren …"
+          }
+        }
+      }
+    },
+    "Export": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportieren"
+          }
+        }
+      }
+    },
+    "Choose where the folder with the shader and all its files goes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle, wohin der Ordner mit dem Shader und all seinen Dateien kommt."
+          }
+        }
+      }
+    },
+    "“%@” is in use": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wird verwendet"
+          }
+        }
+      }
+    },
+    "Error": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehler"
+          }
+        }
+      }
+    },
+    "Compiled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kompiliert"
+          }
+        }
+      }
+    },
+    "Compiling…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kompiliert …"
+          }
+        }
+      }
+    },
+    "Passes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pässe"
+          }
+        }
+      }
+    },
+    "Duplicate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplizieren"
+          }
+        }
+      }
+    },
+    "Remove Pass": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pass entfernen"
+          }
+        }
+      }
+    },
+    "Add Pass": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pass hinzufügen"
+          }
+        }
+      }
+    },
+    "Passes from a Preset…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pässe aus einem Preset …"
+          }
+        }
+      }
+    },
+    "New Pass": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuer Pass"
+          }
+        }
+      }
+    },
+    "Add Passes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pässe hinzufügen"
+          }
+        }
+      }
+    },
+    "Edited in this shader": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In diesem Shader bearbeitet"
+          }
+        }
+      }
+    },
+    "Not shown in the preview": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In der Vorschau ausgeblendet"
+          }
+        }
+      }
+    },
+    "Choose a pass to edit its shader.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle einen Pass, um seinen Shader zu bearbeiten."
+          }
+        }
+      }
+    },
+    "No File Open": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Datei geöffnet"
+          }
+        }
+      }
+    },
+    "A file of the shader pack. Your first change edits a copy in this shader.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Datei des Shader-Pakets. Deine erste Änderung bearbeitet eine Kopie in diesem Shader."
+          }
+        }
+      }
+    },
+    "Your first change edits a copy; Save writes it back.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine erste Änderung bearbeitet eine Kopie; „Sichern“ schreibt sie zurück."
+          }
+        }
+      }
+    },
+    "Open a file this pass includes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Datei öffnen, die dieser Pass einbindet"
+          }
+        }
+      }
+    },
+    "Included Files": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eingebundene Dateien"
+          }
+        }
+      }
+    },
+    "Close Tab": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab schließen"
+          }
+        }
+      }
+    },
+    "Edit Shader…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader bearbeiten …"
+          }
+        }
+      }
+    },
+    "Frame captured for the shader editor": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild für den Shader-Editor aufgenommen"
+          }
+        }
+      }
+    },
+    "The frame couldn't be saved. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Bild konnte nicht gesichert werden. %@"
+          }
+        }
+      }
+    },
+    "“%@” shows your shader in the player window.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ zeigt deinen Shader im Spielfenster."
+          }
+        }
+      }
+    },
+    "Changes appear there as you make them. The tools above apply to the player while this window is open.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen erscheinen dort sofort. Die Werkzeuge oben wirken auf das Spielfenster, solange dieses Fenster offen ist."
+          }
+        }
+      }
+    },
+    "Next Frame": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nächstes Bild"
+          }
+        }
+      }
+    },
+    "Capture Frame": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild aufnehmen"
+          }
+        }
+      }
+    },
+    "Saves the game’s picture at its own resolution for the still preview": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichert das Spielbild in seiner eigenen Auflösung für die Standbild-Vorschau"
+          }
+        }
+      }
+    },
+    "GPU %@ ms": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GPU %@ ms"
+          }
+        }
+      }
+    },
+    "Animate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abspielen"
+          }
+        }
+      }
+    },
+    "Lets time run, so animated shaders move": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lässt die Zeit laufen, damit sich animierte Shader bewegen"
+          }
+        }
+      }
+    },
+    "Stops time for the shader": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hält die Zeit für den Shader an"
+          }
+        }
+      }
+    },
+    "The screen size the shader renders for": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bildschirmgröße, für die der Shader rendert"
+          }
+        }
+      }
+    },
+    "Zoom": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom"
+          }
+        }
+      }
+    },
+    "Magnifies the picture without smoothing; drag the picture to move": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vergrößert das Bild ohne Glättung; ziehe das Bild, um es zu verschieben"
+          }
+        }
+      }
+    },
+    "Shows the picture without the shader on the left": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt links das Bild ohne Shader"
+          }
+        }
+      }
+    },
+    "Comparison Position": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vergleichsposition"
+          }
+        }
+      }
+    },
+    "Show": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigen"
+          }
+        }
+      }
+    },
+    "Shows the output of an earlier pass": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt die Ausgabe eines früheren Passes"
+          }
+        }
+      }
+    },
+    "Time the GPU needs for the shader per frame": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeit, die die GPU pro Bild für den Shader braucht"
+          }
+        }
+      }
+    },
+    "The picture the shader is applied to": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Bild, auf das der Shader angewendet wird"
+          }
+        }
+      }
+    },
+    "Window": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster"
+          }
+        }
+      }
+    },
+    "Compare": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vergleichen"
+          }
+        }
+      }
+    },
+    "All Passes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Pässe"
+          }
+        }
+      }
+    },
+    "Up to Pass %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bis Pass %lld"
+          }
+        }
+      }
+    },
+    "Test Pictures": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Testbilder"
+          }
+        }
+      }
+    },
+    "Captured Frames": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgenommene Bilder"
+          }
+        }
+      }
+    },
+    "%lld × %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld × %lld"
+          }
+        }
+      }
+    },
+    "Shader Preview": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader-Vorschau"
+          }
+        }
+      }
+    },
+    "The preset it is based on is missing: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Preset, auf dem es aufbaut, fehlt: %@"
+          }
+        }
+      }
+    },
+    "The preset references too many other presets.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Preset verweist auf zu viele andere Presets."
+          }
+        }
+      }
+    },
+    "Pass %lld has no shader file.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pass %lld hat keine Shader-Datei."
+          }
+        }
+      }
+    },
+    "More than one pass is called “%@”.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr als ein Pass heißt „%@“."
+          }
+        }
+      }
+    },
+    "The texture “%@” has no image file.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Textur „%@“ hat keine Bilddatei."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

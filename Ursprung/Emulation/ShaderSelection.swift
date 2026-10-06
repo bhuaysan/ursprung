@@ -10,6 +10,8 @@ nonisolated struct ShaderPresetRef: Hashable, Sendable {
         case library
         /// The user's own presets (`AppPaths.userShaders`).
         case user
+        /// A preset open in the shader editor (`AppPaths.shaderDrafts`); never stored as a choice.
+        case draft
     }
 
     let source: Source
@@ -28,8 +30,14 @@ nonisolated struct ShaderPresetRef: Hashable, Sendable {
     /// The preset's file name without extension, e.g. "crt-royale".
     var name: String { ((path as NSString).lastPathComponent as NSString).deletingPathExtension }
 
-    func url(library: URL = AppPaths.shaderLibrary, user: URL = AppPaths.userShaders) -> URL {
-        (source == .library ? library : user).appending(path: path, directoryHint: .notDirectory)
+    func url(library: URL = AppPaths.shaderLibrary, user: URL = AppPaths.userShaders,
+             drafts: URL = AppPaths.shaderDrafts) -> URL {
+        let folder = switch source {
+        case .library: library
+        case .user: user
+        case .draft: drafts
+        }
+        return folder.appending(path: path, directoryHint: .notDirectory)
     }
 }
 
@@ -52,7 +60,7 @@ nonisolated enum ShaderSelection: Hashable, Sendable, RawRepresentable {
         guard rawValue.hasPrefix(Self.presetPrefix) else { return nil }
         let reference = rawValue.dropFirst(Self.presetPrefix.count)
         guard let slash = reference.firstIndex(of: "/"),
-              let source = ShaderPresetRef.Source(rawValue: String(reference[..<slash])),
+              let source = ShaderPresetRef.Source(rawValue: String(reference[..<slash])), source != .draft,
               let preset = ShaderPresetRef(source: source, path: String(reference[reference.index(after: slash)...]))
         else { return nil }
         self = .preset(preset)

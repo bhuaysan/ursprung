@@ -531,6 +531,12 @@ final class EmulationSession {
         applyPause()
     }
 
+    /// While paused, advances the game by one frame (for the shader editor).
+    func stepFrame() {
+        guard phase == .running, isPaused else { return }
+        runner?.stepFrame()
+    }
+
     func setFastForward(_ enabled: Bool) {
         isFastForwarding = enabled
         runner?.fastForward = enabled
@@ -634,6 +640,30 @@ final class EmulationSession {
                 showToast(String(localized: "The screenshot couldn't be saved. \(error.localizedDescription)"), kind: .warning, duration: 5)
             }
         }
+    }
+
+    /// Bumped when the running game gains a frame for the shader editor.
+    private(set) var shaderFrameRevision = 0
+
+    /// Saves the picture at the core's own resolution, for the shader
+    /// editor's still preview (screenshots are scaled to the picture's shape).
+    func captureShaderFrame() {
+        guard let core, let gameUUID, let frame = core.copyFrameImage() else { return }
+        let aspect = Double(core.aspectRatio)
+        Task {
+            do {
+                try await Self.saveShaderFrame(frame, aspectRatio: aspect, gameID: gameUUID)
+                shaderFrameRevision += 1
+                showToast(String(localized: "Frame captured for the shader editor"), kind: .screenshot)
+            } catch {
+                showToast(String(localized: "The frame couldn't be saved. \(error.localizedDescription)"), kind: .warning, duration: 5)
+            }
+        }
+    }
+
+    @concurrent
+    private static func saveShaderFrame(_ frame: CGImage, aspectRatio: Double, gameID: UUID) async throws {
+        _ = try ShaderFrameStore.save(frame, aspectRatio: aspectRatio, in: AppPaths.extras, gameID: gameID)
     }
 
     /// Screenshots were deleted or added outside the player.

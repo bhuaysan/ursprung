@@ -10,6 +10,8 @@ import UniformTypeIdentifiers
 struct ShaderBrowser: View {
     /// The preset in use; selected when the browser opens.
     let current: ShaderPresetRef?
+    /// The default button, e.g. "Add Passes" in the shader editor.
+    var actionTitle: LocalizedStringKey = "Use Shader"
     let choose: (ShaderPresetRef) -> Void
 
     @Environment(ShaderLibrary.self) private var shaders
@@ -221,7 +223,7 @@ struct ShaderBrowser: View {
                 .monospacedDigit()
             Button("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
-            Button("Use Shader") {
+            Button(actionTitle) {
                 if let selection { use(selection) }
             }
             .keyboardShortcut(.defaultAction)

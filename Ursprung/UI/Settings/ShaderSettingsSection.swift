@@ -7,6 +7,7 @@ import SwiftUI
 /// user's own presets.
 struct ShaderSettingsSection: View {
     @Environment(ShaderLibrary.self) private var shaders
+    @Environment(\.openWindow) private var openWindow
     @State private var failure: String?
     @State private var updateCheckFailure: String?
     @State private var confirmsRemoval = false
@@ -39,6 +40,12 @@ struct ShaderSettingsSection: View {
             } label: {
                 Text("Your Shaders")
                 Text(userDescription)
+            }
+            LabeledContent {
+                Button("Open Shader Editor") { openWindow(id: WindowID.shaderEditor) }
+            } label: {
+                Text("Shader Editor")
+                Text("Build presets from passes, edit shader code and see the result live.")
             }
         } header: {
             Text("RetroArch Shaders")

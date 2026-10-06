@@ -11,6 +11,8 @@ nonisolated struct SlangPresetFile: Sendable {
     var references: [String] = []
     /// Later lines win, as in RetroArch.
     var values: [String: String] = [:]
+    /// Every `key = value` line in file order; a repeated key keeps its first place.
+    var entries: [(key: String, value: String)] = []
 
     init(text: String) {
         for rawLine in text.split(whereSeparator: \.isNewline) {
@@ -23,7 +25,12 @@ nonisolated struct SlangPresetFile: Sendable {
             guard !line.hasPrefix("#"), !line.hasPrefix("//"), let equals = line.firstIndex(of: "=") else { continue }
             let key = line[..<equals].trimmingCharacters(in: .whitespaces)
             guard !key.isEmpty else { continue }
-            values[key] = Self.value(line[line.index(after: equals)...])
+            let value = Self.value(line[line.index(after: equals)...])
+            if values.updateValue(value, forKey: key) == nil {
+                entries.append((key, value))
+            } else if let index = entries.firstIndex(where: { $0.key == key }) {
+                entries[index].value = value
+            }
         }
     }
 

@@ -15,6 +15,8 @@ struct SidebarView: View {
     @Environment(LibraryStore.self) private var library
     @Environment(MetadataService.self) private var metadata
     @Environment(SystemMediaStore.self) private var systemMedia
+    @Environment(ShaderEditor.self) private var shaderEditor
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("sidebarSystemsExpanded") private var systemsExpanded = true
     @AppStorage("sidebarCollectionsExpanded") private var collectionsExpanded = true
@@ -67,6 +69,12 @@ struct SidebarView: View {
                         .help(entry.system.name)
                         .badge(entry.count)
                         .tag(LibrarySelection.system(entry.system.id))
+                        .contextMenu {
+                            Button("Edit Shader…") {
+                                shaderEditor.open(.system(entry.system.id))
+                                openWindow(id: WindowID.shaderEditor)
+                            }
+                        }
                     }
                 }
             }

@@ -68,7 +68,8 @@ nonisolated struct PresentationLayout: Equatable {
 /// picture's on-screen size (before rotation) first; the frame quad then
 /// shows that texture 1:1, rotated, between ambient light and bezel.
 final class MetalRenderer: NSObject, MTKViewDelegate {
-    weak var core: LibretroCore?
+    /// The running core, or a still picture in the shader editor.
+    weak var source: (any FrameSource)?
     /// The built-in filter or RetroArch preset the picture is drawn with.
     var selection: ShaderSelection = .builtin(.sharp) {
         didSet {
@@ -90,7 +91,12 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     /// Told when a preset can't be used, with a message for the player.
     var onShaderError: ((String) -> Void)?
     /// Shows the preset's parameters and changes them live.
-    var workspace: ShaderWorkspace?
+    var workspace: ShaderWorkspace? {
+        didSet {
+            guard workspace !== oldValue else { return }
+            workspace?.attach { [weak self] in self?.reloadPreset() }
+        }
+    }
 
     /// On-screen rectangle of the image in view points (for pointer input).
     private(set) var imageRect: CGRect = .zero
@@ -113,6 +119,8 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var chainPreset: ShaderPresetRef?
     /// The preset compiling in the background; the current chain renders meanwhile.
     private var pendingPreset: ShaderPresetRef?
+    /// Bumped by every compile, so only the latest one is used.
+    private var compileGeneration = 0
     /// The chain's output at the picture's size before rotation.
     private var shaderOutput: MTLTexture?
     /// `shaderOutput` is older than the frame, its size or the chain.
@@ -167,21 +175,25 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         uploadFrameIfNeeded()
         guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable else { return }
 
+        // The shader editor can render for another screen size and zoom in.
+        let tools = workspace?.previewTools ?? ShaderPreviewTools()
+        let drawableSize = view.drawableSize
+        let layoutSize = tools.outputSize ?? drawableSize
         let layout = texture.flatMap { texture in
-            core.map { core in
-                PresentationLayout(drawableSize: view.drawableSize, frameWidth: texture.width, frameHeight: texture.height,
-                                   aspectRatio: Double(core.aspectRatio), rotation: core.rotation,
+            source.map { source in
+                PresentationLayout(drawableSize: layoutSize, frameWidth: texture.width, frameHeight: texture.height,
+                                   aspectRatio: Double(source.aspectRatio), rotation: source.rotation,
                                    integerScaling: integerScaling)
             }
         }
-        if let layout {
+        if let layout, !tools.changesLayout {
             let scale = view.window?.backingScaleFactor ?? 2
             imageRect = CGRect(x: layout.rect.minX / scale, y: layout.rect.minY / scale,
                                width: layout.rect.width / scale, height: layout.rect.height / scale)
         }
 
         // Command buffers run in commit order: mipmaps, preset, presentation.
-        let showsAmbient = bezel == .ambient && texture?.mipmapLevelCount ?? 0 > 1
+        let showsAmbient = bezel == .ambient && texture?.mipmapLevelCount ?? 0 > 1 && !tools.changesLayout
         if needsMipmaps, showsAmbient || chain != nil, let texture,
            let buffer = queue.makeCommandBuffer(), let blit = buffer.makeBlitCommandEncoder() {
             blit.generateMipmaps(for: texture)
@@ -193,8 +205,8 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
 
         guard let buffer = queue.makeCommandBuffer(),
               let encoder = buffer.makeRenderCommandEncoder(descriptor: pass) else { return }
-        if let texture, let core, let layout {
-            var uniforms = makeUniforms(layout: layout, texture: texture, core: core, drawableSize: view.drawableSize)
+        if let texture, let layout {
+            var uniforms = makeUniforms(layout: layout, texture: texture, drawableSize: layoutSize)
             if showsAmbient {
                 encoder.setRenderPipelineState(ambientPipeline)
                 encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
@@ -202,18 +214,40 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                 encoder.setFragmentTexture(texture, index: 0)
                 encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
             }
+            // Scaled into the view: the picture's size on screen relative to the layout.
+            var displayScale = 1.0
+            if tools.changesLayout {
+                let fit = tools.outputSize.map { min(drawableSize.width / $0.width, drawableSize.height / $0.height) } ?? 1
+                displayScale = fit * tools.zoom
+                let shift = tools.zoom > 1
+                    ? SIMD2(Float((tools.focus.x - 0.5) * layout.rect.width), Float((0.5 - tools.focus.y) * layout.rect.height))
+                    : .zero
+                uniforms.extent *= Float(displayScale)
+                uniforms.offset = (uniforms.offset - shift) * Float(displayScale)
+                uniforms.viewportHalf = SIMD2(Float(drawableSize.width / 2), Float(drawableSize.height / 2))
+            }
             var pictureUniforms = uniforms
             if let shaded {
-                // Already at output size: show it pixel for pixel.
+                // Already at output size: show it pixel for pixel (smoothed when it is scaled down).
                 pictureUniforms.textureSize = SIMD2(Float(shaded.width), Float(shaded.height))
-                pictureUniforms.filter = VideoFilter.nearest.shaderIndex
+                pictureUniforms.filter = (displayScale < 1 ? VideoFilter.smooth : .nearest).shaderIndex
             }
             encoder.setRenderPipelineState(pipeline)
             encoder.setVertexBytes(&pictureUniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
             encoder.setFragmentBytes(&pictureUniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
             encoder.setFragmentTexture(shaded ?? texture, index: 0)
             encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
-            if let bezelImage {
+            if let split = tools.split, shaded != nil,
+               let scissor = Self.splitScissor(split, uniforms: uniforms, rotated: layout.isRotated, drawableSize: drawableSize) {
+                // The left part without the preset, for comparison.
+                encoder.setScissorRect(scissor)
+                encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
+                encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
+                encoder.setFragmentTexture(texture, index: 0)
+                encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+                encoder.setScissorRect(MTLScissorRect(x: 0, y: 0, width: Int(drawableSize.width), height: Int(drawableSize.height)))
+            }
+            if let bezelImage, !tools.changesLayout {
                 encoder.setRenderPipelineState(overlayPipeline)
                 encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
                 encoder.setFragmentTexture(bezelImage, index: 0)
@@ -225,12 +259,28 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         buffer.commit()
     }
 
+    /// The part of the drawable left of `split` (0…1 across the picture as
+    /// it appears on screen), as a scissor rectangle; nil when empty.
+    private static func splitScissor(_ split: Double, uniforms: Uniforms, rotated: Bool,
+                                     drawableSize: CGSize) -> MTLScissorRect? {
+        let extent = rotated ? SIMD2(uniforms.extent.y, uniforms.extent.x) : uniforms.extent
+        let centerX = Double(uniforms.viewportHalf.x + uniforms.offset.x)
+        let centerY = Double(uniforms.viewportHalf.y + uniforms.offset.y)
+        let left = centerX - Double(extent.x), top = drawableSize.height - (centerY + Double(extent.y))
+        let width = Double(extent.x) * 2 * min(max(split, 0), 1)
+        let x = max(0, left.rounded()), y = max(0, top.rounded())
+        let right = min(drawableSize.width, (left + width).rounded())
+        let bottom = min(drawableSize.height, (top + Double(extent.y) * 2).rounded())
+        guard right > x, bottom > y else { return nil }
+        return MTLScissorRect(x: Int(x), y: Int(y), width: Int(right - x), height: Int(bottom - y))
+    }
+
     private func uploadFrameIfNeeded() {
-        guard let core else { return }
-        let serial = core.frameSerial
+        guard let source else { return }
+        let serial = source.frameSerial
         guard serial != lastSerial else { return }
         lastSerial = serial
-        core.accessLatestFrame { pixels, width, height, pitch in
+        source.accessLatestFrame { pixels, width, height, pitch in
             if texture?.width != width || texture?.height != height {
                 // Mipmaps give the ambient light its blur.
                 let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width,
@@ -246,8 +296,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         needsShaderPass = true
     }
 
-    private func makeUniforms(layout: PresentationLayout, texture: MTLTexture, core: LibretroCore,
-                              drawableSize: CGSize) -> Uniforms {
+    private func makeUniforms(layout: PresentationLayout, texture: MTLTexture, drawableSize: CGSize) -> Uniforms {
         let drawW = Double(drawableSize.width), drawH = Double(drawableSize.height)
         let displayAspect = layout.rect.width / layout.rect.height
 
@@ -283,8 +332,11 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         if case .builtin(let filter) = selection { filter } else { .sharp }
     }
 
-    private func applySelection() {
+    /// Compiles the selected preset unless it is showing or compiling
+    /// already; `reload` compiles it again (its files changed).
+    private func applySelection(reload: Bool = false) {
         guard case .preset(let preset) = selection else {
+            compileGeneration += 1
             pendingPreset = nil
             chain = nil
             chainPreset = nil
@@ -292,11 +344,15 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             workspace?.useBuiltin()
             return
         }
-        guard preset != chainPreset, preset != pendingPreset else { return }
+        guard reload || (preset != chainPreset && preset != pendingPreset) else { return }
+        // A recompile of the preset that is showing keeps showing it, also when it fails.
+        let isRecompile = preset == chainPreset && chain != nil
+        compileGeneration += 1
+        let generation = compileGeneration
         pendingPreset = preset
-        workspace?.compiling(preset)
+        if isRecompile { workspace?.recompiling() } else { workspace?.compiling(preset) }
         let url = preset.url()
-        let coreName = core?.libraryName, rotation = core?.rotation ?? 0
+        let coreName = source?.libraryName, rotation = source?.rotation ?? 0
         Task { [weak self, queue] in
             var compiled: ShaderChain?
             var failure: Error?
@@ -305,19 +361,23 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             } catch {
                 failure = error
             }
-            // A newer selection replaced this one meanwhile.
-            guard let self, self.pendingPreset == preset else { return }
+            // A newer selection or change replaced this one meanwhile.
+            guard let self, self.compileGeneration == generation else { return }
             self.pendingPreset = nil
             if let compiled {
                 self.chain = compiled
                 self.chainPreset = preset
                 self.needsShaderPass = true
                 self.workspace?.loaded(preset, parameters: compiled.parameters, values: Self.values(of: compiled),
+                                       passCount: compiled.passCount,
                                        apply: { [weak self, weak compiled] name, value in
                                            guard let self, let compiled, self.chain === compiled else { return }
                                            self.setParameter(name, to: value)
                                        },
                                        reload: { [weak self] in self?.reloadPreset() })
+            } else if isRecompile, self.chainPreset == preset, self.chain != nil {
+                Self.log.error("Shader preset \(preset.path, privacy: .public) failed to recompile: \(String(describing: failure), privacy: .public)")
+                self.workspace?.recompileFailed(message: Self.message(for: failure))
             } else {
                 self.shaderFailed(preset, error: failure)
             }
@@ -337,9 +397,13 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
 
     /// Compiles the selected preset again; the current chain renders meanwhile.
     private func reloadPreset() {
-        chainPreset = nil
-        pendingPreset = nil
-        applySelection()
+        applySelection(reload: true)
+    }
+
+    private static func message(for error: Error?) -> String {
+        (error as? CocoaError)?.code == .fileNoSuchFile
+            ? String(localized: "The preset file is missing.")
+            : (error?.localizedDescription ?? String(localized: "The preset couldn’t be loaded."))
     }
 
     private static func values(of chain: ShaderChain) -> [String: Float] {
@@ -365,9 +429,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         chainPreset = nil
         shaderOutput = nil
         let missing = (error as? CocoaError)?.code == .fileNoSuchFile
-        workspace?.failed(preset, message: missing
-            ? String(localized: "The preset file is missing.")
-            : (error?.localizedDescription ?? String(localized: "The preset couldn’t be loaded.")))
+        workspace?.failed(preset, message: Self.message(for: error))
         onShaderError?(missing
             ? String(localized: "The shader “\(preset.name)” is missing, so the game uses the Sharp filter.")
             : String(localized: "The shader “\(preset.name)” couldn’t be loaded, so the game uses the Sharp filter."))
@@ -376,7 +438,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     /// Runs the preset on the latest frame when anything changed, and
     /// returns its output; nil without a chain or when it fails.
     private func shadedPicture(of texture: MTLTexture, size: CGSize) -> MTLTexture? {
-        guard let chain, let core, let preset = chainPreset else { return nil }
+        guard let chain, let source, let preset = chainPreset else { return nil }
         let width = Int(size.width), height = Int(size.height)
         if shaderOutput?.width != width || shaderOutput?.height != height {
             let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width,
@@ -391,15 +453,21 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         guard let buffer = queue.makeCommandBuffer() else { return nil }
 
         let now = CACurrentMediaTime()
-        let frameTime = lastShaderPassTime > 0 ? min(now - lastShaderPassTime, 1) : 1 / max(core.framesPerSecond, 1)
+        let frameTime = lastShaderPassTime > 0 ? min(now - lastShaderPassTime, 1) : 1 / max(source.framesPerSecond, 1)
         let options = ShaderFrameOptions(direction: isRewinding ? -1 : 1,
-                                         aspectRatio: core.aspectRatio, framesPerSecond: Float(core.framesPerSecond),
+                                         aspectRatio: source.aspectRatio, framesPerSecond: Float(source.framesPerSecond),
                                          frameTimeDelta: UInt32((frameTime * 1000).rounded()))
         do {
             try chain.render(texture, to: output, commandBuffer: buffer, frameCount: UInt(lastSerial), options: options)
         } catch {
             shaderFailed(preset, error: error)
             return nil
+        }
+        if let workspace {
+            buffer.addCompletedHandler { [weak workspace] buffer in
+                let seconds = buffer.gpuEndTime - buffer.gpuStartTime
+                Task { @MainActor in workspace?.recordGPUTime(seconds, at: CACurrentMediaTime()) }
+            }
         }
         buffer.commit()
         needsShaderPass = false
