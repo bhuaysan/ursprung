@@ -145,7 +145,7 @@ struct GameInspector: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: AppSpacing.s) {
                 if let system = game.system {
-                    SystemIcon(system: system)
+                    SystemIcon(system: system, isInline: true)
                 }
                 Text(verbatim: game.system?.name ?? game.systemID)
             }
