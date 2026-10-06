@@ -215,7 +215,7 @@ final class BackupService {
         }
 
         if restoresSettings, let settings = contents.settings {
-            library.addFolders(Preferences.restore(fromBackup: settings))
+            library.addFolders(Preferences.restore(fromBackup: settings, gameIDs: plan.mapValues(\.id)))
         }
 
         var summary = String(localized: "\(contents.records.count) games restored.")

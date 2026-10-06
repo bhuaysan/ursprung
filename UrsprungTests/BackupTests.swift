@@ -122,6 +122,32 @@ struct BackupTests {
         }
     }
 
+    @Test func restoredSettingsFollowTheGamesToTheirNewIDs() throws {
+        let suite = "UrsprungTests.Backup.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(["Mine"], forKey: PrefKey.collections)
+        let mac = existing("/Mac/A.sfc")
+        let matched = record("/Mac/A.sfc")
+        let plan = Backup.plan(records: [matched], existing: [mac])
+        let orphan = UUID()
+        let backup: [String: Any] = [
+            PrefKey.gameVideoFilter(matched.id): "crt",
+            PrefKey.gameVideoFilter(orphan): "lcd",
+            PrefKey.systemVideoFilter("snes"): "scanlines",
+            PrefKey.collections: ["Mine", "RPGs"],
+        ]
+        let data = try PropertyListSerialization.data(fromPropertyList: backup, format: .xml, options: 0)
+
+        Preferences.restore(fromBackup: data, gameIDs: plan.mapValues(\.id), into: defaults)
+
+        #expect(defaults.string(forKey: PrefKey.gameVideoFilter(mac.id)) == "crt")
+        #expect(defaults.object(forKey: PrefKey.gameVideoFilter(matched.id)) == nil)
+        #expect(defaults.object(forKey: PrefKey.gameVideoFilter(orphan)) == nil, "No game here to use it")
+        #expect(defaults.string(forKey: PrefKey.systemVideoFilter("snes")) == "scanlines")
+        #expect(defaults.stringArray(forKey: PrefKey.collections) == ["Mine", "RPGs"])
+    }
+
     @Test func otherZipIsNotABackup() throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

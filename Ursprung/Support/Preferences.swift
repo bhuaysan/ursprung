@@ -46,7 +46,8 @@ nonisolated enum PrefKey {
     static let shaderFavorites = "shaderFavorites"
     static func systemVideoFilter(_ systemID: String) -> String { "videoFilter.\(systemID)" }
     /// A game's own filter or preset; wins over its system's.
-    static func gameVideoFilter(_ gameID: UUID) -> String { "videoFilter.game.\(gameID.uuidString)" }
+    static func gameVideoFilter(_ gameID: UUID) -> String { "\(gameVideoFilterPrefix)\(gameID.uuidString)" }
+    static let gameVideoFilterPrefix = "videoFilter.game."
     static func inputProfile(_ systemID: String) -> String { "inputProfile.\(systemID)" }
     static func coreChoice(_ systemID: String) -> String { "coreChoice.\(systemID)" }
     static func coreOptions(_ coreID: String) -> String { "coreOptions.\(coreID)" }
@@ -230,9 +231,11 @@ nonisolated enum Preferences {
 
     /// Applies preferences from a backup and returns its library folders,
     /// which the caller adds to the current ones instead of replacing them.
-    /// Keys a backup must not carry are ignored.
+    /// Keys a backup must not carry are ignored. A game's own settings move
+    /// to the ID `gameIDs` restores it as; those of games the backup doesn't
+    /// restore are dropped.
     @discardableResult
-    static func restore(fromBackup data: Data) -> [URL] {
+    static func restore(fromBackup data: Data, gameIDs: [UUID: UUID], into store: UserDefaults = .standard) -> [URL] {
         guard let values = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else { return [] }
         var folders: [URL] = []
         for (key, value) in values where isBackedUp(key) {
@@ -240,10 +243,14 @@ nonisolated enum Preferences {
                 folders = (value as? [String] ?? []).map { URL(filePath: $0, directoryHint: .isDirectory) }
             } else if key == PrefKey.collections {
                 // Like the games, collections are added to the current ones.
-                let current = collections
-                collections = current + (value as? [String] ?? []).filter { !current.contains($0) }
+                let current = store.stringArray(forKey: PrefKey.collections) ?? []
+                store.set(current + (value as? [String] ?? []).filter { !current.contains($0) }, forKey: PrefKey.collections)
+            } else if key.hasPrefix(PrefKey.gameVideoFilterPrefix) {
+                guard let id = UUID(uuidString: String(key.dropFirst(PrefKey.gameVideoFilterPrefix.count))),
+                      let restored = gameIDs[id] else { continue }
+                store.set(value, forKey: PrefKey.gameVideoFilter(restored))
             } else {
-                defaults.set(value, forKey: key)
+                store.set(value, forKey: key)
             }
         }
         return folders
