@@ -70,7 +70,12 @@ nonisolated struct PresentationLayout: Equatable {
 /// shows that texture 1:1, rotated, between ambient light and bezel.
 final class MetalRenderer: NSObject, MTKViewDelegate {
     /// The running core, or a still picture in the shader editor.
-    weak var source: (any FrameSource)?
+    weak var source: (any FrameSource)? {
+        didSet {
+            // Another source's serials say nothing about this one's frames.
+            if source !== oldValue { sourceChanged = true }
+        }
+    }
     /// The built-in filter or RetroArch preset the picture is drawn with.
     var selection: ShaderSelection = .builtin(.sharp) {
         didSet {
@@ -108,9 +113,12 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private let ambientPipeline: MTLRenderPipelineState
     private let overlayPipeline: MTLRenderPipelineState
     private let textureLoader: MTKTextureLoader
-    private var texture: MTLTexture?
+    /// The source's latest frame.
+    private(set) var texture: MTLTexture?
     private var bezelImage: MTLTexture?
     private var lastSerial: UInt64 = 0
+    /// `lastSerial` belongs to an earlier source.
+    private var sourceChanged = true
     /// The texture's mipmaps are older than its picture.
     private var needsMipmaps = false
 
@@ -279,8 +287,9 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private func uploadFrameIfNeeded() {
         guard let source else { return }
         let serial = source.frameSerial
-        guard serial != lastSerial else { return }
+        guard serial != lastSerial || sourceChanged else { return }
         lastSerial = serial
+        sourceChanged = false
         source.accessLatestFrame { pixels, width, height, pitch in
             if texture?.width != width || texture?.height != height {
                 // Mipmaps give the ambient light its blur.

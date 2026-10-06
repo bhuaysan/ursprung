@@ -38,7 +38,9 @@ final class StillFrame: FrameSource {
     var isPaused = false {
         didSet {
             guard isPaused != oldValue else { return }
-            if isPaused { pausedSerial = frameSerial } else { start = CACurrentMediaTime() - Double(pausedSerial) / 60 }
+            // `frameSerial` already reads the paused value here. Resuming
+            // starts halfway into the paused frame, safe from rounding.
+            if isPaused { pausedSerial = runningSerial } else { start = CACurrentMediaTime() - (Double(pausedSerial) - 0.5) / 60 }
         }
     }
 
@@ -61,7 +63,11 @@ final class StillFrame: FrameSource {
     }
 
     var frameSerial: UInt64 {
-        isPaused ? pausedSerial : UInt64(max(0, CACurrentMediaTime() - start) * 60) + 1
+        isPaused ? pausedSerial : runningSerial
+    }
+
+    private var runningSerial: UInt64 {
+        UInt64(max(0, CACurrentMediaTime() - start) * 60) + 1
     }
 
     /// Advances one frame while paused.

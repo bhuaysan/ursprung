@@ -2,6 +2,7 @@
 
 import Foundation
 import Metal
+import MetalKit
 import Testing
 @testable import Ursprung
 
@@ -502,6 +503,43 @@ struct StillPictureTests {
         let serial = frame.frameSerial
         frame.step()
         #expect(frame.frameSerial == serial + 1)
+    }
+
+    @Test func pausingKeepsTheFrameCount() {
+        let frame = StillFrame(pixels: [0xFF00_0000], width: 1, height: 1)
+        let running = frame.frameSerial
+        frame.isPaused = true
+        let paused = frame.frameSerial
+        #expect(paused >= running)
+        frame.step()
+        frame.step()
+        frame.isPaused = false
+        // Resuming carries on from the stepped frame instead of jumping back.
+        #expect(frame.frameSerial >= paused + 2)
+    }
+
+    @Test func rendererShowsANewPausedPicture() throws {
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 8, height: 8))
+        let renderer = try #require(MetalRenderer(view: view))
+        func shownPixel() -> UInt32? {
+            guard let texture = renderer.texture else { return nil }
+            var pixel: UInt32 = 0
+            texture.getBytes(&pixel, bytesPerRow: 4, from: MTLRegionMake2D(0, 0, 1, 1), mipmapLevel: 0)
+            return pixel
+        }
+        let red = StillFrame(pixels: [0xFFFF_0000], width: 1, height: 1)
+        red.isPaused = true
+        renderer.source = red
+        renderer.draw(in: view)
+        #expect(shownPixel() == 0xFFFF_0000)
+
+        // A paused picture swapped for another one with the same serial.
+        let blue = StillFrame(pixels: [0xFF00_00FF], width: 1, height: 1)
+        blue.isPaused = true
+        renderer.source = blue
+        renderer.draw(in: view)
+        #expect(shownPixel() == 0xFF00_00FF)
+        withExtendedLifetime((red, blue)) {}
     }
 
     private func cgImage(_ picture: StillPicture) -> CGImage? {
