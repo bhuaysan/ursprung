@@ -45,9 +45,13 @@ nonisolated enum ShaderImport {
                     try fileManager.copyItem(at: url, to: destination)
                     result.presets += presets.compactMap { ref(of: destination.appending(path: $0), in: user) }
                 } else if url.pathExtension.lowercased() == "slangp" {
-                    let (preset, missing) = try copyPreset(url, into: user)
+                    let (preset, missing, skipped) = try copyPreset(url, into: user)
                     if let preset { result.presets.append(preset) }
                     result.missing += missing
+                    if !skipped.isEmpty {
+                        let files = skipped.map(\.lastPathComponent).joined(separator: ", ")
+                        result.failures.append(Failure(name: name, reason: String(localized: "It refers to files that aren't shaders or images, which weren't copied: \(files)")))
+                    }
                 } else {
                     result.failures.append(Failure(name: name, reason: String(localized: "Only shader presets (.slangp) and folders can be imported.")))
                 }
@@ -58,9 +62,24 @@ nonisolated enum ShaderImport {
         return result
     }
 
-    /// Copies the preset with the files it reads into a new folder named after it.
-    private static func copyPreset(_ preset: URL, into user: URL) throws -> (ShaderPresetRef?, [String]) {
-        let (files, missing) = SlangPresetFile.dependencies(of: preset)
+    /// Kinds of files presets read: presets, shaders with their includes,
+    /// textures.
+    private static let shaderFileExtensions: Set<String> = [
+        "slangp", "params", "slang", "inc", "h", "hpp", "hlsl", "glsl", "png", "jpg", "jpeg", "bmp", "tga", "gif",
+    ]
+
+    /// Copies the preset with the files it reads into a new folder named
+    /// after it. A preset can name any file (`../../.ssh/id_rsa`): files
+    /// that aren't shaders or images stay behind and are returned as skipped.
+    private static func copyPreset(_ preset: URL, into user: URL) throws -> (ShaderPresetRef?, [String], skipped: [URL]) {
+        let (dependencies, missing) = SlangPresetFile.dependencies(of: preset)
+        let (files, skipped) = dependencies.reduce(into: ([URL](), [URL]())) { split, file in
+            if file == preset.standardizedFileURL || shaderFileExtensions.contains(file.pathExtension.lowercased()) {
+                split.0.append(file)
+            } else {
+                split.1.append(file)
+            }
+        }
         let base = commonDirectory(of: files)
         let destination = uniqueURL(for: preset.deletingPathExtension().lastPathComponent, in: user)
         let fileManager = FileManager.default
@@ -73,7 +92,7 @@ nonisolated enum ShaderImport {
             try fileManager.copyItem(at: file, to: target)
             if file == preset.standardizedFileURL { copiedPreset = target }
         }
-        return (copiedPreset.flatMap { ref(of: $0, in: user) }, missing)
+        return (copiedPreset.flatMap { ref(of: $0, in: user) }, missing, skipped)
     }
 
     /// Path components of the deepest folder that holds all `files`.

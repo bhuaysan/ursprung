@@ -10544,6 +10544,16 @@
           }
         }
       }
+    },
+    "It refers to files that aren't shaders or images, which weren't copied: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es verweist auf Dateien, die weder Shader noch Bilder sind; sie wurden nicht kopiert: %@"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -221,6 +221,30 @@ struct ShaderLibraryTests {
         #expect(library.presets.count == 5)
     }
 
+    @Test func importLeavesFilesBehindThatArentShadersOrImages() async throws {
+        let root = try makeTemporaryDirectory().standardizedFileURL
+        defer { try? FileManager.default.removeItem(at: root) }
+        let library = makeLibrary(root: root)
+        let downloads = root.appending(path: "Downloads", directoryHint: .isDirectory)
+        try write("secret", to: root.appending(path: "Private/id_rsa"))
+        try write("secret", to: root.appending(path: "Private/notes.txt"))
+        try write("png", to: downloads.appending(path: "shaders/mask.png"))
+        try write(dimShader.replacing("#version 450", with: "#version 450\n#include \"../../Private/notes.txt\""),
+                  to: downloads.appending(path: "shaders/dim.slang"))
+        try write("shaders = 1\nshader0 = ../shaders/dim.slang\ntextures = \"MASK;KEY\"\nMASK = ../shaders/mask.png\nKEY = ../../Private/id_rsa\n",
+                  to: downloads.appending(path: "presets/greedy.slangp"))
+
+        let result = await library.importItems([downloads.appending(path: "presets/greedy.slangp")])
+        #expect(result.presets.map(\.path) == ["greedy/presets/greedy.slangp"], "Laid out as if the other files weren't there")
+        #expect(result.failures.map(\.name) == ["greedy.slangp"])
+        #expect(result.failures.first?.reason.contains("id_rsa") == true)
+        let copied = FileManager.default.enumerator(atPath: library.userDirectory.path(percentEncoded: false))?
+            .compactMap { $0 as? String } ?? []
+        #expect(Set(copied.filter { !$0.hasSuffix("/") }.map { ($0 as NSString).lastPathComponent })
+            .isSuperset(of: ["greedy.slangp", "dim.slang", "mask.png"]))
+        #expect(!copied.contains { $0.hasSuffix("id_rsa") || $0.hasSuffix("notes.txt") })
+    }
+
     @Test func favoritesPersist() throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
