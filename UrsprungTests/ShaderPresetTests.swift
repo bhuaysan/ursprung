@@ -308,6 +308,33 @@ struct ShaderWorkspaceTests {
         #expect(workspace.values["STRENGTH"] == 0.5)
     }
 
+    @Test func reloadsWhileCompilingWaitForItAndRunOnce() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try writeShaderFixtures(in: directory)
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 8, height: 8))
+        let renderer = try #require(MetalRenderer(view: view))
+        var started = 0
+        renderer.presetURL = { started += 1; return directory.appending(path: $0.path) }
+        let workspace = ShaderWorkspace()
+        renderer.workspace = workspace
+        let strong = try #require(ShaderPresetRef(source: .user, path: "dim-strong.slangp"))
+        renderer.selection = .preset(strong)
+        for _ in 0..<500 where workspace.status != .ready(strong) { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(workspace.status == .ready(strong) && started == 1)
+
+        // Edits faster than a compile, e.g. typing with a heavy preset.
+        try "#reference \"dim.slangp\"\nSTRENGTH = \"0.3\"\n"
+            .write(to: directory.appending(path: "dim-strong.slangp"), atomically: true, encoding: .utf8)
+        for _ in 0..<10 { workspace.reloadPreset() }
+        for _ in 0..<500 where workspace.status != .ready(strong) || workspace.values["STRENGTH"] != 0.3 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(workspace.values["STRENGTH"] == 0.3, "The latest change is compiled")
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(started == 3, "The first reload and the latest of those that waited")
+    }
+
     @Test func warnsOnceWhenAPresetIsTooSlowForTheFrameRate() throws {
         let workspace = ShaderWorkspace()
         let preset = try #require(ShaderPresetRef(source: .library, path: "crt/heavy.slangp"))

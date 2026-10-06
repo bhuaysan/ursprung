@@ -132,6 +132,9 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var pendingPreset: ShaderPresetRef?
     /// Bumped by every compile, so only the latest one is used.
     private var compileGeneration = 0
+    /// A compile runs; compiles can't be stopped, so the next one waits
+    /// for it and only the latest of those that wait is started.
+    private var isCompiling = false
     /// The chain's output at the picture's size before rotation.
     private var shaderOutput: MTLTexture?
     /// `shaderOutput` is older than the frame, its size or the chain.
@@ -365,12 +368,19 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             }
             return
         }
+        compileGeneration += 1
+        pendingPreset = preset
+        if preset == chainPreset && chain != nil { workspace?.recompiling() } else { workspace?.compiling(preset) }
+        if !isCompiling { startCompile() }
+    }
+
+    /// Compiles `pendingPreset` in the background.
+    private func startCompile() {
+        guard let preset = pendingPreset else { return }
         // A recompile of the preset that is showing keeps showing it, also when it fails.
         let isRecompile = preset == chainPreset && chain != nil
-        compileGeneration += 1
         let generation = compileGeneration
-        pendingPreset = preset
-        if isRecompile { workspace?.recompiling() } else { workspace?.compiling(preset) }
+        isCompiling = true
         let url = presetURL(preset)
         let coreName = source?.libraryName, rotation = source?.rotation ?? 0
         Task { [weak self, queue] in
@@ -383,8 +393,13 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             } catch {
                 failure = error
             }
+            guard let self else { return }
+            self.isCompiling = false
             // A newer selection or change replaced this one meanwhile.
-            guard let self, self.compileGeneration == generation else { return }
+            guard self.compileGeneration == generation else {
+                self.startCompile()
+                return
+            }
             self.pendingPreset = nil
             if let compiled {
                 self.chain = compiled
