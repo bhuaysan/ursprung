@@ -363,9 +363,16 @@ struct LibraryView: View {
                 if let systemID = ProcessInfo.processInfo.environment["URSPRUNG_SYSTEM"] {
                     selection = .system(systemID)
                 }
+                // URSPRUNG_SELECT=<title substring>[|<title substring>…] selects one or several games.
                 if let query = ProcessInfo.processInfo.environment["URSPRUNG_SELECT"] {
-                    let game = games.first { $0.title.localizedStandardContains(query) }
-                    gameSelection.select(game?.persistentModelID)
+                    let ids = query.split(separator: "|").compactMap { part in
+                        games.first { $0.title.localizedStandardContains(part) }?.persistentModelID
+                    }
+                    if ids.count > 1 {
+                        gameSelection.replace(with: Set(ids), order: games.map(\.persistentModelID))
+                    } else {
+                        gameSelection.select(ids.first)
+                    }
                 }
                 // URSPRUNG_SHADER_EDITOR=<preset:library/…|preset:user/…|system id|new> opens the shader editor.
                 if let request = ProcessInfo.processInfo.environment["URSPRUNG_SHADER_EDITOR"] {
