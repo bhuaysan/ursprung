@@ -344,7 +344,7 @@ struct MetadataSettingsView: View {
 
 struct EmulationSettingsView: View {
     @Environment(EmulationSession.self) private var session
-    @AppStorage(PrefKey.videoFilter) private var filter: VideoFilter = .sharp
+    @AppStorage(PrefKey.videoFilter) private var filter: ShaderSelection = .builtin(.sharp)
     @AppStorage(PrefKey.integerScaling) private var integerScaling = false
     @AppStorage(PrefKey.showFPS) private var showFPS = false
     @AppStorage(PrefKey.volume) private var volume = 1.0
@@ -362,9 +362,7 @@ struct EmulationSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Filter", selection: $filter) {
-                    ForEach(VideoFilter.allCases) { Text($0.title).tag($0) }
-                }
+                ShaderPicker(title: "Filter", selection: Binding(get: { filter }, set: { if let choice = $0 { filter = choice } }))
                 Picker("Around the Picture", selection: $bezel) {
                     ForEach(BezelStyle.allCases) { Text($0.title).tag($0) }
                 }
@@ -383,6 +381,7 @@ struct EmulationSettingsView: View {
                     .settingsFootnote()
             }
             SystemVideoSection()
+            ShaderSettingsSection()
             Section {
                 Picker("Fast Forward Speed", selection: $fastForwardSpeed) {
                     ForEach([2.0, 3.0, 4.0, 6.0, 8.0], id: \.self) { speed in
@@ -490,7 +489,8 @@ struct EmulationSettingsView: View {
 /// A filter and a bezel image for one system.
 private struct SystemVideoSection: View {
     @State private var systemID = SystemCatalog.all[0].id
-    @State private var filter: VideoFilter?
+    @AppStorage(PrefKey.videoFilter) private var globalFilter: ShaderSelection = .builtin(.sharp)
+    @State private var filter: ShaderSelection?
     @State private var bezelImage: URL?
     @State private var isChoosingImage = false
     @State private var failure: String?
@@ -503,11 +503,8 @@ private struct SystemVideoSection: View {
                 }
             }
             // A closure, not `set: setFilter`: the method reference crashes the Swift 6.2 compiler (Xcode 26).
-            Picker("Filter", selection: Binding(get: { filter }, set: { setFilter($0) })) {
-                Text("Same as All Systems (\(Preferences.videoFilter.title))").tag(VideoFilter?.none)
-                Divider()
-                ForEach(VideoFilter.allCases) { Text($0.title).tag(VideoFilter?.some($0)) }
-            }
+            ShaderPicker(title: "Filter", selection: Binding(get: { filter }, set: { setFilter($0) }),
+                         inheritTitle: String(localized: "Same as All Systems (\(globalFilter.title))"))
             LabeledContent("Bezel Image") {
                 HStack(spacing: AppSpacing.s) {
                     if let bezelImage {
@@ -536,12 +533,12 @@ private struct SystemVideoSection: View {
     }
 
     private func load() {
-        filter = UserDefaults.standard.string(forKey: PrefKey.systemVideoFilter(systemID)).flatMap(VideoFilter.init(rawValue:))
+        filter = UserDefaults.standard.string(forKey: PrefKey.systemVideoFilter(systemID)).flatMap(ShaderSelection.init(rawValue:))
         bezelImage = BezelImages.image(for: systemID)
         failure = nil
     }
 
-    private func setFilter(_ value: VideoFilter?) {
+    private func setFilter(_ value: ShaderSelection?) {
         filter = value
         UserDefaults.standard.set(value?.rawValue, forKey: PrefKey.systemVideoFilter(systemID))
     }

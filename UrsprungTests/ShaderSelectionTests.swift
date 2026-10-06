@@ -51,6 +51,18 @@ struct ShaderSelectionTests {
         defaults.set("preset:nowhere", forKey: PrefKey.systemVideoFilter("snes"))
         #expect(ShaderSelection.current(for: "snes", defaults: defaults) == .preset(preset))
     }
+
+    @Test func noticesSettingsThatNeedThePack() throws {
+        let suite = "UrsprungTests.ShaderSelection.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set(VideoFilter.crt.rawValue, forKey: PrefKey.videoFilter)
+        defaults.set("preset:user/Mine/soft.slangp", forKey: PrefKey.systemVideoFilter("nes"))
+        #expect(!ShaderSelection.usesLibraryPresets(defaults: defaults))
+        defaults.set("preset:library/crt/zfast-crt.slangp", forKey: PrefKey.systemVideoFilter("gba"))
+        #expect(ShaderSelection.usesLibraryPresets(defaults: defaults))
+    }
 }
 
 @Suite("Presentation layout")

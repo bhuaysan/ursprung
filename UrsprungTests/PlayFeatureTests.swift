@@ -456,7 +456,7 @@ struct ExtrasBackupTests {
             let base = root.appending(path: name)
             return DataLocations(saves: base.appending(path: "Saves"), states: base.appending(path: "States"),
                                  media: base.appending(path: "Media"), extras: base.appending(path: "Extras"),
-                                 bezels: base.appending(path: "Bezels"))
+                                 bezels: base.appending(path: "Bezels"), shaders: base.appending(path: "Shaders"))
         }
         let source = locations("old")
         let gameID = UUID()

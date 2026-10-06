@@ -42,6 +42,8 @@ nonisolated enum PrefKey {
     static let achievementsUsername = "achievementsUsername"
     static let achievementsHardcore = "achievementsHardcore"
     static let achievementsShowsProgress = "achievementsShowsProgress"
+    /// Favourite RetroArch presets, as `ShaderSelection` raw values.
+    static let shaderFavorites = "shaderFavorites"
     static func systemVideoFilter(_ systemID: String) -> String { "videoFilter.\(systemID)" }
     static func inputProfile(_ systemID: String) -> String { "inputProfile.\(systemID)" }
     static func coreChoice(_ systemID: String) -> String { "coreChoice.\(systemID)" }
@@ -145,7 +147,6 @@ nonisolated enum Preferences {
     static var scraperRegion: String { defaults.string(forKey: PrefKey.scraperRegion) ?? "eu" }
     static var scraperUsername: String { defaults.string(forKey: PrefKey.scraperUsername) ?? "" }
     static var autoScrape: Bool { defaults.bool(forKey: PrefKey.autoScrape) }
-    static var videoFilter: VideoFilter { VideoFilter(rawValue: defaults.string(forKey: PrefKey.videoFilter) ?? "") ?? .sharp }
     static var integerScaling: Bool { defaults.bool(forKey: PrefKey.integerScaling) }
     static var volume: Double { defaults.double(forKey: PrefKey.volume) }
     static var pauseInBackground: Bool { defaults.bool(forKey: PrefKey.pauseInBackground) }
@@ -210,7 +211,7 @@ nonisolated enum Preferences {
         PrefKey.collections, PrefKey.libraryViewMode, PrefKey.groupsVariants,
         PrefKey.fastForwardSpeed, PrefKey.rewindEnabled, PrefKey.rewindBufferSize, PrefKey.runAheadFrames,
         PrefKey.turboRate, PrefKey.rumble, PrefKey.bezel, PrefKey.achievementsEnabled, PrefKey.achievementsUsername,
-        PrefKey.achievementsHardcore, PrefKey.achievementsShowsProgress,
+        PrefKey.achievementsHardcore, PrefKey.achievementsShowsProgress, PrefKey.shaderFavorites,
     ]
     private static let backedUpPrefixes = ["coreChoice.", "coreOptions.", "hidGamepadMapping.", "inputProfile.", "videoFilter."]
 

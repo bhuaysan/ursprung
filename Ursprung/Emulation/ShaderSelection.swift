@@ -65,6 +65,23 @@ nonisolated enum ShaderSelection: Hashable, Sendable, RawRepresentable {
         }
     }
 
+    /// For menus: the filter's title or the preset's name.
+    var title: String {
+        switch self {
+        case .builtin(let filter): filter.title
+        case .preset(let preset): preset.name
+        }
+    }
+
+    /// Whether a filter setting names a preset of the downloaded pack.
+    static func usesLibraryPresets(defaults: UserDefaults = .standard) -> Bool {
+        defaults.dictionaryRepresentation().contains { key, value in
+            guard key == PrefKey.videoFilter || key.hasPrefix(PrefKey.systemVideoFilter("")),
+                  case .preset(let preset)? = (value as? String).flatMap(ShaderSelection.init(rawValue:)) else { return false }
+            return preset.source == .library
+        }
+    }
+
     /// What a system uses: its own choice, or the one for all systems.
     static func current(for systemID: String?, defaults: UserDefaults = .standard) -> ShaderSelection {
         if let systemID, let raw = defaults.string(forKey: PrefKey.systemVideoFilter(systemID)),

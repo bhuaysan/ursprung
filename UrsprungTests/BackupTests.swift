@@ -19,7 +19,8 @@ nonisolated private func existing(_ path: String, id: UUID = UUID(), crc: String
 
 nonisolated private func locations(in root: URL) -> DataLocations {
     DataLocations(saves: root.appending(path: "Saves"), states: root.appending(path: "States"), media: root.appending(path: "Media"),
-                  extras: root.appending(path: "Extras"), bezels: root.appending(path: "Bezels"))
+                  extras: root.appending(path: "Extras"), bezels: root.appending(path: "Bezels"),
+                  shaders: root.appending(path: "Shaders"))
 }
 
 @Suite("Backup")
@@ -60,6 +61,9 @@ struct BackupTests {
         let media = source.media.appending(path: gameID.uuidString)
         try FileManager.default.createDirectory(at: media, withIntermediateDirectories: true)
         try Data([4]).write(to: media.appending(path: "box.png"))
+        try FileManager.default.createDirectory(at: source.shaders.appending(path: "Mine"), withIntermediateDirectories: true)
+        try Data("shaders = 1".utf8).write(to: source.shaders.appending(path: "Mine/soft.slangp"))
+        try Data("old".utf8).write(to: source.shaders.appending(path: "Mine/kept.slangp"))
 
         var item = record("/Mac/Old.sfc", id: gameID)
         item.isFavorite = true
@@ -74,6 +78,9 @@ struct BackupTests {
         // The game is already in the new library, under another ID and file name.
         let target = UUID()
         let destination = locations(in: root.appending(path: "new"))
+        // A preset that exists on both sides keeps the current version.
+        try FileManager.default.createDirectory(at: destination.shaders.appending(path: "Mine"), withIntermediateDirectories: true)
+        try Data("new".utf8).write(to: destination.shaders.appending(path: "Mine/kept.slangp"))
         let plan = [gameID: Backup.Target(id: target, isNew: false)]
         let report = try Backup.restoreFiles(of: contents, plan: plan,
                                              renames: [Backup.Rename(systemID: "snes", recordID: gameID, from: "Old", to: "New")],
@@ -85,6 +92,8 @@ struct BackupTests {
         let restoredState = SaveStateStore.directory(in: destination.states, gameID: target, coreID: "snes9x")
         #expect(try Data(contentsOf: restoredState.appending(path: "slot1.state")) == Data([3]))
         #expect(try Data(contentsOf: destination.media.appending(path: "\(target.uuidString)/box.png")) == Data([4]))
+        #expect(try Data(contentsOf: destination.shaders.appending(path: "Mine/soft.slangp")) == Data("shaders = 1".utf8))
+        #expect(try Data(contentsOf: destination.shaders.appending(path: "Mine/kept.slangp")) == Data("new".utf8))
     }
 
     @Test func incompleteBackupIsRefused() throws {

@@ -23,6 +23,7 @@ struct UrsprungApp: App {
     @State private var backup: BackupService
     @State private var updates = UpdateChecker()
     @State private var achievements: AchievementService
+    @State private var shaders: ShaderLibrary
 
     private let container: ModelContainer
 
@@ -37,6 +38,8 @@ struct UrsprungApp: App {
         let library = LibraryStore(metadata: metadata)
         let achievements = AchievementService()
         let session = EmulationSession(cores: cores, bios: bios, achievements: achievements)
+        let shaders = ShaderLibrary()
+        _shaders = State(initialValue: shaders)
         _achievements = State(initialValue: achievements)
         _metadata = State(initialValue: metadata)
         _library = State(initialValue: library)
@@ -56,7 +59,8 @@ struct UrsprungApp: App {
             LibraryDatabase.reportFailure(error)
             exit(EXIT_FAILURE)
         }
-        _backup = State(initialValue: BackupService(container: container, library: library, session: session))
+        _backup = State(initialValue: BackupService(container: container, library: library, session: session,
+                                                    shaders: shaders))
     }
 
     var body: some Scene {
@@ -75,6 +79,7 @@ struct UrsprungApp: App {
         .environment(bios)
         .environment(session)
         .environment(systemMedia)
+        .environment(shaders)
         .modelContainer(container)
 
         Window(String(localized: "Player"), id: WindowID.player) {
@@ -88,6 +93,7 @@ struct UrsprungApp: App {
         .defaultLaunchBehavior(.suppressed)
         .environment(session)
         .environment(cores)
+        .environment(shaders)
         .modelContainer(container)
 
         WindowGroup(String(localized: "Manual"), id: WindowID.manual, for: UUID.self) { $gameID in
@@ -111,6 +117,7 @@ struct UrsprungApp: App {
         .environment(session)
         .environment(backup)
         .environment(achievements)
+        .environment(shaders)
         .modelContainer(container)
     }
 }

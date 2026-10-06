@@ -123,6 +123,16 @@ pixels). The presentation pass then draws that texture 1:1 with the usual
 rotation, ambient light and bezel. A missing or failing preset falls back to
 the Sharp filter with a toast. See `docs/SHADER_PLAN.md`.
 
+`ShaderLibrary` provides the presets: it downloads the libretro
+`shaders_slang.zip` on demand into `Shaders/slang-shaders/` (unpacked next to
+it and swapped in only when complete; updates are checked via Last-Modified
+like cores) and imports the user's own presets into `Shaders/User/`, which
+backups carry. Its index lists every `.slangp` with category, pass count
+(`SlangPresetFile`, Ursprung's own reader) and parameter count (librashader,
+parse only); `Shaders/index.json` caches it by file date, so only new or
+changed presets are read again. The filter menus (`ShaderPicker`) show the
+built-in filters, favourite presets and the shader browser.
+
 ## Input
 
 `InputRouter` merges the keyboard (player 1), GameController pads, XInput pads

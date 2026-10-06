@@ -8134,6 +8134,586 @@
           }
         }
       }
+    },
+    "The shaders could not be downloaded: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Shader konnten nicht geladen werden: %@"
+          }
+        }
+      }
+    },
+    "The downloaded shader archive contains no presets.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das geladene Shader-Archiv enthält keine Presets."
+          }
+        }
+      }
+    },
+    "Other": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonstige"
+          }
+        }
+      }
+    },
+    "The file doesn't exist.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei existiert nicht."
+          }
+        }
+      }
+    },
+    "It is already in your shaders.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ist bereits in deinen Shadern."
+          }
+        }
+      }
+    },
+    "The folder contains no shader presets (.slangp).": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Ordner enthält keine Shader-Presets (.slangp)."
+          }
+        }
+      }
+    },
+    "Only shader presets (.slangp) and folders can be imported.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur Shader-Presets (.slangp) und Ordner können importiert werden."
+          }
+        }
+      }
+    },
+    "Download the RetroArch shaders?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroArch-Shader laden?"
+          }
+        }
+      }
+    },
+    "The restored settings use presets from the RetroArch shader pack, which isn't part of backups. Until it is downloaded, those games use the built-in Sharp filter.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die wiederhergestellten Einstellungen verwenden Presets aus dem RetroArch-Shader-Paket, das nicht im Backup enthalten ist. Bis es geladen ist, verwenden diese Spiele den eingebauten Filter „Scharf“."
+          }
+        }
+      }
+    },
+    "Not Now": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht jetzt"
+          }
+        }
+      }
+    },
+    "The shaders couldn't be downloaded": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Shader konnten nicht geladen werden"
+          }
+        }
+      }
+    },
+    "RetroArch Shaders…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroArch-Shader …"
+          }
+        }
+      }
+    },
+    "%@ (Missing)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (fehlt)"
+          }
+        }
+      }
+    },
+    "RetroArch Shaders": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroArch-Shader"
+          }
+        }
+      }
+    },
+    "Choose a preset for the picture. Drop presets or folders here to add them to your shaders.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle ein Preset für das Bild. Ziehe Presets oder Ordner hierher, um sie zu deinen Shadern hinzuzufügen."
+          }
+        }
+      }
+    },
+    "All Presets": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Presets"
+          }
+        }
+      }
+    },
+    "My Shaders": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meine Shader"
+          }
+        }
+      }
+    },
+    "Categories": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kategorien"
+          }
+        }
+      }
+    },
+    "No Favorites": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Favoriten"
+          }
+        }
+      }
+    },
+    "Mark presets with the star. Favorites also appear in the Filter menus.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markiere Presets mit dem Stern. Favoriten erscheinen auch in den Filter-Menüs."
+          }
+        }
+      }
+    },
+    "No Shaders of Your Own": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine eigenen Shader"
+          }
+        }
+      }
+    },
+    "Import presets or drop them here. They are kept in your shader folder and are part of backups.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importiere Presets oder ziehe sie hierher. Sie liegen in deinem Shader-Ordner und sind Teil von Backups."
+          }
+        }
+      }
+    },
+    "No Presets": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Presets"
+          }
+        }
+      }
+    },
+    "No Presets Yet": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Presets"
+          }
+        }
+      }
+    },
+    "Download the shader pack to choose from more than 2,500 presets.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lade das Shader-Paket, um aus mehr als 2.500 Presets zu wählen."
+          }
+        }
+      }
+    },
+    "The RetroArch shader pack isn't downloaded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das RetroArch-Shader-Paket ist nicht geladen."
+          }
+        }
+      }
+    },
+    "About 55 MB from the libretro buildbot.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etwa 55 MB vom libretro-Buildbot."
+          }
+        }
+      }
+    },
+    "Use Shader": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader verwenden"
+          }
+        }
+      }
+    },
+    "%lld presets": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Preset"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Presets"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld preset"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld presets"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Choose shader presets (.slangp) or folders with presets.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle Shader-Presets (.slangp) oder Ordner mit Presets."
+          }
+        }
+      }
+    },
+    "Some items couldn't be imported": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einige Objekte konnten nicht importiert werden"
+          }
+        }
+      }
+    },
+    "Some files are missing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einige Dateien fehlen"
+          }
+        }
+      }
+    },
+    "The imported presets refer to %lld files that weren't found. These presets may not load.": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Die importierten Presets verweisen auf %lld Datei, die nicht gefunden wurde. Diese Presets lassen sich eventuell nicht laden."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Die importierten Presets verweisen auf %lld Dateien, die nicht gefunden wurden. Diese Presets lassen sich eventuell nicht laden."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "The imported presets refer to %lld file that wasn't found. These presets may not load."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "The imported presets refer to %lld files that weren't found. These presets may not load."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "This preset can't be loaded: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Preset lässt sich nicht laden: %@"
+          }
+        }
+      }
+    },
+    "Can't Be Loaded": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lässt sich nicht laden"
+          }
+        }
+      }
+    },
+    "%lld passes": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Durchgang"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Durchgänge"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld pass"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld passes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Many passes need a fast graphics processor, especially in full screen.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Viele Durchgänge brauchen eine schnelle Grafikeinheit, besonders im Vollbild."
+          }
+        }
+      }
+    },
+    "Unpacking…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entpacken …"
+          }
+        }
+      }
+    },
+    "Shader Pack": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader-Paket"
+          }
+        }
+      }
+    },
+    "Your Shaders": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Shader"
+          }
+        }
+      }
+    },
+    "The libretro shader pack has more than 2,500 presets: CRT screens, handheld displays, scanlines, smoothing and more. Choose one with “RetroArch Shaders…” in a Filter menu, where you can also import your own. The shaders are separate open source projects with their own licenses. Your own shaders are part of backups; the pack is not.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das libretro-Shader-Paket hat mehr als 2.500 Presets: Röhrenfernseher, Handheld-Displays, Scanlines, Glättung und mehr. Wähle eines mit „RetroArch-Shader …“ in einem Filter-Menü, wo du auch eigene importieren kannst. Die Shader sind eigenständige Open-Source-Projekte mit eigenen Lizenzen. Deine eigenen Shader sind Teil von Backups, das Paket nicht."
+          }
+        }
+      }
+    },
+    "Remove the RetroArch shader pack?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RetroArch-Shader-Paket entfernen?"
+          }
+        }
+      }
+    },
+    "Remove Shader Pack": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader-Paket entfernen"
+          }
+        }
+      }
+    },
+    "Systems set to one of its presets use the built-in Sharp filter until you download it again. Your own shaders stay.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systeme, die eines seiner Presets verwenden, nutzen den eingebauten Filter „Scharf“, bis du es wieder lädst. Deine eigenen Shader bleiben erhalten."
+          }
+        }
+      }
+    },
+    "Download Again": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut laden"
+          }
+        }
+      }
+    },
+    "Remove…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entfernen …"
+          }
+        }
+      }
+    },
+    "Not downloaded (about 55 MB)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht geladen (etwa 55 MB)"
+          }
+        }
+      }
+    },
+    "Up to date, checked %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktuell, geprüft um %@"
+          }
+        }
+      }
+    },
+    "None yet": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -1,6 +1,6 @@
 # Ursprung — RetroArch Shaders and Shader Editor: Plan
 
-5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike), 1 (dependency) and 2 (render path) done; phase 3 next.
+5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike), 1 (dependency), 2 (render path) and 3 (shader library) done; phase 4 next.
 
 Ursprung renders every frame through one built-in Metal shader (`Ursprung/Emulation/ShaderSource.swift`, 7 fixed filters). This plan adds RetroArch slang shader presets through librashader, and a shader editor with live preview on top of it.
 
@@ -178,6 +178,16 @@ The spike ran as a standalone Objective-C program in a scratch folder instead of
 - Settings › Emulation: "Shaders" section (download/update/remove, size, user folder in Finder). The filter picker gets a "RetroArch Shaders…" entry that opens a searchable browser with categories and favorites.
 - Backup: `DataLocations` gains `shaders` (`Shaders/User/` only). `BackupService` writes and restores it like `bezels`. After a restore, if prefs point at library presets and the pack is missing, the app offers the download.
 - Acceptance: the pack downloads, updates and is removable. The index finds all presets in under a second on warm launch, or is cached. A backup round trip restores user presets together with their assignments.
+
+**Done 6 October 2026.**
+- `ShaderLibrary` (`Emulation/`) downloads the pack through `HTTPDownload` (shared with `CoreManager`), unpacks it next to `slang-shaders/` on all cores (0.6 s for 5,742 files) and swaps it in only when complete; an archive without presets leaves the installed pack alone. `pack.json` records the install date for the Last-Modified update check.
+- Index: `ShaderIndex` lists every `.slangp` (2,658 in the pack) with category, folder, pass count and parameter count. Pass counts come from `SlangPresetFile`, a small reader for `#reference` and `key = value` lines that phase 5's `SlangPreset` can grow from; parameter counts and load problems come from librashader (parse only, concurrent). `Shaders/index.json` caches the results by file date: the first index takes 4.3 s in the background, later ones 0.5 s.
+- 12 pack presets fail to parse in librashader 0.12.0 (missing textures in koko-aio PSP presets, a quoted path in the adamant WOLED presets, a bool parse error in `crt-black_crush-koko`, a directory include in a crt-beam-simulator preset). The browser marks them with a warning and librashader's message. Presets without a pass count are parameter fragments (`koko-aio/refs/`) and Mega Bezel's `$CORE$` wildcard examples.
+- Import (file panel or drop on the browser) copies folders as they are. A single preset takes along every file it reads (`#reference`, shaders, `#include`, textures) in the same layout relative to their common folder, so its relative paths keep working; files it names but that don't exist are reported.
+- UI: `ShaderPicker` replaces the filter pickers in Settings › Emulation (all systems and per system): built-in filters, favourites, the selected preset and "RetroArch Shaders…", which opens `ShaderBrowser` (categories, favourites, My Shaders, search, pass counts with a warning colour from 20 passes). The browser opens in the current preset's category and scrolls to it. Settings › Emulation has a "RetroArch Shaders" section for the pack (download, check for updates, download again, remove) and the user folder. Favourites are a backed-up pref (`shaderFavorites`).
+- Backup: `DataLocations.shaders` = `Shaders/User/`, written as `Shaders/` and restored like bezel images (only missing files). After a restore with settings that name pack presets, the app offers to download the pack.
+- SwiftUI's outline-based `List` crashes (`ViewListTree.visitItem`) when `ScrollViewReader.scrollTo` runs while the list's data is being replaced, e.g. right as the sheet opens and the index refreshes. The browser scrolls only after the index is done, and the library only republishes the preset list when it changed.
+- Tests: `SlangPresetFileTests`, `ShaderLibraryTests` (index, cache, install/update/remove with a fake download, import, favourites) and an opt-in run against the real pack (`TEST_RUNNER_URSPRUNG_SHADER_PACK=<zip> make test`). Verified in the app: download from the buildbot, browser, favourites in the menus, per-system choice, update check.
 
 ### Phase 4 — Player shader panel (M)
 

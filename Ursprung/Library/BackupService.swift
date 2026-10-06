@@ -18,13 +18,15 @@ final class BackupService {
     @ObservationIgnored private let container: ModelContainer
     @ObservationIgnored private let library: LibraryStore
     @ObservationIgnored private let session: EmulationSession
+    @ObservationIgnored private let shaders: ShaderLibrary
     @ObservationIgnored private let locations: DataLocations
 
-    init(container: ModelContainer, library: LibraryStore, session: EmulationSession,
+    init(container: ModelContainer, library: LibraryStore, session: EmulationSession, shaders: ShaderLibrary,
          locations: DataLocations = .standard) {
         self.container = container
         self.library = library
         self.session = session
+        self.shaders = shaders
         self.locations = locations
     }
 
@@ -114,7 +116,28 @@ final class BackupService {
             } catch {
                 report(failure: error, title: String(localized: "The backup couldn't be restored completely"))
             }
+            shaders.refresh()
+            if restoresSettings { offerShaderDownload() }
             await library.rescan(context: context)
+        }
+    }
+
+    /// Restored settings that use presets of the RetroArch shader pack need
+    /// the pack, which backups don't carry.
+    private func offerShaderDownload() {
+        guard !shaders.isPackInstalled, !shaders.isInstallingPack, ShaderSelection.usesLibraryPresets() else { return }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Download the RetroArch shaders?")
+        alert.informativeText = String(localized: "The restored settings use presets from the RetroArch shader pack, which isn't part of backups. Until it is downloaded, those games use the built-in Sharp filter.")
+        alert.addButton(withTitle: String(localized: "Download"))
+        alert.addButton(withTitle: String(localized: "Not Now"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task {
+            do {
+                try await shaders.installPack()
+            } catch {
+                report(failure: error, title: String(localized: "The shaders couldn't be downloaded"))
+            }
         }
     }
 

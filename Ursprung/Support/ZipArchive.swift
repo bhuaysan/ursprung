@@ -2,6 +2,7 @@
 
 import Compression
 import Foundation
+import Synchronization
 
 /// Read-only ZIP reader supporting "stored" and "deflate" entries — enough for
 /// ROM archives and libretro buildbot downloads. Uses the zip central
@@ -108,11 +109,27 @@ nonisolated struct ZipArchive: Sendable {
     }
 
     /// Extracts all files below `directory`, preserving relative paths.
-    func extractAll(to directory: URL) throws {
-        for entry in files {
+    /// `concurrently` spreads large archives with many files over all cores.
+    func extractAll(to directory: URL, concurrently: Bool = false) throws {
+        @Sendable func extract(_ entry: Entry) throws {
             let safePath = entry.path.split(separator: "/").filter { $0 != ".." && $0 != "." }.joined(separator: "/")
-            try extract(entry, to: directory.appending(path: safePath))
+            try self.extract(entry, to: directory.appending(path: safePath))
         }
+        let files = files
+        guard concurrently else {
+            for entry in files { try extract(entry) }
+            return
+        }
+        let firstError = Mutex<Error?>(nil)
+        DispatchQueue.concurrentPerform(iterations: files.count) { index in
+            guard firstError.withLock({ $0 == nil }) else { return }
+            do {
+                try extract(files[index])
+            } catch {
+                firstError.withLock { if $0 == nil { $0 = error } }
+            }
+        }
+        if let error = firstError.withLock({ $0 }) { throw error }
     }
 
     // MARK: - Parsing

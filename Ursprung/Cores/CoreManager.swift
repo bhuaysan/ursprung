@@ -23,10 +23,8 @@ final class CoreManager {
 
     static let buildbot = URL(string: "https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/")!
 
-    /// Fetches `url` to a temporary .zip file, reporting progress (0…1).
-    typealias Downloader = @Sendable (URL, @escaping @Sendable (Double) -> Void) async throws -> URL
-    /// When the file at a URL last changed on the server (HTTP Last-Modified).
-    typealias LastModifiedFetcher = @Sendable (URL) async throws -> Date?
+    typealias Downloader = HTTPDownload.Downloader
+    typealias LastModifiedFetcher = HTTPDownload.LastModifiedFetcher
 
     /// Download progress (0…1) for cores currently being installed.
     private(set) var downloads: [String: Double] = [:]
@@ -224,29 +222,14 @@ final class CoreManager {
     }
 
     private static let downloadFile: Downloader = { url, onProgress in
-        let tracker = DownloadTracker(onProgress: onProgress)
-        let (temporary, response) = try await URLSession.shared.download(from: url, delegate: tracker)
-        tracker.stop()
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw CoreError.downloadFailed("HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+        do {
+            return try await HTTPDownload.file(from: url, onProgress: onProgress)
+        } catch let error as HTTPDownload.StatusError {
+            throw CoreError.downloadFailed("HTTP \(error.status)")
         }
-        let destination = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString + ".zip")
-        try FileManager.default.moveItem(at: temporary, to: destination)
-        return destination
     }
 
-    private static let fetchLastModified: LastModifiedFetcher = { url in
-        var request = URLRequest(url: url)
-        request.httpMethod = "HEAD"
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let header = http.value(forHTTPHeaderField: "Last-Modified") else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "GMT")
-        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
-        return formatter.date(from: header)
-    }
+    private static let fetchLastModified: LastModifiedFetcher = { try await HTTPDownload.lastModified(of: $0) }
 
     @concurrent
     private static func extractCore(archive: URL, fileName: String, to destination: URL) async throws {
@@ -267,28 +250,6 @@ final class CoreManager {
         try ZipArchive(url: archive).extractAll(to: directory)
     }
 }
-
-/// Reports download progress of a single URLSession task.
-private final class DownloadTracker: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    private let onProgress: @Sendable (Double) -> Void
-    private var observation: NSKeyValueObservation?
-
-    init(onProgress: @escaping @Sendable (Double) -> Void) {
-        self.onProgress = onProgress
-    }
-
-    func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
-        observation = task.progress.observe(\.fractionCompleted, options: [.new]) { [onProgress] progress, _ in
-            onProgress(progress.fractionCompleted)
-        }
-    }
-
-    func stop() {
-        observation?.invalidate()
-        observation = nil
-    }
-}
-
 
 /// One version of an installed core.
 nonisolated struct CoreVersionRecord: Codable, Equatable, Sendable {

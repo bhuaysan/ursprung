@@ -11,10 +11,12 @@ nonisolated struct DataLocations: Sendable {
     var extras: URL
     /// Bezel images, one per system.
     var bezels: URL
+    /// The user's own shader presets (not the downloaded pack).
+    var shaders: URL
 
     static var standard: DataLocations {
         DataLocations(saves: AppPaths.saves, states: AppPaths.states, media: AppPaths.media, extras: AppPaths.extras,
-                      bezels: AppPaths.bezels)
+                      bezels: AppPaths.bezels, shaders: AppPaths.userShaders)
     }
 }
 
@@ -93,8 +95,9 @@ nonisolated struct BackupManifest: Codable, Sendable {
 ///       Media/           artwork
 ///       Extras/          screenshots, manuals, ROM patches and cheats per game
 ///       Bezels/          bezel images per system
+///       Shaders/         the user's own shader presets (`Shaders/User/`)
 ///
-/// BIOS files and cores are not included. See docs/SAVES.md.
+/// BIOS files, cores and the downloaded shader pack are not included. See docs/SAVES.md.
 nonisolated enum Backup {
     static let folderName = "Ursprung Backup"
 
@@ -130,7 +133,7 @@ nonisolated enum Backup {
         try recordEncoder.encode(records).write(to: root.appending(path: "library.json"))
         try settings.write(to: root.appending(path: "settings.plist"))
         for (name, source) in [("Saves", locations.saves), ("States", locations.states), ("Media", locations.media),
-                               ("Extras", locations.extras), ("Bezels", locations.bezels)]
+                               ("Extras", locations.extras), ("Bezels", locations.bezels), ("Shaders", locations.shaders)]
         where fileManager.fileExists(atPath: source.path(percentEncoded: false)) {
             // Clones on APFS: instant and without extra space.
             try fileManager.copyItem(at: source, to: root.appending(path: name, directoryHint: .isDirectory))
@@ -346,8 +349,8 @@ nonisolated enum Backup {
             report = report + (try FileMerge.mergeDirectory(source, into: destination, moving: true, labels: labels,
                                                             mapComponent: mapComponent))
         }
-        // Artwork and bezel images only fill in what is missing.
-        for (name, destination) in [("Media", locations.media), ("Bezels", locations.bezels)] {
+        // Artwork, bezel images and shaders only fill in what is missing.
+        for (name, destination) in [("Media", locations.media), ("Bezels", locations.bezels), ("Shaders", locations.shaders)] {
             let source = contents.root.appending(path: name, directoryHint: .isDirectory)
             for (file, components) in FileMerge.files(below: source) {
                 var target = destination

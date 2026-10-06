@@ -216,9 +216,11 @@ File › Back Up Library… (or Settings › General › Data) writes one zip fi
       Media/           artwork
       Extras/          screenshots, manuals, ROM patches and cheats
       Bezels/          bezel images per system
+      Shaders/         your own shader presets (Shaders/User/)
 
-Not included: BIOS files, cores (downloaded again on demand), and the
-ScreenScraper password and RetroAchievements token, which stay in the keychain.
+Not included: BIOS files, cores (downloaded again on demand), the RetroArch
+shader pack (offered for download after a restore whose settings use it),
+and the ScreenScraper password and RetroAchievements token, which stay in the keychain.
 
 File › Restore from Backup… first extracts and checks the backup. If it is not
 an Ursprung backup, comes from a newer version, or misses or garbles any file
@@ -238,8 +240,8 @@ confirmation (optionally including settings), and then
   they are missing until the next scan recognises the file or the user
   locates it;
 - saves, states and extras are placed under the matching entry's ID, renamed
-  to its file name where needed; artwork and bezel images only fill in what
-  is missing;
+  to its file name where needed; artwork, bezel images and shader presets
+  only fill in what is missing;
 - library folders from the backup are added to the current ones.
 
 A game must not be running during a backup or restore.
