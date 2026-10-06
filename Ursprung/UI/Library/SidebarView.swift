@@ -61,7 +61,7 @@ struct SidebarView: View {
                             Text(entry.system.name)
                                 .lineLimit(1)
                         } icon: {
-                            SystemDot(color: entry.system.identityColor)
+                            SystemIcon(system: entry.system, photo: systemMedia.photo(for: entry.system))
                         }
                         // The tooltip only covers the label's frame; widen it to the whole row.
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -139,17 +139,22 @@ struct CollectionActions {
     let move: (IndexSet, Int) -> Void
 }
 
-/// Flat system identity dot, centred in the sidebar's icon slot. Decorative:
-/// the row label already names the system.
-private struct SystemDot: View {
-    let color: Color
+/// The console itself as the row's icon, like Finder's device icons; the
+/// flat identity dot until its photo has been downloaded. Decorative: the
+/// row label already names the system.
+private struct SystemIcon: View {
+    let system: GameSystem
+    let photo: URL?
 
     var body: some View {
-        Circle()
-            .fill(color)
-            // Keeps near-white and near-black systems visible on the sidebar material.
-            .strokeBorder(.separator, lineWidth: 0.5)
-            .frame(width: 8, height: 8)
-            .accessibilityHidden(true)
+        ArtworkImage(url: photo, maxPixel: 96) {
+            Circle()
+                .fill(system.identityColor)
+                // Keeps near-white and near-black systems visible on the sidebar material.
+                .strokeBorder(.separator, lineWidth: 0.5)
+                .frame(width: 8, height: 8)
+        }
+        .frame(width: 24, height: 18)
+        .accessibilityHidden(true)
     }
 }
