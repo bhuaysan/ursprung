@@ -385,6 +385,31 @@ struct ShaderDraftTests {
         #expect(!FileManager.default.fileExists(atPath: user.appending(path: "Mine/Mine").path))
     }
 
+    @Test func savesFilesOfTheSameNameFromThePackAndTheUserApart() throws {
+        let (root, pack, user, drafts) = try makeShaders()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(dimShader, to: user.appending(path: "crt/shaders/dim.slang"))
+        var (info, preset) = try ShaderDrafts.create(from: pack.appending(path: "crt/dim.slangp"), name: "dim",
+                                                     origin: nil, target: nil, in: drafts)
+        preset.passes.append(SlangPreset.Pass(shader: user.appending(path: "crt/shaders/dim.slang").path))
+        for (index, marker) in ["// pack", "// user"].enumerated() {
+            let copy = try ShaderDrafts.ownCopy(of: URL(filePath: preset.passes[index].shader), info: &info, in: drafts,
+                                                library: pack, user: user)
+            try (String(contentsOf: copy, encoding: .utf8) + "\n\(marker)\n").write(to: copy, atomically: true, encoding: .utf8)
+            preset.passes[index].shader = copy.path
+        }
+        let target = user.appending(path: "Mixed.slangp")
+
+        try ShaderDrafts.save(preset, info: info, to: target, inPlace: false, in: drafts, user: user)
+        let saved = try SlangPreset.load(from: target)
+        #expect(saved.passes.count == 2 && saved.passes[0].shader != saved.passes[1].shader)
+        #expect(try String(contentsOf: URL(filePath: saved.passes[0].shader), encoding: .utf8).hasSuffix("// pack\n"))
+        #expect(try String(contentsOf: URL(filePath: saved.passes[1].shader), encoding: .utf8).hasSuffix("// user\n"))
+        // Each keeps its layout, so the pack shader's include still resolves.
+        #expect(FileManager.default.fileExists(atPath: user.appending(path: "Mixed/library/include/common.h").path))
+        #expect(try ShaderPreset.parametersOfPreset(atPath: target.path).first?.initial == 0.7)
+    }
+
     @Test func exportsAPresetThatWorksOnItsOwn() throws {
         let (root, pack, _, drafts) = try makeShaders()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -400,6 +425,44 @@ struct ShaderDraftTests {
         #expect(text.contains("MASK = \"crt/mask.png\""))
         #expect(FileManager.default.fileExists(atPath: destination.appending(path: "include/common.h").path))
         _ = drafts
+    }
+}
+
+@Suite("Shader editor: sources")
+struct ShaderEditorSourceTests {
+    @Test func aReplacedShaderLeavesTheOldFileAlone() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let shaders = ShaderLibrary(root: root.appending(path: "Shaders", directoryHint: .isDirectory),
+                                    defaults: UserDefaults(suiteName: "UrsprungTests.ShaderEditor.\(UUID().uuidString)")!)
+        let original = shaders.libraryDirectory.appending(path: "crt/shaders/dim.slang")
+        try write(dimShader, to: original)
+        try write("shaders = 1\nshader0 = shaders/dim.slang\n", to: shaders.libraryDirectory.appending(path: "crt/dim.slangp"))
+        let other = root.appending(path: "Elsewhere/other.slang")
+        try write(dimShader, to: other)
+        let session = EmulationSession(cores: CoreManager(coresDirectory: root, systemDirectory: root),
+                                       bios: BIOSManager(systemDirectory: root), achievements: AchievementService())
+        let editor = ShaderEditor(session: session, shaders: shaders)
+        editor.openPreset(try #require(ShaderPresetRef(source: .library, path: "crt/dim.slangp")))
+        let pass = try #require(editor.selectedPassID)
+        #expect(editor.tabs.map(\.url) == [original.standardizedFileURL])
+
+        // Choose Another Shader: the old shader's tab closes, the new one opens.
+        editor.updatePass(pass) { $0.shader = other.path }
+        #expect(editor.tabs.map(\.url) == [other.standardizedFileURL])
+
+        // A tab of a file the pass no longer reads never writes to it.
+        editor.openSource(original, for: pass)
+        let stale = try #require(editor.selectedTabID)
+        #expect(editor.sourceChanged(stale, text: "broken") == nil)
+        #expect(try String(contentsOf: original, encoding: .utf8) == dimShader)
+
+        // The pass's own tab edits a copy in the draft.
+        let tab = try #require(editor.tabs.first { $0.url == other.standardizedFileURL })
+        let copy = try #require(editor.sourceChanged(tab.id, text: dimShader + "\n// edited\n"))
+        #expect(copy != other.standardizedFileURL)
+        #expect(editor.selectedPass.map { URL(filePath: $0.shader).standardizedFileURL } == copy)
+        #expect(try String(contentsOf: other, encoding: .utf8) == dimShader)
     }
 }
 

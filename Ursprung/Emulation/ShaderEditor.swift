@@ -59,6 +59,18 @@ final class ShaderEditor {
         case failed(String)
     }
 
+    enum SourceError: LocalizedError {
+        /// The tab's file isn't (any longer) part of its pass's shader.
+        case notUsedByPass(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .notUsedByPass(let name):
+                String(localized: "The pass no longer uses “\(name)”. Open the file from the pass again.")
+            }
+        }
+    }
+
     let session: EmulationSession
     let shaders: ShaderLibrary
     /// Compiles and renders the draft when no game runs.
@@ -301,7 +313,10 @@ final class ShaderEditor {
         var changed = preset
         change(&changed)
         guard changed != preset else { return }
+        let before = Dictionary(preset.passes.map { ($0.id, $0.shader) }, uniquingKeysWith: { first, _ in first })
         preset = changed
+        let replaced = Set(changed.passes.filter { pass in before[pass.id].map { $0 != pass.shader } ?? false }.map(\.id))
+        if !replaced.isEmpty { closeTabs(ofReplaced: replaced) }
         markModified()
         persist()
         if recompile { scheduleRecompile(after: .milliseconds(150)) }
@@ -537,6 +552,16 @@ final class ShaderEditor {
         openSource(URL(filePath: pass.shader), for: pass.id)
     }
 
+    /// Passes got another shader: their tabs of files the new shader doesn't
+    /// read close, so typing there can't change files the draft no longer uses.
+    private func closeTabs(ofReplaced passIDs: Set<SlangPreset.Pass.ID>) {
+        for id in passIDs {
+            let files = Set(files(of: id).map(\.standardizedFileURL))
+            for tab in tabs where tab.passID == id && !files.contains(tab.url) { closeTab(tab.id) }
+        }
+        if let selectedPassID, passIDs.contains(selectedPassID) { openSelectedPassSource() }
+    }
+
     /// Whether editing `tab` changes a copy the draft owns (otherwise the
     /// first change makes one).
     func isOwn(_ tab: SourceTab) -> Bool {
@@ -556,6 +581,8 @@ final class ShaderEditor {
                 tabs[index] = tab
                 self.info = info
             }
+            // Pack and user files change only through Save.
+            guard ShaderDrafts.isOwn(tab.url, id: info.id, in: root) else { throw SourceError.notUsedByPass(tab.name) }
             try text.write(to: tab.url, atomically: true, encoding: .utf8)
         } catch {
             openError = String(localized: "Your change couldn’t be saved. \(error.localizedDescription)")
@@ -577,8 +604,18 @@ final class ShaderEditor {
         } else {
             shader = tab.url
         }
+        // A file the pass no longer reads would stay the original: never write there.
+        guard SlangSource.closure(of: shader).contains(where: { $0.standardizedFileURL == tab.url }) else {
+            throw SourceError.notUsedByPass(tab.name)
+        }
         let copy = try ShaderDrafts.ownCopy(of: shader, info: &info, in: root, library: shaders.libraryDirectory,
                                             user: shaders.userDirectory)
+        let files = ShaderDrafts.filesURL(info.id, in: root)
+        func ownURL(_ url: URL) -> URL? {
+            info.files.first { $0.origin == url.standardizedFileURL.path(percentEncoded: false) }
+                .map { files.appending(path: $0.path, directoryHint: .notDirectory).standardizedFileURL }
+        }
+        guard let own = ownURL(tab.url) else { throw SourceError.notUsedByPass(tab.name) }
         if let passID = tab.passID {
             preset.passes = preset.passes.map { pass in
                 var pass = pass
@@ -586,12 +623,7 @@ final class ShaderEditor {
                 return pass
             }
         }
-        let files = ShaderDrafts.filesURL(info.id, in: root)
-        func ownURL(_ url: URL) -> URL? {
-            info.files.first { $0.origin == url.standardizedFileURL.path(percentEncoded: false) }
-                .map { files.appending(path: $0.path, directoryHint: .notDirectory).standardizedFileURL }
-        }
-        if let own = ownURL(tab.url) { tab.url = own }
+        tab.url = own
         for index in tabs.indices where tabs[index].passID == tab.passID {
             if let own = ownURL(tabs[index].url) { tabs[index].url = own }
         }

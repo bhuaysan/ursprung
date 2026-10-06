@@ -198,8 +198,10 @@ nonisolated enum ShaderDrafts {
         let files = filesURL(info.id, in: root)
         let userPath = user.standardizedFileURL.pathComponents
 
-        // Where each own file the preset uses ends up.
+        // Where each own file the preset uses ends up: user files back in
+        // place, the others below `ownFolder` in their layout.
         var destinations: [String: URL] = [:]
+        var placed: [String: [String]] = [:]
         for pass in preset.passes where pass.shader.hasPrefix("/") {
             let shader = URL(filePath: pass.shader)
             guard isOwn(shader, id: info.id, in: root) else { continue }
@@ -207,15 +209,27 @@ nonisolated enum ShaderDrafts {
                 let relative = Array(file.standardizedFileURL.pathComponents
                     .dropFirst(files.standardizedFileURL.pathComponents.count))
                 let key = relative.joined(separator: "/")
-                guard destinations[key] == nil else { continue }
+                guard destinations[key] == nil, placed[key] == nil else { continue }
                 let origin = info.files.first { $0.path == key }?.origin.map { URL(filePath: $0) }
                 if inPlace, let origin, origin.standardizedFileURL.pathComponents.starts(with: userPath) {
                     destinations[key] = origin
                 } else {
-                    destinations[key] = relative.dropFirst().reduce(ownFolder) { $0.appending(path: $1) }
+                    placed[key] = relative
                 }
             }
         }
+        // Without the first folder (`library`, `user`, `new` …) unless that
+        // makes two files one, e.g. `library/crt/a.slang` and `user/crt/a.slang`.
+        func place(dropsFirst: Bool) -> [String: URL] {
+            placed.mapValues { relative in relative.dropFirst(dropsFirst ? 1 : 0).reduce(ownFolder) { $0.appending(path: $1) } }
+        }
+        func isDistinct(_ urls: some Collection<URL>) -> Bool {
+            Set(urls.map { $0.standardizedFileURL.path(percentEncoded: false) }).count == urls.count
+        }
+        var below = place(dropsFirst: true)
+        if !isDistinct(Array(destinations.values) + below.values) { below = place(dropsFirst: false) }
+        destinations.merge(below) { first, _ in first }
+        guard isDistinct(destinations.values) else { throw CocoaError(.fileWriteFileExists) }
 
         for (path, destination) in destinations {
             let source = files.appending(path: path, directoryHint: .notDirectory)

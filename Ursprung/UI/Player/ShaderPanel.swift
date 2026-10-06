@@ -36,6 +36,9 @@ struct ShaderPanel: View {
 
     private var workspace: ShaderWorkspace { session.shader }
     private var isDragging: Bool { draggedParameter != nil }
+    /// The editor previews its draft: a preset saved here would reference
+    /// the draft, which goes away. The editor saves it instead.
+    private var showsDraft: Bool { workspace.preset?.source == .draft }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -283,7 +286,12 @@ struct ShaderPanel: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: AppSpacing.s) {
-            if workspace.isModified {
+            if showsDraft {
+                Text("The shader editor’s draft is showing. Save it in the shader editor.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if workspace.isModified {
                 Text("Changes last until the game closes. Save them as a preset to keep them.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -292,7 +300,7 @@ struct ShaderPanel: View {
             HStack(spacing: AppSpacing.s) {
                 Button("Save as Preset…", action: startSaving)
                     .buttonStyle(.glass)
-                    .disabled(workspace.preset == nil)
+                    .disabled(workspace.preset == nil || showsDraft)
                 editorButton
             }
         }
@@ -363,7 +371,7 @@ struct ShaderPanel: View {
     // MARK: Saving
 
     private func startSaving() {
-        guard let preset = workspace.preset else { return }
+        guard let preset = workspace.preset, preset.source != .draft else { return }
         presetName = preset.name
         isNaming = true
     }
@@ -371,7 +379,8 @@ struct ShaderPanel: View {
     /// Writes the preset with the changed parameters to My Shaders (next to
     /// the current preset when that is one of the user's) and uses it for the scope.
     private func save(replacing: Bool) {
-        guard let preset = workspace.preset, let fileName = ShaderPresetWriter.fileName(for: presetName) else { return }
+        guard let preset = workspace.preset, preset.source != .draft,
+              let fileName = ShaderPresetWriter.fileName(for: presetName) else { return }
         let source = shaders.url(of: preset)
         let directory = preset.source == .user ? source.deletingLastPathComponent() : shaders.userDirectory
         let target = directory.appending(path: fileName, directoryHint: .notDirectory)

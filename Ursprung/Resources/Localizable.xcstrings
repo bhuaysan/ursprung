@@ -10504,6 +10504,26 @@
           }
         }
       }
+    },
+    "The pass no longer uses “%@”. Open the file from the pass again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Durchgang verwendet „%@“ nicht mehr. Öffne die Datei erneut über den Durchgang."
+          }
+        }
+      }
+    },
+    "The shader editor’s draft is showing. Save it in the shader editor.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Entwurf aus dem Shader-Editor wird angezeigt. Sichere ihn im Shader-Editor."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
