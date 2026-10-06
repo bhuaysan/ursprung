@@ -203,7 +203,8 @@ private struct PreviewBar: View {
     }
 }
 
-/// Dragging the zoomed picture moves the point the zoom centres on.
+/// Dragging the zoomed picture, the arrow keys or VoiceOver's actions move
+/// the point the zoom centres on.
 private struct ZoomDragArea: View {
     @Environment(ShaderEditor.self) private var editor
     @State private var start: CGPoint?
@@ -228,8 +229,42 @@ private struct ZoomDragArea: View {
                 .onTapGesture(count: 2) {
                     editor.stillWorkspace.previewTools.zoom = tools.zoom > 1 ? 1 : 4
                 }
+                .focusable(interactions: .edit)
+                .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow], phases: [.down, .repeat]) { press in
+                    guard tools.zoom > 1 else { return .ignored }
+                    let steps = press.modifiers.contains(.shift) ? 4.0 : 1
+                    switch press.key {
+                    case .leftArrow: pan(x: -steps, y: 0)
+                    case .rightArrow: pan(x: steps, y: 0)
+                    case .upArrow: pan(x: 0, y: -steps)
+                    default: pan(x: 0, y: steps)
+                    }
+                    return .handled
+                }
+                .accessibilityElement()
+                .accessibilityLabel("Shader Preview")
+                .accessibilityValue(description(of: tools))
+                .accessibilityAddTraits(.isImage)
+                .accessibilityAction(named: tools.zoom > 1 ? "Zoom Out" : "Zoom In") {
+                    editor.stillWorkspace.previewTools.zoom = tools.zoom > 1 ? 1 : 4
+                }
+                .accessibilityAction(named: "Move Left") { pan(x: -4, y: 0) }
+                .accessibilityAction(named: "Move Right") { pan(x: 4, y: 0) }
+                .accessibilityAction(named: "Move Up") { pan(x: 0, y: -4) }
+                .accessibilityAction(named: "Move Down") { pan(x: 0, y: 4) }
         }
         .allowsHitTesting(true)
+    }
+
+    private func pan(x: Double, y: Double) {
+        editor.stillWorkspace.previewTools.pan(x: x, y: y)
+    }
+
+    private func description(of tools: ShaderPreviewTools) -> String {
+        guard tools.zoom > 1 else { return String(localized: "Not zoomed") }
+        let x = Double(tools.focus.x).formatted(.percent.precision(.fractionLength(0)))
+        let y = Double(tools.focus.y).formatted(.percent.precision(.fractionLength(0)))
+        return String(localized: "Zoomed \(Int(tools.zoom))×, centred \(x) from the left and \(y) from the top")
     }
 }
 
@@ -253,7 +288,8 @@ private struct StillPreviewView: NSViewRepresentable {
         renderer?.debugSnapshotName = "shader-editor-preview"
         #endif
         context.coordinator.renderer = renderer
-        view.setAccessibilityLabel(String(localized: "Shader Preview"))
+        // The zoom area above it is the preview for VoiceOver.
+        view.setAccessibilityElement(false)
         return view
     }
 

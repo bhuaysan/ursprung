@@ -335,6 +335,18 @@ struct ShaderWorkspaceTests {
         #expect(started == 3, "The first reload and the latest of those that waited")
     }
 
+    @Test func arrowKeysMoveTheZoomedPictureWithinItsEdges() {
+        var tools = ShaderPreviewTools()
+        tools.pan(x: 1, y: 1)
+        #expect(tools.focus == CGPoint(x: 0.5, y: 0.5), "Nothing to move without zoom")
+
+        tools.zoom = 4
+        tools.pan(x: 1, y: -2)
+        #expect(tools.focus == CGPoint(x: 0.5 + 1.0 / 32, y: 0.5 - 2.0 / 32), "A step is an eighth of what shows")
+        tools.pan(x: -100, y: 100)
+        #expect(tools.focus == CGPoint(x: 0, y: 1))
+    }
+
     @Test func warnsOnceWhenAPresetIsTooSlowForTheFrameRate() throws {
         let workspace = ShaderWorkspace()
         let preset = try #require(ShaderPresetRef(source: .library, path: "crt/heavy.slangp"))

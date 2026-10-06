@@ -16,6 +16,14 @@ nonisolated struct ShaderPreviewTools: Equatable, Sendable {
     var outputSize: CGSize?
 
     var changesLayout: Bool { zoom != 1 || outputSize != nil }
+
+    /// Moves the zoomed picture by steps (arrow keys, VoiceOver) towards the
+    /// right (`x`) and the bottom (`y`); a step is an eighth of what shows.
+    mutating func pan(x: Double, y: Double) {
+        guard zoom > 1 else { return }
+        let step = 1 / (zoom * 8)
+        focus = CGPoint(x: min(max(focus.x + x * step, 0), 1), y: min(max(focus.y + y * step, 0), 1))
+    }
 }
 
 /// The RetroArch preset the player renders and its parameters, shared by the
