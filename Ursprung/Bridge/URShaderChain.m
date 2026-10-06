@@ -33,6 +33,14 @@
     if (context) libra_preset_ctx_free(&context);
     if (!parsed) return nil;
 
+    // Read before compiling, which consumes the preset.
+    NSArray<URShaderParameter *> *parameters = URShaderPresetParameters(&preset, error);
+    if (!parameters) {
+        libra_preset_free(&preset);
+        return nil;
+    }
+    _parameters = [parameters copy];
+
     filter_chain_mtl_opt_t chainOptions = {.version = LIBRASHADER_CURRENT_VERSION};
     BOOL compiled = URShaderCheck(libra_mtl_filter_chain_create(&preset, queue, &chainOptions, &_chain), error);
     if (preset) libra_preset_free(&preset);

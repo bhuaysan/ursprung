@@ -31,6 +31,7 @@ final class LibraryStore {
     @ObservationIgnored private let saves: URL
     @ObservationIgnored private let states: URL
     @ObservationIgnored private let extras: URL
+    @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let persistFolders: ([URL]) -> Void
     @ObservationIgnored private let scrapesAutomatically: () -> Bool
     /// Bumped whenever the folder list changes, so a scan that started with an
@@ -48,7 +49,8 @@ final class LibraryStore {
          scrapesAutomatically: @escaping () -> Bool = { Preferences.autoScrape },
          saves: URL = AppPaths.saves,
          states: URL = AppPaths.states,
-         extras: URL = AppPaths.extras) {
+         extras: URL = AppPaths.extras,
+         defaults: UserDefaults = .standard) {
         self.metadata = metadata
         self.folders = folders
         self.scanner = scanner
@@ -56,6 +58,7 @@ final class LibraryStore {
         self.saves = saves
         self.states = states
         self.extras = extras
+        self.defaults = defaults
         self.persistFolders = persistFolders
         self.scrapesAutomatically = scrapesAutomatically
     }
@@ -114,7 +117,7 @@ final class LibraryStore {
         unreachableFolders.removeAll { $0.standardizedFileURL == url }
         folderListChanged()
         for game in leaving {
-            removeMedia(for: game)
+            removeLeftovers(of: game)
             context.delete(game)
         }
         try? context.save()
@@ -406,13 +409,15 @@ final class LibraryStore {
     // MARK: Games
 
     func remove(_ game: Game, context: ModelContext) {
-        removeMedia(for: game)
+        removeLeftovers(of: game)
         context.delete(game)
         try? context.save()
     }
 
-    private func removeMedia(for game: Game) {
+    /// What a removed game leaves outside the database: its media and its own shader.
+    private func removeLeftovers(of game: Game) {
         try? FileManager.default.removeItem(at: game.mediaDirectory)
+        ShaderScope.game(game.id).setSelection(nil, defaults: defaults)
     }
 
     // MARK: Missing files
@@ -611,7 +616,11 @@ final class LibraryStore {
                                           moving: true, labels: labels)) != nil {
             try? FileManager.default.removeItem(at: duplicateExtras)
         }
-        removeMedia(for: duplicate)
+        let shader = ShaderScope.game(game.id)
+        if shader.selection(defaults: defaults) == nil {
+            shader.setSelection(ShaderScope.game(duplicate.id).selection(defaults: defaults), defaults: defaults)
+        }
+        removeLeftovers(of: duplicate)
     }
 }
 

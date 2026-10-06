@@ -17,6 +17,7 @@ struct GameMetalView: NSViewRepresentable {
         let view = GameMTKView(frame: .zero, device: nil)
         view.session = session
         view.renderer = MetalRenderer(view: view)
+        view.renderer?.workspace = session.shader
         view.renderer?.onShaderError = { [weak session] message in
             session?.showToast(message, kind: .warning, duration: 5)
         }
@@ -30,7 +31,9 @@ struct GameMetalView: NSViewRepresentable {
         view.renderer?.bezel = bezel
         view.renderer?.bezelImageURL = bezelImage
         view.renderer?.isRewinding = session.isRewinding
-        if session.phase == .running, !session.isMenuVisible {
+        // With the shader panel open, keys reach the game until a field in
+        // the panel is clicked; clicking the game gives them back.
+        if session.phase == .running, !session.isMenuVisible, !session.isShaderPanelVisible {
             view.window?.makeFirstResponder(view)
         }
     }
@@ -75,6 +78,7 @@ final class GameMTKView: MTKView {
         case .screenshot: session.takeScreenshot()
         case .turbo: session.toggleTurbo()
         case .typing: session.toggleTyping()
+        case .shaderPanel: session.toggleShaderPanel()
         case nil: session.input.keyDown(event.keyCode)
         }
     }

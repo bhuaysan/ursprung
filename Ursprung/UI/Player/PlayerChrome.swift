@@ -43,3 +43,44 @@ struct PanelDivider: View {
             .accessibilityHidden(true)
     }
 }
+
+/// A text field drawn like a search field; `.searchable` only exists for toolbars.
+struct FilterField: View {
+    @Binding var text: String
+    var prompt: LocalizedStringKey = "Filter Options"
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField(prompt, text: $text)
+                .textFieldStyle(.plain)
+            if !text.isEmpty {
+                Button("Clear", systemImage: "xmark.circle.fill") { text = "" }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, AppSpacing.s)
+        .padding(.vertical, 5)
+        .background(.white.opacity(0.08), in: .capsule)
+    }
+}
+
+/// The content as tall as it is, or in a scroll view when it is taller than
+/// the height it is offered, so short pages keep the panel small and long
+/// ones scroll inside it. Decided in one layout pass: a measured height
+/// started each new page at zero and made the panel jump while it animated.
+struct FittingScrollView<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ViewThatFits(in: .vertical) {
+            content
+            ScrollView { content }
+                .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+}

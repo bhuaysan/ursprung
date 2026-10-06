@@ -28,6 +28,10 @@ struct PlayerView: View {
     /// The pause menu is fading out. A removal transition is never animated
     /// here, so closing animates the opacity and removes the views afterwards.
     @State private var isMenuClosing = false
+    /// The shader panel is in the view tree; like the menu, it animates its
+    /// closing by hand.
+    @State private var showsShaderPanel = false
+    @State private var isShaderPanelClosing = false
 
     var body: some View {
         ZStack {
@@ -70,6 +74,16 @@ struct PlayerView: View {
                 .allowsHitTesting(!isMenuClosing)
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if showsShaderPanel {
+                ShaderPanel()
+                    .padding(AppSpacing.l)
+                    .transition(.appFade(or: .move(edge: .trailing).combined(with: .opacity), reduceMotion: reduceMotion))
+                    .offset(x: isShaderPanelClosing && !reduceMotion ? 40 : 0)
+                    .opacity(isShaderPanelClosing ? 0 : 1)
+                    .allowsHitTesting(!isShaderPanelClosing)
+            }
+        }
         .overlay(alignment: .top) {
             ToastStack(toasts: session.toasts)
                 .padding(.top, AppSpacing.l)
@@ -101,6 +115,8 @@ struct PlayerView: View {
                 }
             }
             .padding(AppSpacing.l)
+            // Beside the shader panel, which takes the corner.
+            .padding(.trailing, showsShaderPanel ? 320 + AppSpacing.l : 0)
         }
         .overlay(alignment: .bottomTrailing) {
             AchievementIndicators(indicators: session.achievementIndicators)
@@ -133,6 +149,22 @@ struct PlayerView: View {
                 }
             }
         }
+        .onChange(of: session.isShaderPanelVisible) { _, visible in
+            if visible {
+                withAppAnimation(AppAnimation.panel, reduceMotion: reduceMotion) {
+                    showsShaderPanel = true
+                    isShaderPanelClosing = false
+                }
+            } else if showsShaderPanel {
+                withAppAnimation(AppAnimation.panel, reduceMotion: reduceMotion) {
+                    isShaderPanelClosing = true
+                } completion: {
+                    guard !session.isShaderPanelVisible else { return }
+                    showsShaderPanel = false
+                    isShaderPanelClosing = false
+                }
+            }
+        }
         .onDisappear {
             Task { await session.stop(context: context) }
         }
@@ -148,10 +180,10 @@ struct PlayerView: View {
         cores.downloads.values.first
     }
 
-    /// The system's own filter or preset, or the one for all systems.
+    /// The game's own filter or preset, its system's, or the one for all systems.
     private var shaderSelection: ShaderSelection {
         _ = (preferencesRevision, globalFilter)
-        return ShaderSelection.current(for: session.systemID)
+        return ShaderSelection.current(for: session.systemID, gameID: session.runningGameID)
     }
 
     /// The system's bezel image, when the user chose one.

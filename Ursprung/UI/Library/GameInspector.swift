@@ -391,6 +391,13 @@ struct GameInspector: View {
                             .buttonStyle(.link)
                     }
                 }
+                InfoRowLayout("Shader") {
+                    GameShaderPicker(gameID: game.id, systemID: system.id)
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .frame(maxWidth: 180, alignment: .leading)
+                }
             }
             .sheet(isPresented: $isEditingControls) {
                 GameControlsEditor(game: game)
@@ -629,5 +636,36 @@ struct RatingView: View {
     /// Whole stars for a 0…1 rating.
     nonisolated static func stars(for value: Double) -> Int {
         Int((min(max(value, 0), 1) * 5).rounded())
+    }
+}
+
+/// The game's own filter or preset; "Same as System" when it has none.
+private struct GameShaderPicker: View {
+    let gameID: UUID
+    let systemID: String
+
+    @State private var selection: ShaderSelection?
+    /// Bumped when preferences change, e.g. from the player's shader panel.
+    @State private var revision = 0
+
+    var body: some View {
+        let _ = revision
+        ShaderPicker(title: "Shader", selection: Binding(get: { selection }, set: { choose($0) }),
+                     inheritTitle: String(localized: "Same as System (\(ShaderSelection.current(for: systemID).title))"))
+            .onChange(of: gameID, initial: true) { load() }
+            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+                load()
+                revision += 1
+            }
+    }
+
+    private func load() {
+        let stored = ShaderScope.game(gameID).selection()
+        if stored != selection { selection = stored }
+    }
+
+    private func choose(_ value: ShaderSelection?) {
+        selection = value
+        ShaderScope.game(gameID).setSelection(value)
     }
 }

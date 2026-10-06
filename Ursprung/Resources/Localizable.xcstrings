@@ -8714,6 +8714,386 @@
           }
         }
       }
+    },
+    "Shader": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader"
+          }
+        }
+      }
+    },
+    "Hold ⌥ to see the whole picture.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Halte ⌥ gedrückt, um das ganze Bild zu sehen."
+          }
+        }
+      }
+    },
+    "Applies To": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gilt für"
+          }
+        }
+      }
+    },
+    "This Game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Spiel"
+          }
+        }
+      }
+    },
+    "All %@ Games": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Spiele für %@"
+          }
+        }
+      }
+    },
+    "Compiling “%@”…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wird kompiliert …"
+          }
+        }
+      }
+    },
+    "“%@” couldn't be used": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ konnte nicht verwendet werden"
+          }
+        }
+      }
+    },
+    "Built-in filters have no settings. RetroArch shaders show their parameters here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eingebaute Filter haben keine Einstellungen. Bei RetroArch-Shadern erscheinen hier ihre Parameter."
+          }
+        }
+      }
+    },
+    "This preset has no parameters.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Preset hat keine Parameter."
+          }
+        }
+      }
+    },
+    "Parameters": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parameter"
+          }
+        }
+      }
+    },
+    "Reset All": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle zurücksetzen"
+          }
+        }
+      }
+    },
+    "Filter Parameters": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parameter filtern"
+          }
+        }
+      }
+    },
+    "No parameters match “%@”.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Parameter passen zu „%@“."
+          }
+        }
+      }
+    },
+    "Changes last until the game closes. Save them as a preset to keep them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen gelten, bis das Spiel beendet wird. Sichere sie als Preset, um sie zu behalten."
+          }
+        }
+      }
+    },
+    "Save as Preset…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Preset sichern …"
+          }
+        }
+      }
+    },
+    "Save as Preset": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Preset sichern"
+          }
+        }
+      }
+    },
+    "Saves the preset with your changes to My Shaders and uses it for %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichert das Preset mit deinen Änderungen unter „Meine Shader“ und verwendet es für %@."
+          }
+        }
+      }
+    },
+    "Replace “%@”?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ ersetzen?"
+          }
+        }
+      }
+    },
+    "Replace": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ersetzen"
+          }
+        }
+      }
+    },
+    "My Shaders already has a preset with this name.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In „Meine Shader“ gibt es schon ein Preset mit diesem Namen."
+          }
+        }
+      }
+    },
+    "The preset couldn't be saved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Preset konnte nicht gesichert werden"
+          }
+        }
+      }
+    },
+    "this game": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dieses Spiel"
+          }
+        }
+      }
+    },
+    "all %@ games": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "alle Spiele für %@"
+          }
+        }
+      }
+    },
+    "all systems": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "alle Systeme"
+          }
+        }
+      }
+    },
+    "Same as %@ (%@)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie für %1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "Saved “%@”": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ gesichert"
+          }
+        }
+      }
+    },
+    "Reset Parameter": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parameter zurücksetzen"
+          }
+        }
+      }
+    },
+    "Reset to the Preset's Value": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf den Wert des Presets zurücksetzen"
+          }
+        }
+      }
+    },
+    "The preset file is missing.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Preset-Datei fehlt."
+          }
+        }
+      }
+    },
+    "The preset couldn’t be loaded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Preset konnte nicht geladen werden."
+          }
+        }
+      }
+    },
+    "“%@” is the preset these settings are based on. Choose another name.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ ist das Preset, auf dem diese Einstellungen beruhen. Wähle einen anderen Namen."
+          }
+        }
+      }
+    },
+    "Shader Panel (show/hide)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader-Panel (ein/aus)"
+          }
+        }
+      }
+    },
+    "Shader…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader …"
+          }
+        }
+      }
+    },
+    "Show Shader Panel": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader-Panel einblenden"
+          }
+        }
+      }
+    },
+    "Hide Shader Panel": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shader-Panel ausblenden"
+          }
+        }
+      }
+    },
+    "Same as System (%@)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie System (%@)"
+          }
+        }
+      }
+    },
+    "This game has its own shader (%@), so this choice doesn't show here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Spiel hat einen eigenen Shader (%@), daher wirkt diese Wahl hier nicht."
+          }
+        }
+      }
+    },
+    "%@ games have their own shader (%@), so this choice doesn't show here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele für %1$@ haben einen eigenen Shader (%2$@), daher wirkt diese Wahl hier nicht."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

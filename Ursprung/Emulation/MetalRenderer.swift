@@ -89,6 +89,8 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     var isRewinding = false
     /// Told when a preset can't be used, with a message for the player.
     var onShaderError: ((String) -> Void)?
+    /// Shows the preset's parameters and changes them live.
+    var workspace: ShaderWorkspace?
 
     /// On-screen rectangle of the image in view points (for pointer input).
     private(set) var imageRect: CGRect = .zero
@@ -287,10 +289,12 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             chain = nil
             chainPreset = nil
             shaderOutput = nil
+            workspace?.useBuiltin()
             return
         }
         guard preset != chainPreset, preset != pendingPreset else { return }
         pendingPreset = preset
+        workspace?.compiling(preset)
         let url = preset.url()
         let coreName = core?.libraryName, rotation = core?.rotation ?? 0
         Task { [weak self, queue] in
@@ -308,6 +312,12 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                 self.chain = compiled
                 self.chainPreset = preset
                 self.needsShaderPass = true
+                self.workspace?.loaded(preset, parameters: compiled.parameters, values: Self.values(of: compiled),
+                                       apply: { [weak self, weak compiled] name, value in
+                                           guard let self, let compiled, self.chain === compiled else { return }
+                                           self.setParameter(name, to: value)
+                                       },
+                                       reload: { [weak self] in self?.reloadPreset() })
             } else {
                 self.shaderFailed(preset, error: failure)
             }
@@ -325,6 +335,29 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                                rotation: rotation)
     }
 
+    /// Compiles the selected preset again; the current chain renders meanwhile.
+    private func reloadPreset() {
+        chainPreset = nil
+        pendingPreset = nil
+        applySelection()
+    }
+
+    private static func values(of chain: ShaderChain) -> [String: Float] {
+        Dictionary(chain.parameters.map { ($0.name, chain.value(forParameter: $0.name)?.floatValue ?? $0.initial) },
+                   uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Changes a parameter of the chain; the next frame shows it, also while paused.
+    private func setParameter(_ name: String, to value: Float) {
+        guard let chain else { return }
+        do {
+            try chain.setValue(value, forParameter: name)
+            needsShaderPass = true
+        } catch {
+            Self.log.error("Shader parameter \(name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// Drops the preset: the picture falls back to the Sharp filter.
     private func shaderFailed(_ preset: ShaderPresetRef, error: Error?) {
         Self.log.error("Shader preset \(preset.path, privacy: .public) failed: \(String(describing: error), privacy: .public)")
@@ -332,6 +365,9 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         chainPreset = nil
         shaderOutput = nil
         let missing = (error as? CocoaError)?.code == .fileNoSuchFile
+        workspace?.failed(preset, message: missing
+            ? String(localized: "The preset file is missing.")
+            : (error?.localizedDescription ?? String(localized: "The preset couldn’t be loaded.")))
         onShaderError?(missing
             ? String(localized: "The shader “\(preset.name)” is missing, so the game uses the Sharp filter.")
             : String(localized: "The shader “\(preset.name)” couldn’t be loaded, so the game uses the Sharp filter."))

@@ -85,7 +85,13 @@ struct AppCommands: Commands {
             Button(session.isPaused ? "Resume" : "Pause") { session.togglePause() }
                 .keyboardShortcut("p")
                 .disabled(!running)
-            Button("Show Menu") { session.toggleMenu() }
+            Button("Show Menu") {
+                // The menu key closes the shader panel first; this item always shows the menu.
+                session.isShaderPanelVisible = false
+                session.toggleMenu()
+            }
+                .disabled(!running)
+            Button(session.isShaderPanelVisible ? "Hide Shader Panel" : "Show Shader Panel") { session.toggleShaderPanel() }
                 .disabled(!running)
             Divider()
             if let saveStateSlot {

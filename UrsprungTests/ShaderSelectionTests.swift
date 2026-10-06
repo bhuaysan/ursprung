@@ -1,8 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
+import SwiftData
 import Testing
 @testable import Ursprung
+
+/// A defaults suite of its own, removed when the test ends.
+private func withDefaults(_ body: (UserDefaults) throws -> Void) throws {
+    let suite = "UrsprungTests.ShaderSelection.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    try body(defaults)
+}
 
 @Suite("Shader selection")
 struct ShaderSelectionTests {
@@ -50,6 +59,49 @@ struct ShaderSelectionTests {
         // An unreadable system value falls back to all systems.
         defaults.set("preset:nowhere", forKey: PrefKey.systemVideoFilter("snes"))
         #expect(ShaderSelection.current(for: "snes", defaults: defaults) == .preset(preset))
+    }
+
+    @Test func gameChoiceWinsOverSystemAndAllSystems() throws {
+        try withDefaults { defaults in
+            let game = UUID()
+            let preset = try #require(ShaderPresetRef(source: .user, path: "soft.slangp"))
+            ShaderScope.all.setSelection(.builtin(.crt), defaults: defaults)
+            ShaderScope.system("snes").setSelection(.builtin(.lcd), defaults: defaults)
+            #expect(ShaderScope.deciding(gameID: game, systemID: "snes", defaults: defaults) == .system("snes"))
+            #expect(ShaderSelection.current(for: "snes", gameID: game, defaults: defaults) == .builtin(.lcd))
+
+            ShaderScope.game(game).setSelection(.preset(preset), defaults: defaults)
+            #expect(defaults.string(forKey: "videoFilter.game.\(game.uuidString)") == "preset:user/soft.slangp")
+            #expect(ShaderScope.deciding(gameID: game, systemID: "snes", defaults: defaults) == .game(game))
+            #expect(ShaderSelection.current(for: "snes", gameID: game, defaults: defaults) == .preset(preset))
+            // Other games of the system keep the system's choice.
+            #expect(ShaderSelection.current(for: "snes", gameID: UUID(), defaults: defaults) == .builtin(.lcd))
+
+            // Inheriting again removes the key.
+            ShaderScope.game(game).setSelection(nil, defaults: defaults)
+            #expect(defaults.object(forKey: PrefKey.gameVideoFilter(game)) == nil)
+            ShaderScope.system("snes").setSelection(nil, defaults: defaults)
+            #expect(ShaderScope.deciding(gameID: game, systemID: "snes", defaults: defaults) == .all)
+            #expect(ShaderSelection.current(for: "snes", gameID: game, defaults: defaults) == .builtin(.crt))
+        }
+    }
+
+    @Test func unreadableGameChoiceFallsBackToTheSystem() throws {
+        try withDefaults { defaults in
+            let game = UUID()
+            defaults.set("preset:elsewhere/a.slangp", forKey: PrefKey.gameVideoFilter(game))
+            ShaderScope.system("nes").setSelection(.builtin(.scanlines), defaults: defaults)
+            #expect(ShaderScope.deciding(gameID: game, systemID: "nes", defaults: defaults) == .system("nes"))
+            #expect(ShaderSelection.current(for: "nes", gameID: game, defaults: defaults) == .builtin(.scanlines))
+        }
+    }
+
+    @Test func gamePresetsCountAsNeedingThePack() throws {
+        try withDefaults { defaults in
+            ShaderScope.game(UUID()).setSelection(ShaderSelection(rawValue: "preset:library/crt/zfast-crt.slangp"),
+                                                  defaults: defaults)
+            #expect(ShaderSelection.usesLibraryPresets(defaults: defaults))
+        }
     }
 
     @Test func noticesSettingsThatNeedThePack() throws {
@@ -102,5 +154,65 @@ struct PresentationLayoutTests {
                                         rotation: -1, integerScaling: true)
         #expect(layout.rect.width >= 1 && layout.rect.height >= 1)
         #expect(layout.rotation == 0)
+    }
+}
+
+@Suite("Per-game shaders in the library")
+struct GameShaderLibraryTests {
+    private func makeStore(data: URL, defaults: UserDefaults) -> LibraryStore {
+        LibraryStore(metadata: MetadataService(), folders: [], persistFolders: { _ in }, scrapesAutomatically: { false },
+                     saves: data.appending(path: "Saves"), states: data.appending(path: "States"),
+                     extras: data.appending(path: "Extras"), defaults: defaults)
+    }
+
+    @Test func removingAGameForgetsItsShader() throws {
+        let data = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: data) }
+        try withDefaults { defaults in
+            let container = try ModelContainer.library(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+            let context = ModelContext(container)
+            let game = Game(path: "/ROMs/A.sfc", systemID: "snes", title: "A", fileName: "A.sfc", fileSize: 1, crc32: nil)
+            context.insert(game)
+            ShaderScope.game(game.id).setSelection(.builtin(.crt), defaults: defaults)
+
+            makeStore(data: data, defaults: defaults).remove(game, context: context)
+
+            #expect(defaults.object(forKey: PrefKey.gameVideoFilter(game.id)) == nil)
+        }
+    }
+
+    @Test func joinedDiscsKeepTheirShader() throws {
+        let data = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: data) }
+        try withDefaults { defaults in
+            let folder = data.appending(path: "ROMs", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            for name in ["Game (Disc 1).cue", "Game (Disc 2).cue"] {
+                try Data([1]).write(to: folder.appending(path: name))
+            }
+            let container = try ModelContainer.library(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+            let context = ModelContext(container)
+            let path = folder.path(percentEncoded: false)
+            let one = Game(path: path + "Game (Disc 1).cue", systemID: "psx", title: "Game", fileName: "Game (Disc 1).cue",
+                           fileSize: 1, crc32: nil)
+            let two = Game(path: path + "Game (Disc 2).cue", systemID: "psx", title: "Game", fileName: "Game (Disc 2).cue",
+                           fileSize: 1, crc32: nil)
+            two.playTime = 600
+            context.insert(one)
+            context.insert(two)
+            try context.save()
+            // Only the disc that folds into the other has a shader of its own.
+            let (oneID, twoID) = (one.id, two.id)
+            ShaderScope.game(oneID).setSelection(.builtin(.crtCurved), defaults: defaults)
+
+            let playlist = folder.appending(path: "Game.m3u")
+            try DiscPlaylist(entries: [.init(path: "Game (Disc 1).cue"), .init(path: "Game (Disc 2).cue")]).write(to: playlist)
+            let main = try #require(try makeStore(data: data, defaults: defaults).adoptPlaylist(playlist, discs: [one, two],
+                                                                                                 context: context))
+
+            #expect(main.id == twoID)
+            #expect(ShaderScope.game(twoID).selection(defaults: defaults) == .builtin(.crtCurved))
+            #expect(defaults.object(forKey: PrefKey.gameVideoFilter(oneID)) == nil)
+        }
     }
 }

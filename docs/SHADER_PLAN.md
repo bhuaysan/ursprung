@@ -1,6 +1,6 @@
 # Ursprung — RetroArch Shaders and Shader Editor: Plan
 
-5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike), 1 (dependency), 2 (render path) and 3 (shader library) done; phase 4 next.
+5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike), 1 (dependency), 2 (render path), 3 (shader library) and 4 (player panel) done; phase 5 next.
 
 Ursprung renders every frame through one built-in Metal shader (`Ursprung/Emulation/ShaderSource.swift`, 7 fixed filters). This plan adds RetroArch slang shader presets through librashader, and a shader editor with live preview on top of it.
 
@@ -202,6 +202,16 @@ The spike ran as a standalone Objective-C program in a scratch folder instead of
     - "Open in Shader Editor".
 - The game inspector in the library shows when a game has its own shader.
 - Acceptance: parameter changes appear in the next frame without a recompile. Saved presets load in RetroArch too. Game → system → all resolution is covered by tests.
+
+**Done 6 October 2026.**
+- `ShaderScope` (game / system / all) stores a choice at one level; `videoFilter.game.<uuid>` wins over the system's and all systems' keys. Removing a game deletes its key; when discs join into one game, the surviving game takes over the other's key if it has none.
+- `ShaderWorkspace` (owned by `EmulationSession` as `session.shader`) connects renderer and panel: compile status, parameters, live values and the values the preset sets. `ShaderChain` now reads the parameters during compilation (same wildcard context as rendering). A slider calls `set_param` and marks the chain pass dirty, so changes also show while paused.
+- Panel (`ShaderPanel`, top trailing, 320 pt, dark-tinted glass): "Applies To" (this game / all games of the system / all systems), the `ShaderPicker` of that level with its inherited choice, compile and error status, and a note when a more specific level decides the picture. Parameters with search (from 9), section titles (min = max), per-parameter and "Reset All", values in accent colour when changed. Up to 24 parameters the panel hugs its content; more scroll in a lazy list. While a slider is dragged, everything else (including the glass) fades out and the row gets its own glass; holding ⌥ alone hides the panel. Esc and the menu key close it; opening the game menu closes it.
+- The game keeps running with the panel open (pause button in the header), so animated and history effects can be tuned. Keys keep reaching the game until a field in the panel is clicked; clicking the game returns them.
+- Entry points: pause menu row "Shader…", hotkey `shaderPanel` (F6, configurable), Game › Show Shader Panel. The library's game inspector has a "Shader" picker ("Same as System (…)" or the game's own).
+- "Save as Preset…" (`ShaderPresetWriter`) writes a RetroArch simple preset: `#reference` (relative path) plus the parameters that differ from the referenced preset, quoted like RetroArch. Presets that only reference one preset and set its parameters are skipped as a base, so saving over a saved preset never references itself and references don't pile up; presets that change more than parameters stay the base. The file goes to `User/` (or next to the current user preset), replacing asks first, and the saved preset becomes the choice of the panel's level. Saving over the preset in use recompiles it.
+- Not done here: "Open in Shader Editor" comes with the editor (phase 5). Unsaved parameter changes last until the game closes, like RetroArch.
+- Verified in the app (NES, crt-geom): live parameter changes, save as preset (file content checked, NES switched to it), per-game built-in filter from the inspector applied to the running game, and the override note. Not verified with real input: slider drag fading and ⌥ peeking (no pointer or key events were sent). `make test`: 297 tests (1 opt-in skipped).
 
 ### Phase 5 — Shader editor (L)
 

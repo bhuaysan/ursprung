@@ -53,7 +53,7 @@ struct PauseMenuView: View {
 
     enum Row: Hashable {
         case resume, quickSave, quickLoad, saveStates, screenshot, changeDisc, cheats, achievements, manual, typing
-        case coreOptions, reset, quit
+        case shader, coreOptions, reset, quit
         case disc(Int)
         case history(Int)
         case cheat(Int)
@@ -212,6 +212,7 @@ struct PauseMenuView: View {
             if session.hasComputerKeyboard {
                 row(.typing, "Type on Keyboard", symbol: "keyboard", hint: session.isTyping ? .checkmark : nil)
             }
+            row(.shader, "Shader…", symbol: "camera.filters", hint: .keys(session.input.hotkeys.bindings[.shaderPanel]?.label ?? ""))
             row(.coreOptions, "Core Options…", symbol: "slider.horizontal.3", hint: .chevron)
             GroupDivider()
             row(.reset, "Reset", symbol: "arrow.counterclockwise", hint: .keys("⌥⌘R"))
@@ -266,7 +267,7 @@ struct PauseMenuView: View {
             [.resume, .quickSave, .quickLoad, .saveStates, .screenshot] + (session.diskCount > 1 ? [.changeDisc] : [])
                 + (session.achievementGame != nil ? [.achievements] : []) + [.cheats]
                 + (hasManual ? [.manual] : []) + (session.hasComputerKeyboard ? [.typing] : [])
-                + [.coreOptions, .reset, .quit]
+                + [.shader, .coreOptions, .reset, .quit]
         case .discs:
             (0..<session.diskCount).map(Row.disc)
         case .history:
@@ -302,6 +303,7 @@ struct PauseMenuView: View {
         case .changeDisc:
             focusedRow = .disc(session.currentDisk)
             show(.discs)
+        case .shader: session.toggleShaderPanel()
         case .coreOptions: show(.options)
         case .screenshot: session.takeScreenshot()
         case .cheats:
@@ -1008,30 +1010,6 @@ private struct CoreOptionsPage: View {
     }
 }
 
-/// A text field drawn like a search field; `.searchable` only exists for toolbars.
-private struct FilterField: View {
-    @Binding var text: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            TextField("Filter Options", text: $text)
-                .textFieldStyle(.plain)
-            if !text.isEmpty {
-                Button("Clear", systemImage: "xmark.circle.fill") { text = "" }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, AppSpacing.s)
-        .padding(.vertical, 5)
-        .background(.white.opacity(0.08), in: .capsule)
-    }
-}
-
 /// Offers the content at most `maxHeight` and takes the content's size;
 /// `frame(maxHeight:)` would grow a short panel to the full limit.
 private struct HeightLimit: ViewModifier {
@@ -1052,22 +1030,6 @@ private struct HeightLimitLayout: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
-    }
-}
-
-/// The content as tall as it is, or in a scroll view when it is taller than
-/// the height it is offered, so short pages keep the panel small and long
-/// ones scroll inside it. Decided in one layout pass: a measured height
-/// started each new page at zero and made the panel jump while it animated.
-private struct FittingScrollView<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        ViewThatFits(in: .vertical) {
-            content
-            ScrollView { content }
-                .scrollBounceBehavior(.basedOnSize)
-        }
     }
 }
 

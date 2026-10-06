@@ -8,6 +8,8 @@
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 
+@class URShaderParameter;
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// Per-frame state handed to the shaders.
@@ -36,6 +38,8 @@ NS_SWIFT_NAME(ShaderChain)
 
 - (instancetype)init NS_UNAVAILABLE;
 
+/// The preset's parameters in declaration order, with the values it starts with.
+@property (nonatomic, readonly, copy) NSArray<URShaderParameter *> *parameters;
 /// The number of passes in the preset.
 @property (nonatomic, readonly) NSInteger passCount;
 /// Only the first passes render (for showing the output of one pass).

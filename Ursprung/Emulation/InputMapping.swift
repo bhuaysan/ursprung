@@ -173,4 +173,5 @@ nonisolated enum HotKey {
     static let rewind: UInt16 = 51      // Backspace (⌫)
     static let screenshot: UInt16 = 100 // F8
     static let typing: UInt16 = 111     // F12
+    static let shaderPanel: UInt16 = 97 // F6
 }

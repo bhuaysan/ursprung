@@ -102,7 +102,7 @@ nonisolated struct InputProfile: Codable, Equatable, Sendable {
 
 /// Player actions bound to keys, handled by the player rather than the game.
 nonisolated enum HotkeyAction: String, CaseIterable, Codable, Identifiable, Sendable {
-    case menu, fastForward, fastForwardToggle, rewind, quickSave, quickLoad, screenshot, turbo, typing
+    case menu, fastForward, fastForwardToggle, rewind, quickSave, quickLoad, screenshot, turbo, typing, shaderPanel
 
     var id: String { rawValue }
 
@@ -117,6 +117,7 @@ nonisolated enum HotkeyAction: String, CaseIterable, Codable, Identifiable, Send
         case .screenshot: String(localized: "Take Screenshot")
         case .turbo: String(localized: "Turbo Buttons (on/off)")
         case .typing: String(localized: "Type on Computer Keyboard (on/off)")
+        case .shaderPanel: String(localized: "Shader Panel (show/hide)")
         }
     }
 
@@ -139,6 +140,7 @@ nonisolated struct HotkeyMapping: Codable, Equatable, Sendable {
         .quickLoad: KeyBinding(keyCode: HotKey.quickLoad, label: "F4"),
         .screenshot: KeyBinding(keyCode: HotKey.screenshot, label: "F8"),
         .typing: KeyBinding(keyCode: HotKey.typing, label: "F12"),
+        .shaderPanel: KeyBinding(keyCode: HotKey.shaderPanel, label: "F6"),
     ], knownActions: Set(HotkeyAction.allCases))
 
     static var current: HotkeyMapping {

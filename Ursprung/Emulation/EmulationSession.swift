@@ -108,10 +108,17 @@ final class EmulationSession {
             input.routesToMenu = isMenuVisible
             // The menu takes the keyboard, so the player never sees the
             // fast forward key being released.
-            if isMenuVisible { setFastForward(false) }
+            if isMenuVisible {
+                setFastForward(false)
+                isShaderPanelVisible = false
+            }
             applyPause()
         }
     }
+
+    /// The shader panel is open at the side of the player. The game keeps
+    /// running, so its parameters can be tuned on a moving picture.
+    var isShaderPanelVisible = false
 
     private(set) var core: LibretroCore?
     private var runner: EmulationRunner?
@@ -136,6 +143,8 @@ final class EmulationSession {
     private var autosave: (@Sendable (LibretroCore) -> Void)?
 
     let input = InputRouter()
+    /// The preset the player renders, with its live parameters.
+    let shader = ShaderWorkspace()
     let cores: CoreManager
     let bios: BIOSManager
     let achievements: AchievementService
@@ -482,6 +491,8 @@ final class EmulationSession {
         autosave = nil
         startedAt = nil
         isMenuVisible = false
+        isShaderPanelVisible = false
+        shader.useBuiltin()
         isFastForwarding = false
         isRewinding = false
         isTyping = false
@@ -494,9 +505,25 @@ final class EmulationSession {
 
     // MARK: - Controls
 
+    /// Opens or closes the game menu; with the shader panel open, closes the panel.
     func toggleMenu() {
         guard phase == .running else { return }
-        isMenuVisible.toggle()
+        if isShaderPanelVisible {
+            isShaderPanelVisible = false
+        } else {
+            isMenuVisible.toggle()
+        }
+    }
+
+    /// Shows or hides the shader panel; showing it closes the game menu.
+    func toggleShaderPanel() {
+        guard phase == .running else { return }
+        if isShaderPanelVisible {
+            isShaderPanelVisible = false
+        } else {
+            isMenuVisible = false
+            isShaderPanelVisible = true
+        }
     }
 
     func togglePause() {

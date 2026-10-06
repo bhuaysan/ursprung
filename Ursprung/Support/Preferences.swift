@@ -45,6 +45,8 @@ nonisolated enum PrefKey {
     /// Favourite RetroArch presets, as `ShaderSelection` raw values.
     static let shaderFavorites = "shaderFavorites"
     static func systemVideoFilter(_ systemID: String) -> String { "videoFilter.\(systemID)" }
+    /// A game's own filter or preset; wins over its system's.
+    static func gameVideoFilter(_ gameID: UUID) -> String { "videoFilter.game.\(gameID.uuidString)" }
     static func inputProfile(_ systemID: String) -> String { "inputProfile.\(systemID)" }
     static func coreChoice(_ systemID: String) -> String { "coreChoice.\(systemID)" }
     static func coreOptions(_ coreID: String) -> String { "coreOptions.\(coreID)" }

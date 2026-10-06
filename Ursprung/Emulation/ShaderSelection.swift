@@ -82,12 +82,56 @@ nonisolated enum ShaderSelection: Hashable, Sendable, RawRepresentable {
         }
     }
 
-    /// What a system uses: its own choice, or the one for all systems.
-    static func current(for systemID: String?, defaults: UserDefaults = .standard) -> ShaderSelection {
-        if let systemID, let raw = defaults.string(forKey: PrefKey.systemVideoFilter(systemID)),
-           let selection = ShaderSelection(rawValue: raw) {
-            return selection
+    /// What a game uses: its own choice, its system's, or the one for all systems.
+    static func current(for systemID: String?, gameID: UUID? = nil, defaults: UserDefaults = .standard) -> ShaderSelection {
+        let scope = ShaderScope.deciding(gameID: gameID, systemID: systemID, defaults: defaults)
+        return scope.selection(defaults: defaults) ?? .builtin(.sharp)
+    }
+}
+
+/// A level a filter choice is stored at. A game's picture comes from the
+/// most specific level that has a readable choice.
+nonisolated enum ShaderScope: Hashable, Sendable {
+    case game(UUID)
+    case system(String)
+    case all
+
+    var key: String {
+        switch self {
+        case .game(let id): PrefKey.gameVideoFilter(id)
+        case .system(let id): PrefKey.systemVideoFilter(id)
+        case .all: PrefKey.videoFilter
         }
-        return defaults.string(forKey: PrefKey.videoFilter).flatMap(ShaderSelection.init(rawValue:)) ?? .builtin(.sharp)
+    }
+
+    /// The choice stored at this level; nil when it inherits (or its value is unreadable).
+    func selection(defaults: UserDefaults = .standard) -> ShaderSelection? {
+        defaults.string(forKey: key).flatMap(ShaderSelection.init(rawValue:))
+    }
+
+    /// Stores `selection` at this level; nil inherits from the next one
+    /// (for all systems: the default filter).
+    func setSelection(_ selection: ShaderSelection?, defaults: UserDefaults = .standard) {
+        if let selection {
+            defaults.set(selection.rawValue, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    /// Game 2, system 1, all systems 0: a more specific level wins.
+    var specificity: Int {
+        switch self {
+        case .game: 2
+        case .system: 1
+        case .all: 0
+        }
+    }
+
+    /// The level whose choice a game uses.
+    static func deciding(gameID: UUID?, systemID: String?, defaults: UserDefaults = .standard) -> ShaderScope {
+        if let gameID, ShaderScope.game(gameID).selection(defaults: defaults) != nil { return .game(gameID) }
+        if let systemID, ShaderScope.system(systemID).selection(defaults: defaults) != nil { return .system(systemID) }
+        return .all
     }
 }

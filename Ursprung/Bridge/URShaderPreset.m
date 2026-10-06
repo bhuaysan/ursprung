@@ -37,6 +37,17 @@ BOOL URShaderCheck(libra_error_t result, NSError **error) {
 
 @end
 
+NSArray<URShaderParameter *> *URShaderPresetParameters(libra_shader_preset_t *preset, NSError **error) {
+    libra_preset_param_list_t list = {0};
+    if (!URShaderCheck(libra_preset_get_runtime_params(preset, &list), error)) return nil;
+    NSMutableArray<URShaderParameter *> *parameters = [NSMutableArray arrayWithCapacity:(NSUInteger)list.length];
+    for (uint64_t i = 0; i < list.length; i++) {
+        [parameters addObject:[[URShaderParameter alloc] initWithParameter:&list.parameters[i]]];
+    }
+    libra_preset_free_runtime_params(list);
+    return parameters;
+}
+
 @implementation URShaderPreset
 
 + (NSArray<URShaderParameter *> *)parametersOfPresetAtPath:(NSString *)path error:(NSError **)error {
@@ -45,17 +56,7 @@ BOOL URShaderCheck(libra_error_t result, NSError **error) {
     if (!URShaderCheck(libra_preset_create_with_options(path.fileSystemRepresentation, NULL, &options, &preset), error)) {
         return nil;
     }
-
-    libra_preset_param_list_t list = {0};
-    if (!URShaderCheck(libra_preset_get_runtime_params(&preset, &list), error)) {
-        libra_preset_free(&preset);
-        return nil;
-    }
-    NSMutableArray<URShaderParameter *> *parameters = [NSMutableArray arrayWithCapacity:(NSUInteger)list.length];
-    for (uint64_t i = 0; i < list.length; i++) {
-        [parameters addObject:[[URShaderParameter alloc] initWithParameter:&list.parameters[i]]];
-    }
-    libra_preset_free_runtime_params(list);
+    NSArray<URShaderParameter *> *parameters = URShaderPresetParameters(&preset, error);
     libra_preset_free(&preset);
     return parameters;
 }
