@@ -10,7 +10,7 @@ jobs:
     # Xcode 27 like local development (a preview image for now); Xcode 26 fails to build the app.
     runs-on: xcode-27
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
@@ -20,7 +20,7 @@ jobs:
 
       # Scripts/fetch-librashader.sh skips the download when the pinned version is there.
       - name: Cache librashader
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ThirdParty/librashader/lib
           key: librashader-${{ hashFiles('Scripts/fetch-librashader.sh') }}
