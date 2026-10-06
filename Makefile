@@ -5,14 +5,17 @@ SCHEME = Ursprung
 XCODEBUILD_BASE = xcodebuild -project Ursprung.xcodeproj -derivedDataPath $(DERIVED_DATA) -destination 'platform=macOS,arch=arm64'
 XCODEBUILD = $(XCODEBUILD_BASE) -scheme $(SCHEME)
 
-.PHONY: all project secrets build release dist test run smoke icon clean
+.PHONY: all project secrets librashader build release dist test run smoke icon clean
 
 all: build
 
 secrets:
 	@./Scripts/generate-secrets.sh .env Ursprung/Support/Secrets.generated.swift
 
-project: secrets
+librashader:
+	@./Scripts/fetch-librashader.sh
+
+project: secrets librashader
 	@xcodegen generate --quiet
 	@echo "Generated Ursprung.xcodeproj — open it with: open Ursprung.xcodeproj"
 

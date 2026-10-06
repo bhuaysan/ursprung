@@ -49,5 +49,8 @@ xcuserdata/
 # Downloaded cores during development
 *.dylib
 
+# Fetched by Scripts/fetch-librashader.sh
+ThirdParty/librashader/lib/
+
 # Tool output
 smoke.png

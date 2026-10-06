@@ -59,11 +59,17 @@ targets:
         GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "GL_SILENCE_DEPRECATION=1", "RC_DISABLE_LUA=1",
                                        "RC_CLIENT_SUPPORTS_HASH=1", "RC_HASH_NO_ENCRYPTED=1"]
         HEADER_SEARCH_PATHS: ["$(SRCROOT)/ThirdParty/rcheevos/include", "$(SRCROOT)/ThirdParty/rcheevos/src",
-                             "$(SRCROOT)/Ursprung/Bridge"]
+                             "$(SRCROOT)/ThirdParty/librashader/include", "$(SRCROOT)/Ursprung/Bridge"]
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/ThirdParty/librashader/lib"]
         OTHER_LDFLAGS: ["$(inherited)", "-lz", "-lcompression"]
         LOCALIZATION_PREFERS_STRING_CATALOGS: YES
         SWIFT_EMIT_LOC_STRINGS: YES
     dependencies:
+      # RetroArch slang shaders (MPL-2.0), fetched by Scripts/fetch-librashader.sh;
+      # see ThirdParty/librashader/README.md.
+      - framework: ThirdParty/librashader/lib/librashader.dylib
+        embed: true
+        codeSign: true
       - sdk: OpenGL.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework

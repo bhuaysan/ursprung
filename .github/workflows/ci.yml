@@ -18,6 +18,13 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # Scripts/fetch-librashader.sh skips the download when the pinned version is there.
+      - name: Cache librashader
+        uses: actions/cache@v4
+        with:
+          path: ThirdParty/librashader/lib
+          key: librashader-${{ hashFiles('Scripts/fetch-librashader.sh') }}
+
       # Secrets are optional: without them the app builds, scraping is disabled.
       - name: Build and test
         env:

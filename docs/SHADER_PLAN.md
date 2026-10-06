@@ -1,6 +1,6 @@
 # Ursprung — RetroArch Shaders and Shader Editor: Plan
 
-5 October 2026 · based on commit 164002d (main). Status: phase 0 (spike) done; phase 1 next.
+5 October 2026 · based on commit 164002d (main). Status: phases 0 (spike) and 1 (dependency) done; phase 2 next.
 
 Ursprung renders every frame through one built-in Metal shader (`Ursprung/Emulation/ShaderSource.swift`, 7 fixed filters). This plan adds RetroArch slang shader presets through librashader, and a shader editor with live preview on top of it.
 
@@ -141,6 +141,12 @@ The spike ran as a standalone Objective-C program in a scratch folder instead of
 - `project.yml`: link and embed the dylib (Frameworks, code-signed on copy), header search path, `LD_RUNPATH_SEARCH_PATHS` includes `@executable_path/../Frameworks`. Link directly; `librashader_ld` is not needed because the dylib always ships with the app.
 - Update CLAUDE.md "Hard rules" (agreed dependencies), the About/acknowledgements and `docs/ARCHITECTURE.md`.
 - Acceptance: `make build`, `make test`, CI and `make dist` (signing, notarization check) pass with the dylib embedded.
+
+**Done 6 October 2026.**
+- XcodeGen embeds the dylib through a `framework:` dependency. It also needs `LIBRARY_SEARCH_PATHS`, because XcodeGen only adds a framework search path.
+- `URShaderPreset` (Bridge) reads a preset's parameters. It proves that the dylib loads at runtime and is used again in phases 3–4. `ShaderPresetTests` cover parameters, `#reference` overrides and errors.
+- `make test`: 267 tests green.
+- `SKIP_NOTARIZE=1 make dist`: the dylib is signed with the app's identity, hardened runtime and a timestamp. The Release app is 22 MB.
 
 ### Phase 2 — Render path (M)
 

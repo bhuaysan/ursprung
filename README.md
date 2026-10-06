@@ -113,7 +113,7 @@ brew install xcodegen
 git clone https://github.com/bhuaysan/ursprung.git
 cd ursprung
 cp .env.example .env        # optional: add ScreenScraper developer credentials
-make project                # generates Ursprung.xcodeproj
+make project                # downloads librashader, generates Ursprung.xcodeproj
 open Ursprung.xcodeproj     # then press ⌘R
 ```
 
@@ -218,10 +218,14 @@ later version.
 `Ursprung/Bridge/libretro.h` is © The RetroArch team, MIT licensed.
 `ThirdParty/rcheevos` is [rcheevos](https://github.com/RetroAchievements/rcheevos)
 © RetroAchievements.org, MIT licensed.
+The app embeds [librashader](https://github.com/SnowflakePowered/librashader)
+0.12.0, available under the Mozilla Public License 2.0 or the GPL 3.0; its
+source code is on GitHub (see `ThirdParty/librashader/README.md`).
 
 ## Acknowledgements
 
 - [libretro](https://www.libretro.com) and all core authors
 - [ScreenScraper](https://www.screenscraper.fr) and its community of contributors
 - [RetroAchievements](https://retroachievements.org) and the rcheevos authors
+- [librashader](https://github.com/SnowflakePowered/librashader) and the authors of the RetroArch slang shaders
 - [OpenEmu](https://openemu.org), for showing how good an emulator frontend on the Mac can be

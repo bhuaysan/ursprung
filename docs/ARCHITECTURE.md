@@ -2,7 +2,12 @@
 
 Ursprung is a SwiftUI app with a small Objective-C/C libretro host. The only
 third-party code is [rcheevos](https://github.com/RetroAchievements/rcheevos)
-(MIT) in `ThirdParty/rcheevos`, compiled into the app for RetroAchievements.
+(MIT) in `ThirdParty/rcheevos`, compiled into the app for RetroAchievements,
+and [librashader](https://github.com/SnowflakePowered/librashader)
+(MPL-2.0/GPL-3.0) for RetroArch slang shader presets: a prebuilt dylib that
+`Scripts/fetch-librashader.sh` downloads and Xcode embeds in
+`Contents/Frameworks` (see `ThirdParty/librashader/README.md` and
+`docs/SHADER_PLAN.md`).
 
 ```
 ┌──────────────────────────── SwiftUI (MainActor) ────────────────────────────┐
@@ -40,7 +45,7 @@ third-party code is [rcheevos](https://github.com/RetroAchievements/rcheevos)
 | `Ursprung/Metadata` | ScreenScraper API client and the scraping queue |
 | `Ursprung/Cores` | Core download/installation and BIOS management |
 | `Ursprung/Emulation` | Session control, input routing, Metal renderer, shaders |
-| `Ursprung/Bridge` | Objective-C/C libretro host, `libretro.h`, rewind buffer, rcheevos client, bridging header |
+| `Ursprung/Bridge` | Objective-C/C libretro host, `libretro.h`, rewind buffer, rcheevos client, librashader preset reading, bridging header |
 | `Ursprung/UI` | SwiftUI views (library, player, settings, components) |
 | `Ursprung/Support` | Paths, preferences, keychain, ZIP reader, secrets |
 | `ThirdParty/rcheevos` | rcheevos 12.5.0 (see its README for what was left out) |
