@@ -171,10 +171,10 @@ nonisolated enum SaveStateStore {
 
     /// Deletes a state the way the user does: a slot's state goes into the
     /// history, where it can be restored; a state in the history is removed.
-    static func discard(_ state: SaveStateSlot, date: Date = .now) {
+    /// A slot's state that can't go into the history stays.
+    static func discard(_ state: SaveStateSlot, date: Date = .now) throws {
         guard !state.isHistory, !state.isLegacy, !state.isAutosave else { return delete(state) }
-        let directory = state.stateURL.deletingLastPathComponent()
-        if (try? archive(slot: state.slot, in: directory, date: date)) == nil { delete(state) }
+        try archive(slot: state.slot, in: state.stateURL.deletingLastPathComponent(), date: date)
     }
 
     /// Names a state, or removes its name with nil or an empty name.

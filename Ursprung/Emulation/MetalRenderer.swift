@@ -94,6 +94,8 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     }
     /// The game runs backwards; presets with frame history follow it.
     var isRewinding = false
+    /// Where a preset's file is; tests use a temporary folder.
+    var presetURL: (ShaderPresetRef) -> URL = { $0.url() }
     /// Told when a preset can't be used, with a message for the player.
     var onShaderError: ((String) -> Void)?
     /// Shows the preset's parameters and changes them live.
@@ -354,14 +356,22 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             workspace?.useBuiltin()
             return
         }
-        guard reload || (preset != chainPreset && preset != pendingPreset) else { return }
+        guard reload || (preset != chainPreset && preset != pendingPreset) else {
+            // Back to the preset that is showing: another one still compiling mustn't replace it.
+            if preset == chainPreset, let pendingPreset, pendingPreset != preset {
+                compileGeneration += 1
+                self.pendingPreset = nil
+                workspace?.kept(preset)
+            }
+            return
+        }
         // A recompile of the preset that is showing keeps showing it, also when it fails.
         let isRecompile = preset == chainPreset && chain != nil
         compileGeneration += 1
         let generation = compileGeneration
         pendingPreset = preset
         if isRecompile { workspace?.recompiling() } else { workspace?.compiling(preset) }
-        let url = preset.url()
+        let url = presetURL(preset)
         let coreName = source?.libraryName, rotation = source?.rotation ?? 0
         Task { [weak self, queue] in
             var compiled: ShaderChain?

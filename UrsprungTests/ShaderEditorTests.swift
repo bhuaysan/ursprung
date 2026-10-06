@@ -83,6 +83,11 @@ struct SlangPresetTests {
         #expect(SlangPreset(text: preset.text()).values == preset.values)
     }
 
+    @Test func hugePassNumbersWithoutAShaderCountDontCrash() {
+        let preset = SlangPreset(text: "shader9223372036854775807 = a.slang\n")
+        #expect(preset.passes.count == 1024)
+    }
+
     @Test func findsProblemsLibrashaderIgnores() {
         let preset = SlangPreset(text: "shaders = 3\nshader0 = a.slang\nalias0 = X\nshader2 = b.slang\nalias2 = X\n")
         #expect(preset.problems.count == 2)

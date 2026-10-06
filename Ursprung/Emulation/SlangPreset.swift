@@ -108,7 +108,7 @@ nonisolated struct SlangPreset: Hashable, Sendable {
 
         let declared = values["shaders"].flatMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         let highestIndex = entries.compactMap { Self.passKey($0.key)?.index }.max()
-        let count = max(0, min(declared ?? (highestIndex.map { $0 + 1 } ?? 0), 1024))
+        let count = max(0, min(declared ?? (highestIndex.map { min($0, 1023) + 1 } ?? 0), 1024))
         for index in 0..<count {
             func take(_ name: String) -> String? {
                 let key = "\(name)\(index)"

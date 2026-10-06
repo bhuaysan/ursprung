@@ -10524,6 +10524,26 @@
           }
         }
       }
+    },
+    "The state couldn't be deleted. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand konnte nicht gelöscht werden. %@"
+          }
+        }
+      }
+    },
+    "The save state couldn't be deleted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand konnte nicht gelöscht werden"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

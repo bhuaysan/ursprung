@@ -145,6 +145,11 @@ final class ShaderWorkspace {
         isRecompiling = false
     }
 
+    /// The preset that is showing stays; the one compiling was dropped.
+    func kept(_ preset: ShaderPresetRef) {
+        status = .ready(preset)
+    }
+
     /// The preset that is showing compiles again (its files changed).
     func recompiling() {
         isRecompiling = true

@@ -942,7 +942,11 @@ final class EmulationSession {
 
     /// A deleted slot's state goes into the history.
     func deleteState(slot: SaveStateSlot) {
-        SaveStateStore.discard(slot)
+        do {
+            try SaveStateStore.discard(slot)
+        } catch {
+            showToast(String(localized: "The state couldn't be deleted. \(error.localizedDescription)"), kind: .warning, duration: 5)
+        }
         reloadSlots()
     }
 

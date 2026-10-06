@@ -517,7 +517,7 @@ struct SaveStateHistoryTests {
         defer { try? FileManager.default.removeItem(at: states) }
         let directory = SaveStateStore.directory(in: states, gameID: gameID, coreID: "snes9x")
         try SaveStateStore.write(Data([1]), manifest: context.manifest(), slot: 1, in: directory)
-        SaveStateStore.discard(SaveStateStore.slots(in: states, gameID: gameID, coreID: "snes9x")[0])
+        try SaveStateStore.discard(SaveStateStore.slots(in: states, gameID: gameID, coreID: "snes9x")[0])
         #expect(SaveStateStore.slots(in: states, gameID: gameID, coreID: "snes9x").isEmpty)
 
         let entry = try #require(SaveStateStore.history(in: states, gameID: gameID, coreID: "snes9x").first)
@@ -528,7 +528,21 @@ struct SaveStateHistoryTests {
         // Deleting a state from the history removes it for good.
         try SaveStateStore.write(Data([2]), manifest: context.manifest(), slot: 1, in: directory)
         let replaced = try #require(SaveStateStore.history(in: states, gameID: gameID, coreID: "snes9x").first)
-        SaveStateStore.discard(replaced)
+        try SaveStateStore.discard(replaced)
+        #expect(SaveStateStore.history(in: states, gameID: gameID, coreID: "snes9x").isEmpty)
+    }
+
+    @Test func aStateThatCantBeArchivedIsKept() throws {
+        let states = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: states) }
+        let directory = SaveStateStore.directory(in: states, gameID: gameID, coreID: "snes9x")
+        try SaveStateStore.write(Data([1]), manifest: context.manifest(), slot: 1, in: directory)
+        // A file where the history folder goes.
+        try write([0], to: SaveStateStore.historyDirectory(directory))
+
+        let slot = try #require(SaveStateStore.slots(in: states, gameID: gameID, coreID: "snes9x").first)
+        #expect(throws: (any Error).self) { try SaveStateStore.discard(slot) }
+        #expect(try Data(contentsOf: slot.stateURL) == Data([1]), "Not deleted for good")
         #expect(SaveStateStore.history(in: states, gameID: gameID, coreID: "snes9x").isEmpty)
     }
 

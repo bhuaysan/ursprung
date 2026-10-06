@@ -18,6 +18,7 @@ struct SaveStatesBrowser: View {
     @State private var stateToRename: SaveStateSlot?
     @State private var newName = ""
     @State private var stateToDelete: SaveStateSlot?
+    @State private var deleteError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -84,13 +85,22 @@ struct SaveStatesBrowser: View {
                             isPresented: Binding(get: { stateToDelete != nil }, set: { if !$0 { stateToDelete = nil } }),
                             presenting: stateToDelete) { state in
             Button("Delete", role: .destructive) {
-                SaveStateStore.discard(state)
+                do {
+                    try SaveStateStore.discard(state)
+                } catch {
+                    deleteError = error.localizedDescription
+                }
                 reload()
             }
             Button("Cancel", role: .cancel) {}
         } message: { state in
             Text(state.isHistory || state.isAutosave || state.isLegacy ? "This can't be undone."
                                                                         : "You can restore it from Recently Replaced.")
+        }
+        .alert("The save state couldn't be deleted", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteError ?? "")
         }
     }
 

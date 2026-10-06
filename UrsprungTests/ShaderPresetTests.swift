@@ -2,6 +2,7 @@
 
 import Foundation
 import Metal
+import MetalKit
 import Testing
 @testable import Ursprung
 
@@ -279,6 +280,32 @@ struct ShaderWorkspaceTests {
         #expect(workspace.status == .builtin && workspace.parameters.isEmpty)
         workspace.setValue(1, for: "STRENGTH")
         #expect(applied.count == 2, "Nothing is sent without a preset")
+    }
+
+    @Test func returningToTheShowingPresetDropsAnotherCompile() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try writeShaderFixtures(in: directory)
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 8, height: 8))
+        let renderer = try #require(MetalRenderer(view: view))
+        renderer.presetURL = { directory.appending(path: $0.path) }
+        let workspace = ShaderWorkspace()
+        renderer.workspace = workspace
+        let dim = try #require(ShaderPresetRef(source: .user, path: "dim.slangp"))
+        let strong = try #require(ShaderPresetRef(source: .user, path: "dim-strong.slangp"))
+
+        renderer.selection = .preset(dim)
+        for _ in 0..<500 where workspace.status != .ready(dim) { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(workspace.status == .ready(dim))
+
+        // A → B → A before B finished compiling.
+        renderer.selection = .preset(strong)
+        renderer.selection = .preset(dim)
+        #expect(workspace.status == .ready(dim))
+        let count = workspace.compileCount
+        for _ in 0..<200 where workspace.compileCount == count { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(workspace.status == .ready(dim), "B's compile doesn't replace A")
+        #expect(workspace.values["STRENGTH"] == 0.5)
     }
 
     @Test func warnsOnceWhenAPresetIsTooSlowForTheFrameRate() throws {
