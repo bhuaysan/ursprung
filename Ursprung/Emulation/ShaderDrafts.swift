@@ -161,10 +161,9 @@ nonisolated enum ShaderDrafts {
                 return ([prefix] + components.dropFirst(base.count)).joined(separator: "/")
             }
         }
-        // Elsewhere: one folder per original folder, so names don't clash.
-        let folder = file.deletingLastPathComponent().path(percentEncoded: false)
-        let hash = folder.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { ($0 ^ UInt64($1)) &* 1_099_511_628_211 }
-        return "other/\(String(hash, radix: 36))/\(file.lastPathComponent)"
+        // Elsewhere: by the whole path, so includes like `../common/a.h`
+        // between folders keep working and names don't clash.
+        return (["other"] + components.dropFirst()).joined(separator: "/")
     }
 
     /// A new shader from the template in `files/new/`.
@@ -218,10 +217,22 @@ nonisolated enum ShaderDrafts {
                 }
             }
         }
+        // Files from elsewhere sit below `other/` by their whole path: only
+        // the part below the folder they all share is kept.
+        let otherBase = placed.values.filter { $0.first == "other" }
+            .map { Array($0.dropFirst().dropLast()) }
+            .reduce(nil as [String]?) { common, folder in
+                guard let common else { return folder }
+                return Array(zip(common, folder).prefix { $0 == $1 }.map(\.0))
+            } ?? []
         // Without the first folder (`library`, `user`, `new` …) unless that
         // makes two files one, e.g. `library/crt/a.slang` and `user/crt/a.slang`.
         func place(dropsFirst: Bool) -> [String: URL] {
-            placed.mapValues { relative in relative.dropFirst(dropsFirst ? 1 : 0).reduce(ownFolder) { $0.appending(path: $1) } }
+            placed.mapValues { relative in
+                let inside = relative.first == "other"
+                    ? relative.prefix(1) + relative.dropFirst(1 + otherBase.count) : relative[...]
+                return inside.dropFirst(dropsFirst ? 1 : 0).reduce(ownFolder) { $0.appending(path: $1) }
+            }
         }
         func isDistinct(_ urls: some Collection<URL>) -> Bool {
             Set(urls.map { $0.standardizedFileURL.path(percentEncoded: false) }).count == urls.count

@@ -416,6 +416,29 @@ struct ShaderDraftTests {
         #expect(try ShaderPreset.parametersOfPreset(atPath: target.path).first?.initial == 0.7)
     }
 
+    @Test func keepsIncludesBetweenFoldersOfShadersFromElsewhere() throws {
+        let (root, pack, user, drafts) = try makeShaders()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let elsewhere = root.appending(path: "Downloads/pack", directoryHint: .isDirectory)
+        try write(dimShader.replacing("#version 450", with: "#version 450\n#include \"../common/inc.h\""),
+                  to: elsewhere.appending(path: "crt/dim.slang"))
+        try write("// shared\n", to: elsewhere.appending(path: "common/inc.h"))
+        var (info, preset) = try ShaderDrafts.create(from: nil, name: "Elsewhere", origin: nil, target: nil, in: drafts)
+
+        let copy = try ShaderDrafts.ownCopy(of: elsewhere.appending(path: "crt/dim.slang"), info: &info, in: drafts,
+                                            library: pack, user: user)
+        let closure = SlangSource.closure(of: copy)
+        #expect(closure.count == 2, "The copy's include still finds the copied include file")
+        #expect(closure.allSatisfy { ShaderDrafts.isOwn($0, id: info.id, in: drafts) })
+
+        // Saved, only the part below the folder they share stays.
+        preset.passes.append(SlangPreset.Pass(shader: copy.path(percentEncoded: false)))
+        let target = user.appending(path: "Elsewhere.slangp")
+        try ShaderDrafts.save(preset, info: info, to: target, inPlace: false, in: drafts, user: user)
+        #expect(try String(contentsOf: target, encoding: .utf8).contains("shader0 = \"Elsewhere/crt/dim.slang\""))
+        #expect(FileManager.default.fileExists(atPath: user.appending(path: "Elsewhere/common/inc.h").path))
+    }
+
     @Test func exportsAPresetThatWorksOnItsOwn() throws {
         let (root, pack, _, drafts) = try makeShaders()
         defer { try? FileManager.default.removeItem(at: root) }
