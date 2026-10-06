@@ -16,11 +16,26 @@ struct MultiGameInspector: View {
                     .padding(.top, AppSpacing.l)
                     .padding(.horizontal, AppSpacing.l)
                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    // Set like a single game's title in its inspector.
                     Text("\(games.count) Games Selected")
-                        .font(.title3.weight(.semibold))
-                    Text(verbatim: systemSummary)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .font(.title2.bold().width(.expanded))
+                    Group {
+                        if systems.count <= 3 {
+                            FlowLayout(horizontalSpacing: AppSpacing.m, verticalSpacing: AppSpacing.xs) {
+                                ForEach(systems, id: \.id) { system in
+                                    HStack(spacing: AppSpacing.xs) {
+                                        SystemIcon(system: system, isInline: true)
+                                        Text(verbatim: system.shortName)
+                                    }
+                                }
+                            }
+                        } else {
+                            Text("\(systems.count) systems")
+                        }
+                    }
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, AppSpacing.xxs)
                 }
                 .padding(.top, AppSpacing.m)
                 .padding(.horizontal, AppSpacing.l)
@@ -106,24 +121,39 @@ struct MultiGameInspector: View {
         }
     }
 
+    /// What the selection adds up to, in sentences like a single game's activity.
     private var activitySection: some View {
+        InfoSection("Activity") {
+            Text(verbatim: activityText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.callout)
+    }
+
+    /// “2 h 2 min played in total. One of them is a favorite.”
+    private var activityText: String {
         let playTime = games.reduce(0) { $0 + $1.playTime }
         let favorites = games.filter(\.isFavorite).count
         let missing = games.filter(\.isMissing).count
-        return InfoSection("Activity") {
-            InfoRow("Play Time", playTime > 0
-                    ? Duration.seconds(playTime).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)) : "–")
-            InfoRow("Favorites", String(favorites))
-            if missing > 0 {
-                InfoRow("Missing", String(missing))
-            }
+        var sentences = [playTime > 0
+            ? String(localized: "\(Duration.seconds(playTime).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))) played in total.")
+            : String(localized: "None of them played yet.")]
+        if favorites > 0 {
+            sentences.append(favorites == 1 ? String(localized: "One of them is a favorite.")
+                                            : String(localized: "\(favorites) of them are favorites."))
         }
+        if missing > 0 {
+            sentences.append(missing == 1 ? String(localized: "One file is missing.")
+                                          : String(localized: "\(missing) files are missing."))
+        }
+        return sentences.joined(separator: " ")
     }
 
-    private var systemSummary: String {
-        let systems = Set(games.map(\.systemID)).compactMap(SystemCatalog.system(withID:)).map(\.shortName).sorted()
-        return systems.count <= 3 ? systems.joined(separator: ", ")
-            : String(localized: "\(systems.count) systems")
+    /// The selected games' systems, in sidebar order.
+    private var systems: [GameSystem] {
+        let ids = Set(games.map(\.systemID))
+        return SystemCatalog.all.filter { ids.contains($0.id) }
+            .sorted { ($0.manufacturer, $0.year) < ($1.manufacturer, $1.year) }
     }
 }
 

@@ -11344,6 +11344,66 @@
           }
         }
       }
+    },
+    "%@ played in total.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zusammen %@ gespielt."
+          }
+        }
+      }
+    },
+    "None of them played yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keins davon gespielt."
+          }
+        }
+      }
+    },
+    "One of them is a favorite.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eins davon ist ein Favorit."
+          }
+        }
+      }
+    },
+    "%lld of them are favorites.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld davon sind Favoriten."
+          }
+        }
+      }
+    },
+    "One file is missing.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Datei fehlt."
+          }
+        }
+      }
+    },
+    "%lld files are missing.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Dateien fehlen."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
