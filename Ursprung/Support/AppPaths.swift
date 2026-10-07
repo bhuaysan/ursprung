@@ -12,6 +12,8 @@ nonisolated enum AppPaths {
 
     /// Downloaded libretro cores (`*_libretro.dylib`).
     static var cores: URL { directory("Cores") }
+    /// Standalone emulators: one folder per emulator with its versions and data.
+    static var emulators: URL { directory("Emulators") }
     /// BIOS files and core system assets (libretro "system directory").
     static var system: URL { directory("System") }
     /// Battery saves (.srm) and core save directories.

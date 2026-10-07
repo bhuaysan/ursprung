@@ -72,6 +72,7 @@ struct FastForwardTests {
     private func makeSession() -> EmulationSession {
         let directory = FileManager.default.temporaryDirectory.appending(path: "UrsprungTests-\(UUID().uuidString)")
         return EmulationSession(cores: CoreManager(coresDirectory: directory, systemDirectory: directory),
+                                emulators: EmulatorManager(directory: directory),
                                 bios: BIOSManager(systemDirectory: directory), achievements: AchievementService())
     }
 

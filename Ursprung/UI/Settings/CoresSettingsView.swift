@@ -4,6 +4,7 @@ import SwiftUI
 
 struct CoresSettingsView: View {
     @Environment(CoreManager.self) private var cores
+    @Environment(EmulatorManager.self) private var emulators
     @Environment(EmulationSession.self) private var session
     @State private var failure: DownloadFailure?
     @State private var coreToRemove: CoreDefinition?
@@ -37,15 +38,7 @@ struct CoresSettingsView: View {
                     .settingsFootnote()
             }
             Section {
-                if let failure {
-                    HStack(alignment: .firstTextBaseline) {
-                        StatusLabel("“\(failure.core.name)” couldn't be downloaded.", kind: .error,
-                                    prominent: true, detail: failure.message)
-                        Spacer(minLength: AppSpacing.s)
-                        Button("Retry") { install(failure.core) }
-                            .buttonStyle(.link)
-                    }
-                }
+                if let failure, failure.core.isLibretro { failureRow(failure) }
                 ForEach(CoreManager.allCores) { core in
                     CoreRow(core: core, install: install, remove: remove, restorePrevious: restorePrevious,
                             isInUse: session.isActive && session.coreName == core.name)
@@ -57,13 +50,17 @@ struct CoresSettingsView: View {
                     .settingsFootnote()
             }
             Section {
+                if let failure, !failure.core.isLibretro { failureRow(failure) }
                 ForEach(CoreManager.standaloneEmulators) { emulator in
-                    StandaloneEmulatorRow(emulator: emulator)
+                    if let standalone = emulator.standalone {
+                        StandaloneEmulatorRow(definition: emulator, emulator: standalone, install: install, remove: remove,
+                                              isInUse: session.isActive && session.coreName == emulator.name)
+                    }
                 }
             } header: {
                 Text("Standalone Emulators")
             } footer: {
-                Text("Standalone emulators run games in their own window, for systems no libretro core plays well on this Mac. They are separate open source projects with their own licenses.")
+                Text("Standalone emulators run games in their own window, for systems no libretro core plays well on this Mac. They are separate open source projects with their own licenses. Ursprung downloads the release it was tested with and checks its signature; the version before an update stays available.")
                     .settingsFootnote()
             }
         }
@@ -73,10 +70,29 @@ struct CoresSettingsView: View {
             isPresented: Binding(get: { coreToRemove != nil }, set: { if !$0 { coreToRemove = nil } }),
             presenting: coreToRemove
         ) { core in
-            Button("Remove Core", role: .destructive) { cores.remove(core) }
+            if let emulator = core.standalone {
+                Button("Remove Emulator", role: .destructive) { emulators.remove(emulator) }
+            } else {
+                Button("Remove Core", role: .destructive) { cores.remove(core) }
+            }
             Button("Cancel", role: .cancel) {}
         } message: { core in
-            Text("No other installed core plays \(uncoveredSystems(core).map(\.name).formatted(.list(type: .and))) games. The core downloads again the next time you play one.")
+            let systems = uncoveredSystems(core).map(\.name).formatted(.list(type: .and))
+            if core.isLibretro {
+                Text("No other installed core plays \(systems) games. The core downloads again the next time you play one.")
+            } else {
+                Text("\(core.name) is needed for \(systems) games. It downloads again the next time you play one; its settings are kept.")
+            }
+        }
+    }
+
+    private func failureRow(_ failure: DownloadFailure) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            StatusLabel("“\(failure.core.name)” couldn't be downloaded.", kind: .error,
+                        prominent: true, detail: failure.message)
+            Spacer(minLength: AppSpacing.s)
+            Button("Retry") { install(failure.core) }
+                .buttonStyle(.link)
         }
     }
 
@@ -120,7 +136,11 @@ struct CoresSettingsView: View {
         if failure?.core == core { failure = nil }
         Task {
             do {
-                try await cores.install(core)
+                if let emulator = core.standalone {
+                    try await emulators.install(emulator)
+                } else {
+                    try await cores.install(core)
+                }
             } catch {
                 failure = DownloadFailure(core: core, message: error.localizedDescription)
             }
@@ -129,33 +149,101 @@ struct CoresSettingsView: View {
 
     /// Asks first when the core is the only installed one for a system.
     private func remove(_ core: CoreDefinition) {
-        if uncoveredSystems(core).isEmpty {
-            cores.remove(core)
-        } else {
+        if !uncoveredSystems(core).isEmpty {
             coreToRemove = core
+        } else if let emulator = core.standalone {
+            emulators.remove(emulator)
+        } else {
+            cores.remove(core)
         }
     }
 
     /// Systems that no other installed core plays.
     private func uncoveredSystems(_ core: CoreDefinition) -> [GameSystem] {
         SystemCatalog.all.filter { system in
-            system.cores.contains(core) && !system.cores.contains { $0 != core && cores.isInstalled($0) }
+            system.cores.contains(core) && !system.cores.contains { $0 != core && isInstalled($0) }
         }
+    }
+
+    private func isInstalled(_ core: CoreDefinition) -> Bool {
+        if let emulator = core.standalone { emulators.isInstalled(emulator) } else { cores.isInstalled(core) }
     }
 }
 
-/// Installing comes with phase 2 of docs/STANDALONE_PLAN.md.
 private struct StandaloneEmulatorRow: View {
-    let emulator: CoreDefinition
+    let definition: CoreDefinition
+    let emulator: StandaloneEmulator
+    let install: (CoreDefinition) -> Void
+    let remove: (CoreDefinition) -> Void
+    /// A game runs in the emulator: its app can't be swapped now.
+    let isInUse: Bool
+    @Environment(EmulatorManager.self) private var emulators
+    @State private var size: Int64?
 
     var body: some View {
         LabeledContent {
-            StatusLabel("Not Installed", systemImage: "circle.dashed", kind: .neutral)
+            HStack(spacing: AppSpacing.m) {
+                if let progress = emulators.downloads[emulator.id] {
+                    ProgressView(value: progress)
+                        .frame(width: 120)
+                        .accessibilityLabel("Downloading")
+                } else if emulators.isInstalled(emulator) {
+                    Text(verbatim: installedDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Menu {
+                        if emulators.isUpdateAvailable(emulator) {
+                            Button("Update to \(emulator.release.tag)") { install(definition) }
+                                .disabled(isInUse)
+                        }
+                        if emulators.hasPreviousVersion(emulator), let previous = emulators.versions[emulator.id]?.previous {
+                            Button("Go Back to \(previous.tag)") { emulators.restorePreviousVersion(emulator) }
+                                .disabled(isInUse)
+                        }
+                        if let app = emulators.installedApp(for: emulator) {
+                            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([app]) }
+                        }
+                        Link("Source Code", destination: emulator.sourceURL)
+                        Divider()
+                        Button("Remove", role: .destructive) { remove(definition) }
+                            .disabled(isInUse)
+                    } label: {
+                        HStack(spacing: AppSpacing.xs) {
+                            if emulators.isUpdateAvailable(emulator) {
+                                StatusLabel("Update Available", systemImage: "arrow.down.circle.fill", kind: .neutral)
+                            } else {
+                                StatusLabel("Installed", kind: .success)
+                            }
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .menuStyle(.button)
+                    .menuIndicator(.hidden)
+                    // A plain button keeps the green symbol; borderless renders the label monochrome.
+                    .buttonStyle(.plain)
+                    .fixedSize()
+                } else {
+                    Button("Download") { install(definition) }
+                }
+            }
         } label: {
             Text(emulator.name)
-            Text(SystemCatalog.all.filter { $0.cores.contains(emulator) }.map(\.shortName).joined(separator: ", "))
+            Text(SystemCatalog.all.filter { $0.cores.contains(definition) }.map(\.shortName).joined(separator: ", "))
                 .lineLimit(1)
         }
+        .task(id: emulators.revision) {
+            size = await emulators.installedSize(of: emulator)
+        }
+    }
+
+    /// "nightly-20261006 · 46c06fe7ca · 320 MB": the active release and the
+    /// space all kept versions take.
+    private var installedDescription: String {
+        let record = emulators.versions[emulator.id]?.current
+        let bytes = size.flatMap { $0 > 0 ? $0.formatted(.byteCount(style: .file)) : nil }
+        return [record?.tag, record?.commit, bytes].compactMap { $0 }.joined(separator: " · ")
     }
 }
 

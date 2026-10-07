@@ -38,7 +38,7 @@ nonisolated enum CoreBackend: Sendable, Hashable {
 
 /// An emulator that runs as its own process with its own window (see
 /// docs/STANDALONE_PLAN.md). Ursprung pins one tested release.
-nonisolated struct StandaloneEmulator: Sendable, Hashable {
+nonisolated struct StandaloneEmulator: Sendable, Hashable, Identifiable {
     nonisolated struct Release: Sendable, Hashable {
         /// Release tag on GitHub, e.g. `nightly-20261006`.
         let tag: String

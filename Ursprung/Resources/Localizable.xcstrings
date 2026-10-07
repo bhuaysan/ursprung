@@ -10625,16 +10625,6 @@
         }
       }
     },
-    "%@ is not installed yet. This version of Ursprung can’t download it.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ ist noch nicht installiert. Diese Version von Ursprung kann es nicht herunterladen."
-          }
-        }
-      }
-    },
     "Recognized": {
       "localizations": {
         "de": {
@@ -10685,16 +10675,6 @@
         }
       }
     },
-    "Not Installed": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nicht installiert"
-          }
-        }
-      }
-    },
     "Standalone Emulators": {
       "localizations": {
         "de": {
@@ -10705,12 +10685,112 @@
         }
       }
     },
-    "Standalone emulators run games in their own window, for systems no libretro core plays well on this Mac. They are separate open source projects with their own licenses.": {
+    "The emulator could not be downloaded: %@": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eigenständige Emulatoren zeigen Spiele in einem eigenen Fenster, für Systeme, die kein libretro-Core auf diesem Mac gut spielt. Sie sind eigenständige Open-Source-Projekte mit eigenen Lizenzen."
+            "value": "Der Emulator konnte nicht geladen werden: %@"
+          }
+        }
+      }
+    },
+    "The downloaded emulator is not the tested release: its checksum doesn’t match.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der geladene Emulator ist nicht die getestete Version: Seine Prüfsumme stimmt nicht."
+          }
+        }
+      }
+    },
+    "The downloaded emulator archive is invalid.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das geladene Emulator-Archiv ist ungültig."
+          }
+        }
+      }
+    },
+    "The downloaded emulator is not signed by its developer: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der geladene Emulator ist nicht von seinen Entwicklern signiert: %@"
+          }
+        }
+      }
+    },
+    "%@ is installed, but this version of Ursprung can’t start it yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist installiert, aber diese Version von Ursprung kann es noch nicht starten."
+          }
+        }
+      }
+    },
+    "Remove Emulator": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Emulator entfernen"
+          }
+        }
+      }
+    },
+    "%@ is needed for %@ games. It downloads again the next time you play one; its settings are kept.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ wird für %2$@-Spiele gebraucht. Er wird beim nächsten Spielen erneut geladen; seine Einstellungen bleiben erhalten."
+          }
+        }
+      }
+    },
+    "Update to %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf %@ aktualisieren"
+          }
+        }
+      }
+    },
+    "Go Back to %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück zu %@"
+          }
+        }
+      }
+    },
+    "Source Code": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quellcode"
+          }
+        }
+      }
+    },
+    "Standalone emulators run games in their own window, for systems no libretro core plays well on this Mac. They are separate open source projects with their own licenses. Ursprung downloads the release it was tested with and checks its signature; the version before an update stays available.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigenständige Emulatoren zeigen Spiele in einem eigenen Fenster, für Systeme, die kein libretro-Core auf diesem Mac gut spielt. Sie sind eigenständige Open-Source-Projekte mit eigenen Lizenzen. Ursprung lädt die Version, mit der es getestet wurde, und prüft ihre Signatur; die Version vor einem Update bleibt erhalten."
           }
         }
       }

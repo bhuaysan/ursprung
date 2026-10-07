@@ -146,11 +146,13 @@ final class EmulationSession {
     /// The preset the player renders, with its live parameters.
     let shader = ShaderWorkspace()
     let cores: CoreManager
+    let emulators: EmulatorManager
     let bios: BIOSManager
     let achievements: AchievementService
 
-    init(cores: CoreManager, bios: BIOSManager, achievements: AchievementService) {
+    init(cores: CoreManager, emulators: EmulatorManager, bios: BIOSManager, achievements: AchievementService) {
         self.cores = cores
+        self.emulators = emulators
         self.bios = bios
         self.achievements = achievements
         input.onMenuButton = { [weak self] in self?.toggleMenu() }
@@ -235,11 +237,20 @@ final class EmulationSession {
             return
         }
 
-        // Standalone emulators are installed and launched by phases 2 and 3
-        // of docs/STANDALONE_PLAN.md.
+        // Launching a standalone emulator comes with phase 3 of
+        // docs/STANDALONE_PLAN.md.
         if let emulator = definition.standalone {
-            phase = .failed(Failure(message: String(localized: "\(emulator.name) is not installed yet. This version of Ursprung can’t download it."),
-                                    settingsTab: .cores))
+            do {
+                phase = .preparing(emulators.isInstalled(emulator)
+                    ? String(localized: "Starting \(emulator.name)…")
+                    : String(localized: "Downloading \(emulator.name)…"))
+                _ = try await emulators.ensureInstalled(emulator)
+                try checkCurrent(generation)
+                phase = .failed(Failure(message: String(localized: "\(emulator.name) is installed, but this version of Ursprung can’t start it yet.")))
+            } catch {
+                guard generation == self.generation, !(error is CancellationError) else { return }
+                phase = .failed(Failure(message: error.localizedDescription, settingsTab: .cores))
+            }
             return
         }
 

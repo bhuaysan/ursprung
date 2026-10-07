@@ -470,6 +470,7 @@ struct ShaderEditorSourceTests {
         let other = root.appending(path: "Elsewhere/other.slang")
         try write(dimShader, to: other)
         let session = EmulationSession(cores: CoreManager(coresDirectory: root, systemDirectory: root),
+                                       emulators: EmulatorManager(directory: root),
                                        bios: BIOSManager(systemDirectory: root), achievements: AchievementService())
         let editor = ShaderEditor(session: session, shaders: shaders)
         editor.openPreset(try #require(ShaderPresetRef(source: .library, path: "crt/dim.slangp")))

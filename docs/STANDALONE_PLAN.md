@@ -1,6 +1,6 @@
 # Ursprung — Standalone Emulators and PlayStation 2: Plan
 
-7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), phase 1 done on branch `feature/ps2-armsx2` (7 October 2026). Comes before `docs/VULKAN_PLAN.md`.
+7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), phases 1 and 2 done on branch `feature/ps2-armsx2` (7 October 2026). Comes before `docs/VULKAN_PLAN.md`.
 
 Ursprung runs every game in-process through a libretro core. PlayStation 2 has no libretro core that works on macOS arm64 today (see *Background*). This plan adds a second kind of emulator, a **standalone emulator** that Ursprung downloads, configures and launches as a separate process. The first and only one in this plan is ARMSX2, which makes PlayStation 2 playable.
 
@@ -225,12 +225,13 @@ A shell script in the scratchpad drives the downloaded nightly with a prepared d
 - Tests: scanner assigns `ROMS/PS2/x.iso` to `ps2`; BIOS recognition with a synthetic ROMDIR; catalog invariants (every system has a default core, standalone IDs unique).
 - Acceptance: Persona 4 shows up in the library under PlayStation 2; Play shows "ARMSX2 is not installed yet" instead of crashing.
 
-### Phase 2 — Emulator manager (M)
+### Phase 2 — Emulator manager (M) — done 7 October 2026
 
 - `EmulatorManager` (`@Observable`, injected like `CoreManager`): `ensureInstalled`, progress, versions, previous version, remove.
 - Download, SHA-256, `tar` extraction, code signature check, atomic move into place.
 - Settings › Cores section: installed version, size, Update, Go Back, Remove.
 - Tests with a fake downloader and a fixture tarball (signature check behind a protocol so tests can stub it).
+- As built: versions live in `Emulators/ARMSX2/<commit>/ARMSX2.app`, `Emulators/versions.json` records the active and the previous one. A version the user went back to stays active until the pin moves (`heldBackFrom`); "Update" switches back to the pinned release without downloading it again when it is the previous version. Remove keeps `Emulators/ARMSX2/data/`. Play installs ARMSX2 and then stops with "can’t start it yet" until phase 3. Checked against the real nightly: download, SHA-256 and the team check pass, 167 MB installed, `spctl` accepts the installed copy, no quarantine attribute.
 
 ### Phase 3 — Launch and lifecycle (M)
 

@@ -17,6 +17,7 @@ struct UrsprungApp: App {
     @State private var metadata: MetadataService
     @State private var library: LibraryStore
     @State private var cores = CoreManager()
+    @State private var emulators = EmulatorManager()
     @State private var bios = BIOSManager()
     @State private var session: EmulationSession
     @State private var systemMedia = SystemMediaStore()
@@ -35,10 +36,11 @@ struct UrsprungApp: App {
         #endif
         let metadata = MetadataService()
         let cores = CoreManager()
+        let emulators = EmulatorManager()
         let bios = BIOSManager()
         let library = LibraryStore(metadata: metadata)
         let achievements = AchievementService()
-        let session = EmulationSession(cores: cores, bios: bios, achievements: achievements)
+        let session = EmulationSession(cores: cores, emulators: emulators, bios: bios, achievements: achievements)
         let shaders = ShaderLibrary()
         _shaders = State(initialValue: shaders)
         _shaderEditor = State(initialValue: ShaderEditor(session: session, shaders: shaders))
@@ -46,6 +48,7 @@ struct UrsprungApp: App {
         _metadata = State(initialValue: metadata)
         _library = State(initialValue: library)
         _cores = State(initialValue: cores)
+        _emulators = State(initialValue: emulators)
         _bios = State(initialValue: bios)
         _session = State(initialValue: session)
 
@@ -78,6 +81,7 @@ struct UrsprungApp: App {
         .environment(metadata)
         .environment(library)
         .environment(cores)
+        .environment(emulators)
         .environment(bios)
         .environment(session)
         .environment(systemMedia)
@@ -127,6 +131,7 @@ struct UrsprungApp: App {
         .environment(metadata)
         .environment(library)
         .environment(cores)
+        .environment(emulators)
         .environment(bios)
         .environment(session)
         .environment(backup)
