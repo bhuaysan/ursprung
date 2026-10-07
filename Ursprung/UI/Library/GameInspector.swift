@@ -536,15 +536,55 @@ struct GameInspector: View {
         .padding(.bottom, AppSpacing.xxs)
     }
 
+    /// The file as the label under a cartridge: name, size and checksum on
+    /// one plate, with the way to the file in the Finder.
     private var fileSection: some View {
-        InfoSection("File") {
-            InfoRow("Name", game.fileName, isCode: true)
-            if game.isMissing {
-                InfoRow("Last Location", game.fileURL.deletingLastPathComponent().path(percentEncoded: false), isCode: true)
+        HStack(alignment: .top, spacing: AppSpacing.s) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text(verbatim: game.fileName)
+                    .font(.callout.monospaced())
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                    .help(game.fileName)
+                if game.isMissing {
+                    Text(verbatim: game.fileURL.deletingLastPathComponent().path(percentEncoded: false))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(Text("Last Location"))
+                        .accessibilityLabel(Text("Last Location"))
+                        .accessibilityValue(game.fileURL.deletingLastPathComponent().path(percentEncoded: false))
+                }
+                HStack(spacing: AppSpacing.m) {
+                    Text(verbatim: ByteCountFormatter.string(fromByteCount: game.fileSize, countStyle: .file))
+                        .accessibilityLabel(Text("Size"))
+                        .accessibilityValue(ByteCountFormatter.string(fromByteCount: game.fileSize, countStyle: .file))
+                    if let crc = game.crc32 {
+                        Text(verbatim: "CRC32 \(crc)")
+                            .textSelection(.enabled)
+                            .accessibilityLabel(Text(verbatim: "CRC32"))
+                            .accessibilityValue(crc)
+                    }
+                }
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
             }
-            InfoRow("Size", ByteCountFormatter.string(fromByteCount: game.fileSize, countStyle: .file))
-            InfoRow("CRC32", game.crc32, isCode: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(game.isMissing ? "Locate File…" : "Show in Finder",
+                   systemImage: game.isMissing ? "magnifyingglass" : "folder",
+                   action: game.isMissing ? actions.locate : actions.showInFinder)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .help(game.isMissing ? "Locate File…" : "Show in Finder")
         }
+        .padding(AppSpacing.m)
+        .background(.fill.quaternary, in: .rect(cornerRadius: AppMetrics.smallArtworkRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppMetrics.smallArtworkRadius, style: .continuous)
+                .strokeBorder(.separator)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("File"))
     }
 }
 
