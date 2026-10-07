@@ -9,6 +9,7 @@ struct CoresSettingsView: View {
     @State private var failure: DownloadFailure?
     @State private var coreToRemove: CoreDefinition?
     @State private var updateCheckFailure: String?
+    @AppStorage(PrefKey.standaloneFullscreen) private var standaloneFullscreen = true
 
     struct DownloadFailure {
         var core: CoreDefinition
@@ -57,6 +58,7 @@ struct CoresSettingsView: View {
                                               isInUse: session.isActive && session.coreName == emulator.name)
                     }
                 }
+                Toggle("Play in full screen", isOn: $standaloneFullscreen)
             } header: {
                 Text("Standalone Emulators")
             } footer: {

@@ -1,6 +1,6 @@
 # Ursprung — Standalone Emulators and PlayStation 2: Plan
 
-7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), phases 1 and 2 done on branch `feature/ps2-armsx2` (7 October 2026). Comes before `docs/VULKAN_PLAN.md`.
+7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), phases 1–3 done on branch `feature/ps2-armsx2` (7 October 2026). Comes before `docs/VULKAN_PLAN.md`.
 
 Ursprung runs every game in-process through a libretro core. PlayStation 2 has no libretro core that works on macOS arm64 today (see *Background*). This plan adds a second kind of emulator, a **standalone emulator** that Ursprung downloads, configures and launches as a separate process. The first and only one in this plan is ARMSX2, which makes PlayStation 2 playable.
 
@@ -233,7 +233,7 @@ A shell script in the scratchpad drives the downloaded nightly with a prepared d
 - Tests with a fake downloader and a fixture tarball (signature check behind a protocol so tests can stub it).
 - As built: versions live in `Emulators/ARMSX2/<commit>/ARMSX2.app`, `Emulators/versions.json` records the active and the previous one. A version the user went back to stays active until the pin moves (`heldBackFrom`); "Update" switches back to the pinned release without downloading it again when it is the previous version. Remove keeps `Emulators/ARMSX2/data/`. Play installs ARMSX2 and then stops with "can’t start it yet" until phase 3. Checked against the real nightly: download, SHA-256 and the team check pass, 167 MB installed, `spctl` accepts the installed copy, no quarantine attribute.
 
-### Phase 3 — Launch and lifecycle (M)
+### Phase 3 — Launch and lifecycle (M) — done 7 October 2026
 
 - `ExternalSession`: `Process`, environment, termination handler, stderr/log capture, SIGTERM/SIGKILL escalation, generation guard like `EmulationSession.launch`.
 - `PCSX2Config.write`: merges managed keys into the existing ini (ordered sections, repeated keys kept), including the default keyboard and `SDL-0` bindings and hotkeys.
@@ -243,6 +243,7 @@ A shell script in the scratchpad drives the downloaded nightly with a prepared d
 - `LibraryView.play` skips the player window; inspector and toolbar show the running state.
 - Debug: `URSPRUNG_AUTOPLAY` works for PS2, so the `debug-without-ui` skill can verify a launch headlessly.
 - Tests: ini generation (golden files), argument building, lifecycle against a fake executable in `Tools/` that sleeps, traps TERM and exits with a chosen status.
+- As built: `PCSX2Config` (ordered `IniDocument`, managed keys replace all their lines in place), `ARMSX2Launch` (pre-flight, BIOS by disc region: serial from `SYSTEM.CNF` of `.iso`/raw `.bin`, else the file name's region, else the metadata region; newest dump of that region), `ExternalSession` (process, one SIGTERM, SIGKILL after 10 s; a synchronous variant for app quit). Resume via `-statefile` came forward from phase 4: a `.resume.p2s` with a compatible save version is passed when the game resumes, and Play shows "Resume" when one exists. Logs go to `Emulators/ARMSX2/Logs/last-run.log` (ARMSX2's `-logfile`) and `last-run-output.log` (stdout/stderr). Full screen is a setting in Settings › Cores (default on). No PINE yet, so any exit Ursprung did not ask for that is not clean counts as a failure, shown as an alert in the library with "Show Log"; first-frame detection comes with phase 5. The lifecycle tests write a shell script into a temp folder instead of a `Tools/` target. Checked live with Persona 4: download and launch in 9 s, EU BIOS chosen for the PAL disc, PINE socket in `Ursprung-PINE`, memory card in `Saves/ps2/<game id>/`, resume state written on Quit and loaded on the next launch, a SIGKILL from outside shows the failure alert and keeps the resume state.
 
 ### Phase 4 — Saves and states (M)
 

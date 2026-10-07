@@ -53,6 +53,13 @@ nonisolated struct ZipArchive: Sendable {
     }
 
     func extract(_ entry: Entry, to destination: URL) throws {
+        let output = try data(of: entry)
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try output.write(to: destination, options: .atomic)
+    }
+
+    /// The entry's contents, checked against its CRC32.
+    func data(of entry: Entry) throws -> Data {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         let fileSize = try handle.seekToEnd()
@@ -85,8 +92,7 @@ nonisolated struct ZipArchive: Sendable {
         // Damaged payloads keep plausible offsets and sizes; only the
         // checksum notices them. Nothing is written for such an entry.
         guard output.count == uncompressedSize, Checksum.crc(of: output) == entry.crc32 else { throw ZipError.corrupt }
-        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try output.write(to: destination, options: .atomic)
+        return output
     }
 
     /// Extracts `entry` into `directory` unless an earlier extraction of the

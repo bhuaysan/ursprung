@@ -42,6 +42,8 @@ nonisolated enum PrefKey {
     static let achievementsUsername = "achievementsUsername"
     static let achievementsHardcore = "achievementsHardcore"
     static let achievementsShowsProgress = "achievementsShowsProgress"
+    /// Standalone emulators (PlayStation 2) open their game window in full screen.
+    static let standaloneFullscreen = "standaloneFullscreen"
     /// Favourite RetroArch presets, as `ShaderSelection` raw values.
     static let shaderFavorites = "shaderFavorites"
     static func systemVideoFilter(_ systemID: String) -> String { "videoFilter.\(systemID)" }
@@ -138,6 +140,7 @@ nonisolated enum Preferences {
             PrefKey.achievementsEnabled: false,
             PrefKey.achievementsHardcore: false,
             PrefKey.achievementsShowsProgress: true,
+            PrefKey.standaloneFullscreen: true,
         ])
     }
 
@@ -171,6 +174,7 @@ nonisolated enum Preferences {
     static var achievementsUsername: String { defaults.string(forKey: PrefKey.achievementsUsername) ?? "" }
     static var achievementsHardcore: Bool { defaults.bool(forKey: PrefKey.achievementsHardcore) }
     static var achievementsShowsProgress: Bool { defaults.bool(forKey: PrefKey.achievementsShowsProgress) }
+    static var standaloneFullscreen: Bool { defaults.bool(forKey: PrefKey.standaloneFullscreen) }
 
     /// The user's collections in sidebar order, including empty ones.
     static var collections: [String] {

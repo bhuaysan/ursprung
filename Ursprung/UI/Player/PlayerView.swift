@@ -46,7 +46,7 @@ struct PlayerView: View {
             }
 
             switch session.phase {
-            case .idle, .running:
+            case .idle, .running, .external:
                 EmptyView()
             case .preparing(let message):
                 PreparingView(title: session.gameTitle, message: message, progress: currentDownloadProgress)
@@ -166,7 +166,13 @@ struct PlayerView: View {
             }
         }
         .onDisappear {
+            // A standalone emulator's game closed the player; it keeps running.
+            guard session.standaloneName == nil else { return }
             Task { await session.stop(context: context) }
+        }
+        .onChange(of: session.standaloneName) { _, name in
+            // Started while a game ran here: the new one has its own window.
+            if name != nil { dismissWindow(id: WindowID.player) }
         }
         .onChange(of: session.coreTerminations) {
             // A core that shut itself down closes the player. Not tied to

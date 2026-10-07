@@ -63,6 +63,16 @@ final class EmulatorManager {
         directory.appending(path: emulator.name, directoryHint: .isDirectory)
     }
 
+    /// The emulator's own data folder (settings, caches), shared by all versions.
+    func dataFolder(for emulator: StandaloneEmulator) -> URL {
+        folder(for: emulator).appending(path: "data", directoryHint: .isDirectory)
+    }
+
+    /// The log of the last run and the process output, replaced by every launch.
+    func logFolder(for emulator: StandaloneEmulator) -> URL {
+        folder(for: emulator).appending(path: "Logs", directoryHint: .isDirectory)
+    }
+
     func appURL(for emulator: StandaloneEmulator, commit: String) -> URL {
         folder(for: emulator).appending(path: commit, directoryHint: .isDirectory)
             .appending(path: "\(emulator.name).app", directoryHint: .isDirectory)

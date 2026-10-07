@@ -16,6 +16,8 @@ struct GameInspector: View {
 
     @Environment(EmulationSession.self) private var session
     @Environment(BIOSManager.self) private var bios
+    @Environment(EmulatorManager.self) private var emulators
+    @Environment(\.modelContext) private var context
     @Environment(\.openSettings) private var openSettings
     @AppStorage(PrefKey.settingsTab) private var settingsTab = SettingsTab.general
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -144,22 +146,51 @@ struct GameInspector: View {
 
     private var actionRow: some View {
         HStack(spacing: AppSpacing.s) {
-            Button(action: actions.play) {
-                HStack(spacing: AppSpacing.s) {
-                    if isStarting {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Starting…")
-                    } else {
-                        Label(actions.playTitle, systemImage: "play.fill")
-                    }
+            if isRunningExternally {
+                // The game has its own window in the standalone emulator.
+                Button(action: session.showExternalWindow) {
+                    Label("Switch to \(session.coreName)", systemImage: "macwindow")
+                        .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+                .help("“\(game.title)” is running in \(session.coreName)")
+
+                Button {
+                    Task { await session.stop(context: context) }
+                } label: {
+                    Image(systemName: "stop.fill")
+                        .modifier(RoundGlassLabel())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .help("Quit Game")
+                .accessibilityLabel("Quit Game")
+            } else {
+                Button(action: actions.play) {
+                    HStack(spacing: AppSpacing.s) {
+                        if isStarting {
+                            if let progress = emulators.downloads.values.first {
+                                ProgressView(value: progress)
+                                    .progressViewStyle(.circular)
+                                    .controlSize(.small)
+                            } else {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                            Text(startingMessage)
+                        } else {
+                            Label(actions.playTitle, systemImage: "play.fill")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+                .disabled(isStarting)
             }
-            .buttonStyle(.glassProminent)
-            .controlSize(.large)
-            .keyboardShortcut(.defaultAction)
-            .disabled(isStarting)
 
             Button(action: actions.toggleFavorite) {
                 Image(systemName: game.isFavorite ? "heart.fill" : "heart")
@@ -193,6 +224,16 @@ struct GameInspector: View {
     private var isStarting: Bool {
         if case .preparing = session.phase { return true }
         return false
+    }
+
+    /// A standalone emulator has no player window to show what it does.
+    private var startingMessage: String {
+        if session.standaloneName != nil, case .preparing(let message) = session.phase { return message }
+        return String(localized: "Starting…")
+    }
+
+    private var isRunningExternally: Bool {
+        session.phase == .external && session.runningGameID == game.id
     }
 
     // MARK: Sections

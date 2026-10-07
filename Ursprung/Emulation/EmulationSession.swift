@@ -30,6 +30,8 @@ final class EmulationSession {
         case idle
         case preparing(String)
         case running
+        /// A standalone emulator runs the game in its own window.
+        case external
         case failed(Failure)
     }
 
@@ -38,6 +40,8 @@ final class EmulationSession {
         let message: String
         /// The Settings tab that fixes the cause (missing core or BIOS).
         var settingsTab: SettingsTab?
+        /// The standalone emulator's log of the failed run.
+        var logURL: URL?
     }
 
     struct Toast: Identifiable, Equatable {
@@ -68,6 +72,9 @@ final class EmulationSession {
     private(set) var gameTitle = ""
     private(set) var systemID: String?
     private(set) var coreName = ""
+    /// The standalone emulator of the game being launched or running; nil
+    /// for libretro cores. Such a game has no player window.
+    private(set) var standaloneName: String?
     private(set) var isPaused = false
     private(set) var isFastForwarding = false
     private(set) var isRewinding = false
@@ -122,6 +129,11 @@ final class EmulationSession {
 
     private(set) var core: LibretroCore?
     private var runner: EmulationRunner?
+    /// The standalone emulator's process while `phase == .external`.
+    private var external: ExternalSession?
+    /// Its state folder and log, for cleaning up when it ends.
+    private var externalStateFolder: URL?
+    private var externalLog: URL?
     private var gameUUID: UUID?
     private var coreID: String?
     /// Where the running game's states live below its folder: the core, or
@@ -175,6 +187,10 @@ final class EmulationSession {
             MainActor.assumeIsolated {
                 // Flush battery saves and play time before the process exits.
                 self?.runner?.stopAndWait()
+                if let external = self?.external {
+                    let exit = external.stopAndWait()
+                    self?.finishExternal(cleanExit: exit?.isClean ?? false, context: nil)
+                }
                 self?.recordPlayTime(context: nil)
             }
         }
@@ -194,6 +210,7 @@ final class EmulationSession {
         let generation = generation
         // The preparing panel shows the title above the message.
         gameTitle = game.title
+        standaloneName = game.system.map { $0.core(withID: game.coreID ?? Preferences.coreChoice(for: $0.id)) }?.standalone?.name
         phase = .preparing(String(localized: "Loading game…"))
         await shutDownRunner(context: context)
         guard generation == self.generation else { return }
@@ -237,20 +254,8 @@ final class EmulationSession {
             return
         }
 
-        // Launching a standalone emulator comes with phase 3 of
-        // docs/STANDALONE_PLAN.md.
         if let emulator = definition.standalone {
-            do {
-                phase = .preparing(emulators.isInstalled(emulator)
-                    ? String(localized: "Starting \(emulator.name)…")
-                    : String(localized: "Downloading \(emulator.name)…"))
-                _ = try await emulators.ensureInstalled(emulator)
-                try checkCurrent(generation)
-                phase = .failed(Failure(message: String(localized: "\(emulator.name) is installed, but this version of Ursprung can’t start it yet.")))
-            } catch {
-                guard generation == self.generation, !(error is CancellationError) else { return }
-                phase = .failed(Failure(message: error.localizedDescription, settingsTab: .cores))
-            }
+            await launch(game, in: emulator, system: system, resume: resume, context: context, generation: generation)
             return
         }
 
@@ -460,6 +465,122 @@ final class EmulationSession {
         return (url, Checksum.hex(try Checksum.crc(of: url)))
     }
 
+    // MARK: - Standalone emulators
+
+    /// Starts `game` in a standalone emulator (docs/STANDALONE_PLAN.md):
+    /// installs it if needed, checks what would make it show an error dialog,
+    /// writes its settings and launches it in its own window.
+    private func launch(_ game: Game, in emulator: StandaloneEmulator, system: GameSystem, resume: Bool,
+                        context: ModelContext, generation: Int) async {
+        var settingsTab: SettingsTab? = .cores
+        do {
+            phase = .preparing(emulators.isInstalled(emulator)
+                ? String(localized: "Starting \(emulator.name)…")
+                : String(localized: "Downloading \(emulator.name)…"))
+            let app = try await emulators.ensureInstalled(emulator)
+            try checkCurrent(generation)
+            settingsTab = nil
+
+            let stateFolder = SaveStateStore.directory(in: AppPaths.states, gameID: game.id, coreID: emulator.id)
+            // The metadata region, when the disc does not tell which BIOS it wants.
+            let fallbackRegion: PS2BIOS.Region = switch Preferences.scraperRegion {
+            case "us": .usa
+            case "jp": .japan
+            default: .europe
+            }
+            let logFolder = emulators.logFolder(for: emulator)
+            let request = ARMSX2Launch.Request(
+                app: app, executable: emulator.executable,
+                dataFolder: emulators.dataFolder(for: emulator),
+                logFile: logFolder.appending(path: "last-run.log"),
+                pineFolder: URL(filePath: NSTemporaryDirectory()).appending(path: "Ursprung-PINE", directoryHint: .isDirectory),
+                game: game.fileURL,
+                biosFolder: AppPaths.system.appending(path: system.biosFolder?.path ?? "", directoryHint: .isDirectory),
+                dumps: system.biosFolder.map(bios.dumps(in:)) ?? [],
+                fallbackRegion: fallbackRegion,
+                memoryCardFolder: AppPaths.saves.appending(path: system.id, directoryHint: .isDirectory)
+                    .appending(path: game.id.uuidString, directoryHint: .isDirectory),
+                saveStateFolder: stateFolder,
+                snapshotFolder: ScreenshotStore.directory(in: AppPaths.extras, gameID: game.id),
+                resume: resume,
+                saveStateOnShutdown: Preferences.autosaveOnQuit,
+                fullscreen: Preferences.standaloneFullscreen,
+                saveStateVersion: emulator.saveStateVersion)
+            let launch = try await Self.prepare(request)
+            try checkCurrent(generation)
+
+            let external = try ExternalSession(executable: launch.executable, arguments: launch.arguments,
+                                               environment: launch.environment,
+                                               output: logFolder.appending(path: "last-run-output.log"))
+            external.onExit = { [weak self] exit in self?.externalDidExit(exit) }
+            self.external = external
+            externalStateFolder = stateFolder
+            externalLog = launch.logFile
+            startedAt = .now
+            phase = .external
+            game.lastPlayed = .now
+            game.playCount += 1
+            try? context.save()
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["URSPRUNG_DEBUG_PLAY"] != nil {
+                // Development aid: quit the emulator like the Quit button, then Ursprung.
+                Task {
+                    try? await Task.sleep(for: .seconds(20)); await stop(context: nil)
+                    try? await Task.sleep(for: .seconds(2)); NSApp.terminate(nil)
+                }
+            }
+            #endif
+        } catch {
+            guard generation == self.generation, !(error is CancellationError) else { return }
+            phase = .failed(Failure(message: error.localizedDescription, settingsTab: settingsTab))
+        }
+    }
+
+    @concurrent
+    private static func prepare(_ request: ARMSX2Launch.Request) async throws -> ARMSX2Launch {
+        try ARMSX2Launch.prepare(request, environment: ProcessInfo.processInfo.environment)
+    }
+
+    /// The emulator ended without Ursprung asking: the user quit it, or it crashed.
+    private func externalDidExit(_ exit: ExternalSession.Exit) {
+        // A stop or another launch is finishing the session.
+        guard shutdown == nil, !exit.wasRequested else { return }
+        let log = externalLog
+        let name = coreName
+        finishExternal(cleanExit: exit.isClean, context: nil)
+        guard !exit.isClean else {
+            phase = .idle
+            return
+        }
+        let reason = log.flatMap { try? String(contentsOf: $0, encoding: .utf8) }.flatMap(ARMSX2Launch.errorMessage(inLog:))
+        let message = reason.map { String(localized: "\(name) quit unexpectedly: \($0)") }
+            ?? String(localized: "\(name) quit unexpectedly. Its log may tell why.")
+        phase = .failed(Failure(message: message, logURL: log))
+    }
+
+    /// Records the play time and drops a resume state the session did not
+    /// write. After a crash the old one is the best there is, so it stays.
+    private func finishExternal(cleanExit: Bool, context: ModelContext?) {
+        recordPlayTime(context: context)
+        if cleanExit, let folder = externalStateFolder, let startedAt {
+            ARMSX2States.removeStaleResumeState(in: folder, olderThan: startedAt)
+        }
+        external = nil
+        externalStateFolder = nil
+        externalLog = nil
+        startedAt = nil
+    }
+
+    /// Brings the standalone emulator's window to the front.
+    func showExternalWindow() {
+        external?.activate()
+    }
+
+    /// Closes a failure shown in the library instead of the player window.
+    func dismissFailure() {
+        if case .failed = phase { phase = .idle }
+    }
+
     // MARK: - Stop
 
     func stop(context: ModelContext?) async {
@@ -474,6 +595,15 @@ final class EmulationSession {
     /// runner is stopped once and a new game waits until the old one is gone.
     private func shutDownRunner(context: ModelContext?) async {
         if let shutdown { return await shutdown.value }
+        if let external {
+            let task = Task {
+                let exit = await external.stop()
+                finishExternal(cleanExit: exit.isClean, context: context)
+                shutdown = nil
+            }
+            shutdown = task
+            return await task.value
+        }
         guard let runner else { return }
         fpsTimer?.invalidate()
         let task = Task {

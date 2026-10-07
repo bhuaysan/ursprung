@@ -258,6 +258,23 @@ struct LibraryView: View {
                     Text("The file was moved, renamed or deleted. Locate it to keep favorites, play time and saves with the game.")
                 }
             }
+            // A standalone emulator's game has no player window to show why it failed.
+            .alert(standaloneFailureTitle,
+                   isPresented: Binding(get: { standaloneFailure != nil }, set: { if !$0 { session.dismissFailure() } }),
+                   presenting: standaloneFailure) { failure in
+                if let tab = failure.settingsTab {
+                    Button("Open Settings") {
+                        settingsTab = tab
+                        openSettings()
+                    }
+                }
+                if let log = failure.logURL {
+                    Button("Show Log") { NSWorkspace.shared.open(log) }
+                }
+                Button("OK", role: .cancel) {}
+            } message: { failure in
+                Text(failure.message)
+            }
             .confirmationDialog("Refetch metadata for all games?", isPresented: $isConfirmingRefetch) {
                 // Destructive: it overwrites existing metadata. Cancel keeps Escape.
                 Button("Refetch All", role: .destructive) { metadata.enqueue(games, force: true, context: context) }
@@ -265,6 +282,17 @@ struct LibraryView: View {
             } message: {
                 Text("Titles, descriptions and artwork of every game are replaced with the data from ScreenScraper. Details you edited yourself are kept.")
             }
+    }
+
+    private var standaloneFailure: EmulationSession.Failure? {
+        guard session.standaloneName != nil, case .failed(let failure) = session.phase else { return nil }
+        return failure
+    }
+
+    private var standaloneFailureTitle: Text {
+        // Only a run that ended has a log.
+        standaloneFailure?.logURL == nil ? Text("“\(session.gameTitle)” couldn't be started")
+                                         : Text("“\(session.gameTitle)” stopped")
     }
 
     private func observers(_ content: some View, shelf: Shelf) -> some View {
@@ -618,6 +646,21 @@ struct LibraryView: View {
             }
         }
 
+        if session.phase == .external {
+            ToolbarItem {
+                Menu {
+                    Button("Switch to \(session.coreName)", systemImage: "macwindow") { session.showExternalWindow() }
+                    Button("Quit “\(session.gameTitle)”", systemImage: "stop.fill") {
+                        Task { await session.stop(context: context) }
+                    }
+                } label: {
+                    Label("Running in \(session.coreName)", systemImage: "gamecontroller.fill")
+                }
+                .menuIndicator(.hidden)
+                .help("“\(session.gameTitle)” is running in \(session.coreName)")
+            }
+        }
+
         ToolbarItemGroup {
             Menu {
                 LibraryViewModeItems()
@@ -737,7 +780,8 @@ struct LibraryView: View {
             game.missingSince = nil
             try? context.save()
         }
-        openWindow(id: WindowID.player)
+        // A standalone emulator opens its own window.
+        if game.effectiveCore?.isLibretro != false { openWindow(id: WindowID.player) }
         let resume = resume ?? Preferences.resumeAutomatically
         Task { await session.launch(game, context: context, resume: resume, state: state) }
     }
@@ -748,8 +792,10 @@ struct LibraryView: View {
             game: game,
             play: { play(game) },
             playAlternate: { play(game, resume: !resumes) },
-            hasAutosave: game.effectiveCore.map {
-                SaveStateStore.autosave(in: AppPaths.states, gameID: game.id, coreID: $0.id) != nil
+            hasAutosave: game.effectiveCore.map { core in
+                core.isLibretro ? SaveStateStore.autosave(in: AppPaths.states, gameID: game.id, coreID: core.id) != nil
+                    : ARMSX2States.resumeState(in: SaveStateStore.directory(in: AppPaths.states, gameID: game.id,
+                                                                            coreID: core.id)) != nil
             } ?? false,
             resumesAutomatically: resumes,
             toggleFavorite: {

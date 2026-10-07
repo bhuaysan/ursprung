@@ -10794,6 +10794,146 @@
           }
         }
       }
+    },
+    "“%@” can't be read. Check its permissions in the Finder (Get Info › Sharing & Permissions), then try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ kann nicht gelesen werden. Prüfe die Zugriffsrechte im Finder (Informationen › Teilen & Zugriffsrechte) und versuche es erneut."
+          }
+        }
+      }
+    },
+    "The game's memory card is locked or read-only, so its saves couldn't be written: %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Memory Card des Spiels ist gesperrt oder schreibgeschützt, deshalb können keine Spielstände gespeichert werden: %@."
+          }
+        }
+      }
+    },
+    "Ursprung can't write to “%@”. Check the folder's permissions, then try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprung kann nicht in „%@“ schreiben. Prüfe die Zugriffsrechte des Ordners und versuche es erneut."
+          }
+        }
+      }
+    },
+    "The emulator's settings couldn't be written. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Einstellungen des Emulators konnten nicht geschrieben werden. %@"
+          }
+        }
+      }
+    },
+    "%@ quit unexpectedly: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ wurde unerwartet beendet: %2$@"
+          }
+        }
+      }
+    },
+    "%@ quit unexpectedly. Its log may tell why.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde unerwartet beendet. Das Protokoll nennt vielleicht den Grund."
+          }
+        }
+      }
+    },
+    "“%@” couldn't be started": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ konnte nicht gestartet werden"
+          }
+        }
+      }
+    },
+    "“%@” stopped": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wurde beendet"
+          }
+        }
+      }
+    },
+    "Show Log": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protokoll anzeigen"
+          }
+        }
+      }
+    },
+    "Switch to %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu %@ wechseln"
+          }
+        }
+      }
+    },
+    "Quit “%@”": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ beenden"
+          }
+        }
+      }
+    },
+    "Running in %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft in %@"
+          }
+        }
+      }
+    },
+    "“%@” is running in %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@“ läuft in %2$@"
+          }
+        }
+      }
+    },
+    "Play in full screen": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Vollbild spielen"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
