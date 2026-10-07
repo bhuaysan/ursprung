@@ -1,6 +1,6 @@
 # Ursprung — Standalone Emulators and PlayStation 2: Plan
 
-7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), nothing implemented. Comes before `docs/VULKAN_PLAN.md`.
+7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), phase 1 done on branch `feature/ps2-armsx2` (7 October 2026). Comes before `docs/VULKAN_PLAN.md`.
 
 Ursprung runs every game in-process through a libretro core. PlayStation 2 has no libretro core that works on macOS arm64 today (see *Background*). This plan adds a second kind of emulator, a **standalone emulator** that Ursprung downloads, configures and launches as a separate process. The first and only one in this plan is ARMSX2, which makes PlayStation 2 playable.
 
@@ -217,7 +217,7 @@ A shell script in the scratchpad drives the downloaded nightly with a prepared d
 - **S7** Input: does SDL3 automapping pick up the controllers Ursprung supports (Xbox, DualSense, Switch Pro, 8BitDo)? What does a keyboard binding look like in `[Pad1]`?
 - **S8** Is the `.p2s` thumbnail usable at grid size, and is the `<serial> (<CRC>)` prefix stable across BIOS versions?
 
-### Phase 1 — Model and catalog (S–M)
+### Phase 1 — Model and catalog (S–M) — done 7 October 2026
 
 - `CoreBackend`, `StandaloneEmulator`, `Cores.armsx2`, the `ps2` system, folder aliases, `discSystems`.
 - BIOS folder requirement, content check (ROMDIR), import of arbitrary names plus side files, Settings › BIOS shows found dumps with region and version.
