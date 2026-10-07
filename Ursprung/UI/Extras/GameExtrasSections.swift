@@ -179,36 +179,33 @@ struct ManualSection: View {
 
     var body: some View {
         let manual = { _ = revision; return ManualStore.manual(in: AppPaths.extras, gameID: game.id) }()
-        InfoSection("Manual") {
-            if let manual {
-                HStack(spacing: AppSpacing.s) {
-                    Image(systemName: "book.closed")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text(manual.lastPathComponent)
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            SymbolRow("Manual", symbol: "book.closed") {
+                if let manual {
+                    Button(manual.lastPathComponent) { openWindow(id: WindowID.manual, value: game.id) }
+                        .buttonStyle(.link)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .help(manual.lastPathComponent)
-                }
-                .font(.callout)
-                HStack(spacing: AppSpacing.m) {
-                    Button("Open") { openWindow(id: WindowID.manual, value: game.id) }
-                    Button("Replace…") { isImporting = true }
-                    Button("Remove") {
-                        try? ManualStore.removeManual(in: AppPaths.extras, gameID: game.id)
-                        revision += 1
+                        .help("Open Manual")
+                    Menu {
+                        Button("Replace…") { isImporting = true }
+                        Button("Remove") {
+                            try? ManualStore.removeManual(in: AppPaths.extras, gameID: game.id)
+                            revision += 1
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
+                    .menuStyle(.button)
+                    .menuIndicator(.hidden)
+                    .buttonStyle(.borderless)
+                    .fixedSize()
+                    .accessibilityLabel("Manual Actions")
+                } else {
+                    Button("Add Manual…") { isImporting = true }
+                        .buttonStyle(.link)
+                        .help("Keep the game's manual here, as a PDF or picture. It opens next to the game, also from the game menu.")
                 }
-                .buttonStyle(.link)
-                .font(.callout)
-            } else {
-                Text("Keep the game's manual here, as a PDF or picture. It opens next to the game, also from the game menu.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Add Manual…") { isImporting = true }
-                    .buttonStyle(.link)
-                    .font(.callout)
             }
             if let failure {
                 StatusLabel("The manual couldn't be added", kind: .error, detail: failure)
@@ -243,14 +240,13 @@ struct PatchesSection: View {
     var body: some View {
         let patches = { _ = revision; return PatchStore.patches(in: AppPaths.extras, gameID: game.id) }()
         let active = { _ = revision; return PatchStore.active(in: AppPaths.extras, gameID: game.id) }()
-        InfoSection("Patches") {
-            if patches.isEmpty {
-                Text("Translations, hacks and fixes as IPS, UPS or BPS files. The game file stays unchanged; a patched game keeps its own saves.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                InfoRowLayout("Play") {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            SymbolRow("Patches", symbol: "bandage") {
+                if patches.isEmpty {
+                    Button("Add Patch…") { isImporting = true }
+                        .buttonStyle(.link)
+                        .help("Translations, hacks and fixes as IPS, UPS or BPS files. The game file stays unchanged; a patched game keeps its own saves.")
+                } else {
                     Picker("Play", selection: Binding(get: { active }, set: { setActive($0) })) {
                         Text("Original").tag(URL?.none)
                         Divider()
@@ -258,26 +254,30 @@ struct PatchesSection: View {
                             Text(verbatim: patch.deletingPathExtension().lastPathComponent).tag(URL?.some(patch))
                         }
                     }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .frame(maxWidth: 180, alignment: .leading)
-                }
-                ForEach(patches, id: \.self) { patch in
-                    PatchRow(patch: patch, game: game, isActive: patch == active) {
-                        try? PatchStore.remove(patch, in: AppPaths.extras, gameID: game.id)
-                        revision += 1
-                    }
-                }
-                if session.runningGameID == game.id {
-                    Text("Changes apply the next time the game starts.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .modifier(InlineMenu())
+                    .help("The version the game starts as")
                 }
             }
-            Button("Add Patch…") { isImporting = true }
-                .buttonStyle(.link)
-                .font(.callout)
+            if !patches.isEmpty {
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    ForEach(patches, id: \.self) { patch in
+                        PatchRow(patch: patch, game: game, isActive: patch == active) {
+                            try? PatchStore.remove(patch, in: AppPaths.extras, gameID: game.id)
+                            revision += 1
+                        }
+                    }
+                    if session.runningGameID == game.id {
+                        Text("Changes apply the next time the game starts.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button("Add Patch…") { isImporting = true }
+                        .buttonStyle(.link)
+                        .font(.callout)
+                }
+                // Under the value, past the symbol column.
+                .padding(.leading, 18 + AppSpacing.s)
+            }
             if let failure {
                 StatusLabel("The patch couldn't be added", kind: .error, detail: failure)
                     .font(.callout)
@@ -317,11 +317,10 @@ private struct PatchRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: AppSpacing.s) {
-            Image(systemName: isActive ? "checkmark.circle.fill" : "bandage")
-                .foregroundStyle(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                // The menu above names the active patch; here it is only set apart.
                 Text(verbatim: patch.deletingPathExtension().lastPathComponent)
+                    .fontWeight(isActive ? .semibold : .regular)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 if let note {
@@ -359,7 +358,7 @@ private struct PatchRow: View {
 
 // MARK: - Cheats
 
-/// How many cheats a game has; Edit… opens the editor.
+/// How many cheats a game has and how many are on; Edit… opens the editor.
 struct CheatsSection: View {
     let game: Game
     @Environment(EmulationSession.self) private var session
@@ -367,14 +366,15 @@ struct CheatsSection: View {
 
     var body: some View {
         let cheats = session.runningGameID == game.id ? session.cheats : CheatStore.cheats(in: AppPaths.extras, gameID: game.id)
-        InfoSection("Cheats") {
-            InfoRowLayout("Codes") {
-                HStack(spacing: AppSpacing.s) {
-                    Text(cheats.isEmpty ? String(localized: "None")
-                         : String(localized: "On: \(cheats.filter(\.isEnabled).count) of \(cheats.count)"))
-                    Button("Edit…") { isEditing = true }
-                        .buttonStyle(.link)
-                }
+        SymbolRow("Cheats", symbol: "wand.and.stars") {
+            if cheats.isEmpty {
+                Button("Add Cheats…") { isEditing = true }
+                    .buttonStyle(.link)
+                    .help("Codes such as Game Genie or Action Replay, switched on and off while you play.")
+            } else {
+                Text("\(cheats.filter(\.isEnabled).count) of \(cheats.count) cheats on")
+                Button("Edit…") { isEditing = true }
+                    .buttonStyle(.link)
             }
         }
         .sheet(isPresented: $isEditing) {

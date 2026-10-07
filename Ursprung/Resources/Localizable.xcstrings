@@ -11464,6 +11464,76 @@
           }
         }
       }
+    },
+    "Extras": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extras"
+          }
+        }
+      }
+    },
+    "Add Cheats…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cheats hinzufügen …"
+          }
+        }
+      }
+    },
+    "Open Manual": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anleitung öffnen"
+          }
+        }
+      }
+    },
+    "Manual Actions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktionen für die Anleitung"
+          }
+        }
+      }
+    },
+    "The version the game starts as": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Fassung, mit der das Spiel startet"
+          }
+        }
+      }
+    },
+    "Codes such as Game Genie or Action Replay, switched on and off while you play.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codes wie Game Genie oder Action Replay, die du beim Spielen ein- und ausschaltest."
+          }
+        }
+      }
+    },
+    "%lld of %lld cheats on": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld von %lld Cheats an"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

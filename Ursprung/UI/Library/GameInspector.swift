@@ -59,13 +59,7 @@ struct GameInspector: View {
                     MediaSection(game: game)
                     emulationSection
                     discsSection
-                    if game.system?.supportsPatches == true {
-                        PatchesSection(game: game)
-                    }
-                    if game.effectiveCore?.isLibretro != false {
-                        CheatsSection(game: game)
-                    }
-                    ManualSection(game: game)
+                    extrasSection
                     fileSection
                 }
                 .padding(.top, AppSpacing.xl)
@@ -457,7 +451,7 @@ struct GameInspector: View {
         if let system = game.system {
             InfoSection("Emulation") {
                 readiness(system)
-                SettingRow("Core", symbol: "cpu",
+                SymbolRow("Core", symbol: "cpu",
                            note: system.cores.count > 1 && game.coreID == nil ? "Same as System" : nil) {
                     if system.cores.count > 1 {
                         GameCorePicker(actions: actions, showsCoreName: true)
@@ -466,7 +460,7 @@ struct GameInspector: View {
                         Text(verbatim: system.defaultCore.name)
                     }
                 }
-                SettingRow("Controls", symbol: "dpad") {
+                SymbolRow("Controls", symbol: "dpad") {
                     HStack(spacing: AppSpacing.s) {
                         Text(game.inputProfileData == nil ? "System Controls" : "Custom Controls")
                         Button("Edit…") { isEditingControls = true }
@@ -475,10 +469,10 @@ struct GameInspector: View {
                 }
                 if let emulator = game.effectiveCore?.standalone {
                     // Shaders and achievements are the standalone emulator's own.
-                    SettingRow("Graphics", symbol: "tv") {
+                    SymbolRow("Graphics", symbol: "tv") {
                         Text(verbatim: String(localized: "Set in \(emulator.name)"))
                     }
-                    SettingRow("Achievements", symbol: "trophy") {
+                    SymbolRow("Achievements", symbol: "trophy") {
                         Text(verbatim: String(localized: "Sign in to RetroAchievements in \(emulator.name)"))
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -493,6 +487,20 @@ struct GameInspector: View {
             }
             .sheet(isPresented: $isEditingControls) {
                 GameControlsEditor(game: game)
+            }
+        }
+    }
+
+    /// What the user keeps with the game, one line each until there is more.
+    private var extrasSection: some View {
+        InfoSection("Extras") {
+            ManualSection(game: game)
+            if game.system?.supportsPatches == true {
+                PatchesSection(game: game)
+            }
+            // A standalone emulator has its own cheats.
+            if game.effectiveCore?.isLibretro != false {
+                CheatsSection(game: game)
             }
         }
     }
@@ -739,9 +747,9 @@ struct InfoRowLayout<Value: View>: View {
     }
 }
 
-/// A setting as symbol and value, with an optional quiet note after it; the
-/// title is for the tooltip and VoiceOver.
-private struct SettingRow<Value: View>: View {
+/// A setting or extra as symbol and value, with an optional quiet note after
+/// it; the title is the symbol's tooltip.
+struct SymbolRow<Value: View>: View {
     let title: LocalizedStringKey
     let symbol: String
     var note: LocalizedStringKey?
@@ -775,7 +783,7 @@ private struct SettingRow<Value: View>: View {
 
 /// A menu picker drawn as its value and a small arrow, so it reads as part
 /// of a line of text rather than as a form field.
-private struct InlineMenu: ViewModifier {
+struct InlineMenu: ViewModifier {
     func body(content: Content) -> some View {
         content
             .pickerStyle(.menu)
@@ -821,7 +829,7 @@ private struct GameShaderPicker: View {
     var body: some View {
         let _ = revision
         let inherited = ShaderSelection.current(for: systemID).title
-        SettingRow("Shader", symbol: "tv", note: selection == nil ? "Same as System" : nil) {
+        SymbolRow("Shader", symbol: "tv", note: selection == nil ? "Same as System" : nil) {
             ShaderPicker(title: "Shader", selection: Binding(get: { selection }, set: { choose($0) }),
                          inheritTitle: String(localized: "Same as System (\(inherited))"),
                          currentValue: selection?.title ?? inherited)
