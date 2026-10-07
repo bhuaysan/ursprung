@@ -55,17 +55,22 @@ struct BIOSSettingsView: View {
                     Button("Import BIOS Files…", action: presentImportPanel)
                 }
             } footer: {
-                Text("Drop BIOS files or a whole folder here. Ursprung recognizes them by checksum and renames them to what the cores expect. You must own the original hardware to use its BIOS.")
+                Text("Drop BIOS files or a whole folder here. Ursprung recognizes them by checksum and renames them to what the cores expect; PlayStation 2 BIOS dumps are recognized by their content and keep their names. You must own the original hardware to use its BIOS.")
                     .settingsFootnote()
             }
 
-            ForEach(SystemCatalog.all.filter { !$0.bios.isEmpty }) { system in
+            ForEach(SystemCatalog.all.filter { !$0.bios.isEmpty || $0.biosFolder != nil }) { system in
                 Section(system.name) {
+                    let coreID = system.core(withID: Preferences.coreChoice(for: system.id)).id
                     // Needed by the core the system uses; an alternative of
                     // the same group that is present makes a file optional.
-                    let needed = Set(bios.missingRequired(for: system, coreID: system.core(withID: Preferences.coreChoice(for: system.id)).id))
+                    let needed = Set(bios.missingRequired(for: system, coreID: coreID))
                     ForEach(system.bios) { file in
                         BIOSRow(file: file, status: bios.status(of: file), system: system, isNeeded: needed.contains(file))
+                    }
+                    if let folder = system.biosFolder {
+                        BIOSFolderRows(folder: folder, dumps: bios.dumps(in: folder), system: system,
+                                       isNeeded: bios.missingFolder(for: system, coreID: coreID) != nil)
                     }
                 }
             }
@@ -103,6 +108,70 @@ struct BIOSSettingsView: View {
     private func importFiles(_ urls: [URL]) {
         Task { importResult = await bios.importFiles(urls) }
     }
+}
+
+/// The dumps found in a BIOS folder, or one row saying that none is there.
+private struct BIOSFolderRows: View {
+    let folder: BIOSFolder
+    let dumps: [PS2BIOS]
+    let system: GameSystem
+    /// Empty, and the core the system uses cannot start without a dump.
+    let isNeeded: Bool
+
+    var body: some View {
+        if dumps.isEmpty {
+            LabeledContent {
+                if isNeeded {
+                    StatusLabel("Missing", kind: .error)
+                } else {
+                    StatusLabel("Missing", systemImage: "circle.dashed", kind: .neutral)
+                }
+            } label: {
+                Text(verbatim: BIOSManager.description(of: folder).capitalizedSentence)
+                Text(requirement)
+            }
+        } else {
+            ForEach(dumps, id: \.fileName) { dump in
+                LabeledContent {
+                    StatusLabel("Recognized", systemImage: "checkmark.circle", kind: .success)
+                } label: {
+                    Text(verbatim: dump.fileName).monospaced()
+                    Text(details(of: dump))
+                }
+            }
+        }
+    }
+
+    private var requirement: String {
+        let cores = system.cores.filter { folder.isRequired(forCore: $0.id) }.map(\.name)
+        guard !cores.isEmpty else { return String(localized: "Optional") }
+        return String(localized: "Required for \(cores.formatted(.list(type: .and)))")
+    }
+
+    /// "Europe · Version 2.00 · 14 Jun 2004"
+    private func details(of dump: PS2BIOS) -> String {
+        var parts = [regionName(dump.region), String(localized: "Version \(dump.version)")]
+        if let date = dump.date {
+            parts.append(date.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, timeZone: .gmt)))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func regionName(_ region: PS2BIOS.Region) -> String {
+        switch region {
+        case .japan: String(localized: "Japan")
+        case .usa: String(localized: "USA")
+        case .europe: String(localized: "Europe")
+        case .asia: String(localized: "Asia")
+        case .china: String(localized: "China")
+        case .other: String(localized: "Other Region")
+        }
+    }
+}
+
+private extension String {
+    /// "a PlayStation 2 BIOS" → "A PlayStation 2 BIOS"
+    var capitalizedSentence: String { prefix(1).uppercased() + dropFirst() }
 }
 
 private struct BIOSRow: View {

@@ -58,6 +58,23 @@ nonisolated enum Cores {
     static let bluemsx = CoreDefinition(id: "bluemsx", name: "blueMSX", systemAssets: assets.appending(path: "blueMSX.zip"))
     static let fmsx = CoreDefinition(id: "fmsx", name: "fMSX")
     static let pokemini = CoreDefinition(id: "pokemini", name: "PokeMini")
+
+    // MARK: Standalone emulators
+
+    /// PlayStation 2 through ARMSX2's macOS build: no libretro core runs PS2
+    /// games on Apple Silicon (docs/STANDALONE_PLAN.md).
+    static let armsx2 = CoreDefinition(id: StandaloneEmulator.armsx2.id, name: StandaloneEmulator.armsx2.name,
+                                       backend: .standalone(.armsx2))
+}
+
+nonisolated extension StandaloneEmulator {
+    /// Tested with the checklist in docs/STANDALONE_PLAN.md ("Spike results").
+    static let armsx2 = StandaloneEmulator(
+        id: "armsx2", name: "ARMSX2", repository: "ARMSX2/ARMSX2",
+        release: Release(tag: "nightly-20261006", assetName: "ARMSX2-nightly-20261006-46c06fe7ca-macOS-arm64.tar.xz",
+                         sha256: "cfb15cb8c220de7172bcdb3a73f63fae6700b240bb2d671c93df574247e5fc8e",
+                         commit: "46c06fe7ca"),
+        teamIdentifier: "L296QD7JFU", executable: "Contents/MacOS/ARMSX2", saveStateVersion: 0x9A59_0000)
 }
 
 nonisolated enum SystemCatalog {
@@ -189,6 +206,13 @@ nonisolated enum SystemCatalog {
                    kind: .handheld, screenScraperID: 61, extensions: ["cso"],
                    folderAliases: ["psp", "playstationportable"],
                    cores: [Cores.ppsspp], accent: 0x1E1E1E, boxAspect: 0.58),
+        // `.cso` also stays a PSP extension: outside a PS2 folder it means PSP.
+        GameSystem(id: "ps2", name: "PlayStation 2", shortName: "PS2", manufacturer: "Sony", year: 2000,
+                   kind: .console, screenScraperID: 58, extensions: ["cso", "zso"],
+                   folderAliases: ["ps2", "playstation2", "sonyplaystation2"],
+                   cores: [Cores.armsx2],
+                   biosFolder: BIOSFolder(path: "pcsx2/bios", kind: .playStation2, requiredBy: [Cores.armsx2.id]),
+                   accent: 0x2B3990, boxAspect: 0.71),
 
         // MARK: NEC
         GameSystem(id: "pce", name: "PC Engine / TurboGrafx-16", shortName: "PCE", manufacturer: "NEC", year: 1987,
@@ -320,7 +344,7 @@ nonisolated enum SystemCatalog {
     }
 
     /// Systems whose games are commonly stored as disc images.
-    static let discSystems: Set<String> = ["psx", "psp", "segacd", "saturn", "dreamcast", "pcecd", "3do", "gamecube", "wii"]
+    static let discSystems: Set<String> = ["psx", "psp", "ps2", "segacd", "saturn", "dreamcast", "pcecd", "3do", "gamecube", "wii"]
 
     /// Cartridge systems whose ROMs Ursprung can patch (IPS, UPS, BPS):
     /// not disc images, and not arcade sets, which cores read as archives.

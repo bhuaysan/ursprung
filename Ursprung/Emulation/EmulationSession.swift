@@ -208,7 +208,7 @@ final class EmulationSession {
         isMenuVisible = false
         userPaused = false
         toasts = []
-        input.stickDrivesDPad = !["n64", "psx", "psp", "saturn", "dreamcast", "gamecube", "wii"].contains(system.id)
+        input.stickDrivesDPad = !["n64", "psx", "psp", "ps2", "saturn", "dreamcast", "gamecube", "wii"].contains(system.id)
 
         let definition = system.core(withID: game.coreID ?? Preferences.coreChoice(for: system.id))
         coreID = definition.id
@@ -227,11 +227,19 @@ final class EmulationSession {
 
         await bios.refresh()
         guard generation == self.generation else { return }
-        let missing = bios.missingRequired(for: system, coreID: definition.id)
+        let missing = bios.missingDescriptions(for: system, coreID: definition.id)
         if !missing.isEmpty {
-            let names = missing.map(\.fileName).joined(separator: ", ")
+            let names = missing.joined(separator: ", ")
             phase = .failed(Failure(message: String(localized: "\(definition.name) needs BIOS files that are missing: \(names). Import them in Settings → BIOS, or choose another core."),
                                     settingsTab: .bios))
+            return
+        }
+
+        // Standalone emulators are installed and launched by phases 2 and 3
+        // of docs/STANDALONE_PLAN.md.
+        if let emulator = definition.standalone {
+            phase = .failed(Failure(message: String(localized: "\(emulator.name) is not installed yet. This version of Ursprung can’t download it."),
+                                    settingsTab: .cores))
             return
         }
 

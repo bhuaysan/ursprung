@@ -2733,12 +2733,12 @@
         }
       }
     },
-    "Drop BIOS files or a whole folder here. Ursprung recognizes them by checksum and renames them to what the cores expect. You must own the original hardware to use its BIOS.": {
+    "Drop BIOS files or a whole folder here. Ursprung recognizes them by checksum and renames them to what the cores expect; PlayStation 2 BIOS dumps are recognized by their content and keep their names. You must own the original hardware to use its BIOS.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zieh BIOS-Dateien oder einen ganzen Ordner hierher. Ursprung erkennt sie anhand der Prüfsumme und benennt sie so, wie die Cores sie erwarten. Du musst die Originalhardware besitzen, um ihr BIOS zu verwenden."
+            "value": "Zieh BIOS-Dateien oder einen ganzen Ordner hierher. Ursprung erkennt sie anhand der Prüfsumme und benennt sie so, wie die Cores sie erwarten; BIOS-Dumps der PlayStation 2 erkennt Ursprung am Inhalt, sie behalten ihren Namen. Du musst die Originalhardware besitzen, um ihr BIOS zu verwenden."
           }
         }
       }
@@ -10611,6 +10611,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld× vergrößert, Mitte bei %@ von links und %@ von oben"
+          }
+        }
+      }
+    },
+    "a PlayStation 2 BIOS (any region)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ein PlayStation-2-BIOS (beliebige Region)"
+          }
+        }
+      }
+    },
+    "%@ is not installed yet. This version of Ursprung can’t download it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist noch nicht installiert. Diese Version von Ursprung kann es nicht herunterladen."
+          }
+        }
+      }
+    },
+    "Recognized": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erkannt"
+          }
+        }
+      }
+    },
+    "Version %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@"
+          }
+        }
+      }
+    },
+    "China": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "China"
+          }
+        }
+      }
+    },
+    "USA": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "USA"
+          }
+        }
+      }
+    },
+    "Other Region": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Region"
+          }
+        }
+      }
+    },
+    "Not Installed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht installiert"
+          }
+        }
+      }
+    },
+    "Standalone Emulators": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigenständige Emulatoren"
+          }
+        }
+      }
+    },
+    "Standalone emulators run games in their own window, for systems no libretro core plays well on this Mac. They are separate open source projects with their own licenses.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigenständige Emulatoren zeigen Spiele in einem eigenen Fenster, für Systeme, die kein libretro-Core auf diesem Mac gut spielt. Sie sind eigenständige Open-Source-Projekte mit eigenen Lizenzen."
           }
         }
       }

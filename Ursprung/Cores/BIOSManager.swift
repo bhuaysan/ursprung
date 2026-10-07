@@ -4,7 +4,8 @@ import CryptoKit
 import Foundation
 import Observation
 
-/// Verifies and imports BIOS files into the libretro system directory.
+/// Verifies and imports BIOS files into the libretro system directory, and
+/// finds the dumps in BIOS folders (`BIOSFolder`).
 @Observable
 final class BIOSManager {
     nonisolated enum Status: Sendable, Equatable {
@@ -22,12 +23,19 @@ final class BIOSManager {
     }
 
     private(set) var statuses: [String: Status]
+    /// Recognised dumps per `BIOSFolder.path`, sorted by file name.
+    private(set) var folderDumps: [String: [PS2BIOS]]
     private(set) var isRefreshing = false
     private let systemDirectory: URL
 
-    init(systemDirectory: URL = AppPaths.system, statuses: [String: Status] = [:]) {
+    init(systemDirectory: URL = AppPaths.system, statuses: [String: Status] = [:], folderDumps: [String: [PS2BIOS]] = [:]) {
         self.systemDirectory = systemDirectory
         self.statuses = statuses
+        self.folderDumps = folderDumps
+    }
+
+    func dumps(in folder: BIOSFolder) -> [PS2BIOS] {
+        folderDumps[folder.path] ?? []
     }
 
     func status(of file: BIOSFile) -> Status {
@@ -37,7 +45,27 @@ final class BIOSManager {
     /// Whether all BIOS files that `coreID` (default: the system's default
     /// core) needs are present.
     func isReady(_ system: GameSystem, coreID: String? = nil) -> Bool {
-        missingRequired(for: system, coreID: coreID).isEmpty
+        missingRequired(for: system, coreID: coreID).isEmpty && missingFolder(for: system, coreID: coreID) == nil
+    }
+
+    /// The system's BIOS folder when `coreID` needs a dump and it holds none.
+    func missingFolder(for system: GameSystem, coreID: String? = nil) -> BIOSFolder? {
+        guard let folder = system.biosFolder, folder.isRequired(forCore: coreID ?? system.defaultCore.id),
+              dumps(in: folder).isEmpty else { return nil }
+        return folder
+    }
+
+    /// What `coreID` is missing, for messages: file names, and a description
+    /// of a missing folder dump.
+    func missingDescriptions(for system: GameSystem, coreID: String? = nil) -> [String] {
+        missingRequired(for: system, coreID: coreID).map(\.fileName)
+            + (missingFolder(for: system, coreID: coreID).map { [Self.description(of: $0)] } ?? [])
+    }
+
+    nonisolated static func description(of folder: BIOSFolder) -> String {
+        switch folder.kind {
+        case .playStation2: String(localized: "a PlayStation 2 BIOS (any region)")
+        }
     }
 
     /// The BIOS files `coreID` cannot start without that are missing. Which
@@ -54,12 +82,16 @@ final class BIOSManager {
 
     func refresh() async {
         isRefreshing = true
-        statuses = await Self.computeStatuses(in: systemDirectory)
+        let snapshot = await Self.computeStatuses(in: systemDirectory)
+        statuses = snapshot.statuses
+        folderDumps = snapshot.folderDumps
         isRefreshing = false
     }
 
     /// Copies BIOS files into the system directory. Files are recognised by
     /// name (case-insensitive) or by MD5, and renamed to what the cores expect.
+    /// PlayStation 2 dumps are recognised by content and keep their names,
+    /// together with the side files of the same base name.
     func importFiles(_ urls: [URL]) async -> ImportResult {
         let result = await Self.performImport(urls, into: systemDirectory)
         await refresh()
@@ -68,8 +100,13 @@ final class BIOSManager {
 
     // MARK: - Background work
 
+    private nonisolated struct Snapshot: Sendable {
+        var statuses: [String: Status] = [:]
+        var folderDumps: [String: [PS2BIOS]] = [:]
+    }
+
     @concurrent
-    private static func computeStatuses(in systemDirectory: URL) async -> [String: Status] {
+    private static func computeStatuses(in systemDirectory: URL) async -> Snapshot {
         var result: [String: Status] = [:]
         for file in SystemCatalog.all.flatMap(\.bios) {
             let url = systemDirectory.appending(path: file.fileName)
@@ -83,7 +120,14 @@ final class BIOSManager {
                 result[file.fileName] = .present
             }
         }
-        return result
+        var folderDumps: [String: [PS2BIOS]] = [:]
+        for folder in SystemCatalog.all.compactMap(\.biosFolder) {
+            let directory = systemDirectory.appending(path: folder.path, directoryHint: .isDirectory)
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path(percentEncoded: false))) ?? []
+            folderDumps[folder.path] = names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+                .compactMap { PS2BIOS.inspect(directory.appending(path: $0)) }
+        }
+        return Snapshot(statuses: result, folderDumps: folderDumps)
     }
 
     @concurrent
@@ -92,11 +136,30 @@ final class BIOSManager {
         let byMD5 = Dictionary(known.compactMap { file in file.md5.map { ($0, file) } }, uniquingKeysWith: { first, _ in first })
         let byName = Dictionary(known.map { (($0.fileName as NSString).lastPathComponent.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
 
+        var files = expand(urls)
+        // PS2 dumps and their side files go into the folder under their own
+        // names, also side files that were not selected themselves.
+        var folderTargets: [String: String] = [:]
+        var unselectedSideFiles: [URL] = []
+        if let folder = SystemCatalog.all.compactMap(\.biosFolder).first(where: { $0.kind == .playStation2 }) {
+            for url in files where byName[url.lastPathComponent.lowercased()] == nil {
+                guard PS2BIOS.inspect(url) != nil else { continue }
+                folderTargets[pathKey(url)] = "\(folder.path)/\(url.lastPathComponent)"
+                for side in sideFiles(of: url) {
+                    if !files.contains(where: { pathKey($0) == pathKey(side) }) { unselectedSideFiles.append(side) }
+                    folderTargets[pathKey(side)] = "\(folder.path)/\(side.lastPathComponent)"
+                }
+            }
+        }
+        files += unselectedSideFiles
+
         var result = ImportResult()
-        for url in expand(urls) {
+        for url in files {
             let name = url.lastPathComponent
             let target: String
-            if let hash = md5(of: url), let file = byMD5[hash] {
+            if let folderTarget = folderTargets[pathKey(url)] {
+                target = folderTarget
+            } else if let hash = md5(of: url), let file = byMD5[hash] {
                 target = file.fileName
             } else if let file = byName[name.lowercased()] {
                 target = file.fileName
@@ -144,6 +207,22 @@ final class BIOSManager {
         guard let first = try? a.resourceValues(forKeys: key).fileResourceIdentifier,
               let second = try? b.resourceValues(forKeys: key).fileResourceIdentifier else { return false }
         return first.isEqual(second)
+    }
+
+    /// Files next to a PS2 dump that ARMSX2 loads with it (`<base>.NVM`, …).
+    private nonisolated static func sideFiles(of dump: URL) -> [URL] {
+        let directory = dump.deletingLastPathComponent()
+        let base = dump.deletingPathExtension().lastPathComponent.lowercased()
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path(percentEncoded: false))) ?? []
+        return names.map { directory.appending(path: $0) }.filter { url in
+            url.deletingPathExtension().lastPathComponent.lowercased() == base
+                && PS2BIOS.sideFileExtensions.contains(url.pathExtension.lowercased())
+        }
+    }
+
+    /// Compares URLs from the folder enumerator with ones built from a directory.
+    private nonisolated static func pathKey(_ url: URL) -> String {
+        url.resolvingSymlinksInPath().standardizedFileURL.path(percentEncoded: false)
     }
 
     /// Folders are imported recursively.

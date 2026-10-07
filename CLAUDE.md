@@ -17,7 +17,7 @@ GPL-3.0-or-later. See `docs/ARCHITECTURE.md` for the full picture.
 - `ROMS/`, `BIOS/`, `.env`, `Secrets.generated.swift`, `Config/Signing.local.xcconfig` must never be committed or pushed. Check `git status` before every commit.
 - ScreenScraper media URLs embed API credentials: never log, print or persist them.
 - New files start with `// SPDX-License-Identifier: GPL-3.0-or-later`.
-- No third-party dependencies without discussion. Agreed so far: rcheevos in `ThirdParty/rcheevos` (MIT, vendored) and librashader in `ThirdParty/librashader` (MPL-2.0/GPL-3.0, prebuilt dylib fetched by `Scripts/fetch-librashader.sh`); see their READMEs for updating.
+- No third-party dependencies without discussion. Agreed so far: rcheevos in `ThirdParty/rcheevos` (MIT, vendored) and librashader in `ThirdParty/librashader` (MPL-2.0/GPL-3.0, prebuilt dylib fetched by `Scripts/fetch-librashader.sh`); see their READMEs for updating. ARMSX2 (GPL-3.0) runs PlayStation 2 games as a standalone emulator: downloaded at runtime from its GitHub releases (pinned in `SystemCatalog`), never bundled or vendored; see `docs/STANDALONE_PLAN.md`.
 - User-facing strings must be localizable; add German to `Ursprung/Resources/Localizable.xcstrings`.
 
 ## Conventions

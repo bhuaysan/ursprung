@@ -409,7 +409,7 @@ struct GameInspector: View {
     /// "Recognized" is not "ready": a disc may lack tracks, a core a BIOS.
     @ViewBuilder
     private func readiness(_ system: GameSystem) -> some View {
-        let missingBIOS = bios.missingRequired(for: system, coreID: game.effectiveCore?.id)
+        let missingBIOS = bios.missingDescriptions(for: system, coreID: game.effectiveCore?.id)
         if !game.missingTracks.isEmpty {
             issueRow(StatusLabel("Disc files missing", kind: .warning, prominent: true,
                                  detail: game.missingTracks.joined(separator: ", ")),
@@ -417,7 +417,7 @@ struct GameInspector: View {
         }
         if !missingBIOS.isEmpty {
             issueRow(StatusLabel("BIOS missing", kind: .error, prominent: true,
-                                 detail: missingBIOS.map(\.fileName).joined(separator: ", ")),
+                                 detail: missingBIOS.joined(separator: ", ")),
                      action: "Import…") {
                 settingsTab = .bios
                 openSettings()

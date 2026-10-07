@@ -2,10 +2,12 @@
 
 import Foundation
 
-/// A libretro core that can run one or more systems. Cores are downloaded
-/// from the libretro buildbot on first use (see `CoreManager`).
+/// An emulator that can run one or more systems: usually a libretro core,
+/// downloaded from the libretro buildbot on first use (see `CoreManager`),
+/// or a standalone emulator that runs as its own process.
 nonisolated struct CoreDefinition: Sendable, Hashable, Identifiable {
-    /// Buildbot base name, e.g. `snes9x` for `snes9x_libretro.dylib`.
+    /// Buildbot base name, e.g. `snes9x` for `snes9x_libretro.dylib`; for a
+    /// standalone emulator its `StandaloneEmulator.id`.
     let id: String
     let name: String
     /// Frontend defaults for core options (user choices override these).
@@ -14,8 +16,76 @@ nonisolated struct CoreDefinition: Sendable, Hashable, Identifiable {
     /// (e.g. PPSSPP fonts & shaders).
     var systemAssets: URL? = nil
     var experimental: Bool = false
+    var backend: CoreBackend = .libretro
 
+    /// The libretro dylib; only meaningful for `.libretro`.
     var fileName: String { "\(id)_libretro.dylib" }
+
+    var standalone: StandaloneEmulator? {
+        if case .standalone(let emulator) = backend { emulator } else { nil }
+    }
+
+    var isLibretro: Bool { standalone == nil }
+}
+
+/// How Ursprung runs a core.
+nonisolated enum CoreBackend: Sendable, Hashable {
+    /// Loaded in-process and presented in the player window.
+    case libretro
+    /// A separate application Ursprung downloads, configures and launches.
+    case standalone(StandaloneEmulator)
+}
+
+/// An emulator that runs as its own process with its own window (see
+/// docs/STANDALONE_PLAN.md). Ursprung pins one tested release.
+nonisolated struct StandaloneEmulator: Sendable, Hashable {
+    nonisolated struct Release: Sendable, Hashable {
+        /// Release tag on GitHub, e.g. `nightly-20261006`.
+        let tag: String
+        let assetName: String
+        /// SHA-256 of the asset, lower-case hex.
+        let sha256: String
+        /// Source commit; also the installation folder name.
+        let commit: String
+    }
+
+    let id: String
+    let name: String
+    /// GitHub `owner/repository` the release is downloaded from.
+    let repository: String
+    let release: Release
+    /// Developer ID team the app must be signed by.
+    let teamIdentifier: String
+    /// The executable inside the installed `.app`, relative to the bundle.
+    let executable: String
+    /// Save state format version of the pinned release; states with another
+    /// major version cannot be loaded.
+    let saveStateVersion: UInt32
+
+    var downloadURL: URL {
+        URL(string: "https://github.com/\(repository)/releases/download/\(release.tag)/\(release.assetName)")!
+    }
+
+    var sourceURL: URL { URL(string: "https://github.com/\(repository)")! }
+}
+
+/// A folder in the system directory that must hold at least one BIOS dump
+/// of a kind, under any file name — for systems whose dumps exist in many
+/// versions (PlayStation 2).
+nonisolated struct BIOSFolder: Sendable, Hashable {
+    nonisolated enum Kind: Sendable, Hashable {
+        case playStation2
+    }
+
+    /// Path relative to the system directory.
+    let path: String
+    let kind: Kind
+    /// Cores that cannot start without a dump.
+    let requiredBy: Set<String>
+
+    func isRequired(forCore coreID: String) -> Bool {
+        requiredBy.contains(coreID)
+    }
 }
 
 /// A BIOS / firmware file expected in the libretro system directory.
@@ -63,6 +133,7 @@ nonisolated struct GameSystem: Sendable, Hashable, Identifiable {
     /// Available cores, the first one is the default.
     let cores: [CoreDefinition]
     var bios: [BIOSFile] = []
+    var biosFolder: BIOSFolder? = nil
     /// True for systems whose games ship as .zip sets (arcade) — archives are
     /// passed to the core as-is instead of being extracted.
     var archivesAreNative: Bool = false

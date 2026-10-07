@@ -56,6 +56,16 @@ struct CoresSettingsView: View {
                 Text("Cores are downloaded automatically from the libretro buildbot the first time you play a game. They are separate open source projects with their own licenses. After an update, the version before stays available: if a game no longer works, go back to it.")
                     .settingsFootnote()
             }
+            Section {
+                ForEach(CoreManager.standaloneEmulators) { emulator in
+                    StandaloneEmulatorRow(emulator: emulator)
+                }
+            } header: {
+                Text("Standalone Emulators")
+            } footer: {
+                Text("Standalone emulators run games in their own window, for systems no libretro core plays well on this Mac. They are separate open source projects with their own licenses.")
+                    .settingsFootnote()
+            }
         }
         .formStyle(.grouped)
         .confirmationDialog(
@@ -130,6 +140,21 @@ struct CoresSettingsView: View {
     private func uncoveredSystems(_ core: CoreDefinition) -> [GameSystem] {
         SystemCatalog.all.filter { system in
             system.cores.contains(core) && !system.cores.contains { $0 != core && cores.isInstalled($0) }
+        }
+    }
+}
+
+/// Installing comes with phase 2 of docs/STANDALONE_PLAN.md.
+private struct StandaloneEmulatorRow: View {
+    let emulator: CoreDefinition
+
+    var body: some View {
+        LabeledContent {
+            StatusLabel("Not Installed", systemImage: "circle.dashed", kind: .neutral)
+        } label: {
+            Text(emulator.name)
+            Text(SystemCatalog.all.filter { $0.cores.contains(emulator) }.map(\.shortName).joined(separator: ", "))
+                .lineLimit(1)
         }
     }
 }

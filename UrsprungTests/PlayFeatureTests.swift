@@ -347,7 +347,8 @@ struct HotkeyAndTurboTests {
 @Suite("Achievements")
 struct AchievementTests {
     @Test func everySystemHasARetroAchievementsConsole() {
-        for system in SystemCatalog.all {
+        // Standalone emulators handle achievements with their own login.
+        for system in SystemCatalog.all where system.defaultCore.isLibretro {
             #expect(AchievementService.consoleID(for: system.id) != nil, "\(system.id)")
         }
     }

@@ -56,8 +56,14 @@ final class CoreManager {
         versions = CoreVersionStore.load(in: coresDirectory)
     }
 
-    /// All distinct cores referenced by the system catalog.
-    static let allCores: [CoreDefinition] = {
+    /// All distinct libretro cores referenced by the system catalog.
+    static let allCores: [CoreDefinition] = distinctCores.filter(\.isLibretro)
+
+    /// Standalone emulators from the system catalog; they are not installed
+    /// by `CoreManager`.
+    static let standaloneEmulators: [CoreDefinition] = distinctCores.filter { !$0.isLibretro }
+
+    private static let distinctCores: [CoreDefinition] = {
         var seen = Set<String>()
         return SystemCatalog.all.flatMap(\.cores).filter { seen.insert($0.id).inserted }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }

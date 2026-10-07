@@ -80,6 +80,7 @@
 				<string>cdi</string>
 				<string>gdi</string>
 				<string>cso</string>
+				<string>zso</string>
 				<string>pce</string>
 				<string>sgx</string>
 				<string>a26</string>
