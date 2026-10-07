@@ -525,6 +525,10 @@ final class EmulationSession {
                 resume: resume,
                 saveStateOnShutdown: Preferences.autosaveOnQuit,
                 fullscreen: Preferences.standaloneFullscreen,
+                controls: ARMSX2Controls(
+                    profile: InputProfile.resolved(gameProfile: game.inputProfileData, systemID: system.id),
+                    hotkeys: .current, rumble: Preferences.rumble, deadZone: Preferences.stickDeadZone,
+                    keyNames: ARMSX2Keys.currentLayout()),
                 saveStateVersion: emulator.saveStateVersion,
                 stateFile: state)
             let launch = try await Self.prepare(request)

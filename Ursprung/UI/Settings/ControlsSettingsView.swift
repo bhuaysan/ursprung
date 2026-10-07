@@ -159,8 +159,13 @@ struct ControlsSettingsView: View {
         } header: {
             Text("Hotkeys")
         } footer: {
-            Text("Keys that control the player rather than the game. esc always opens the game menu too.")
-                .settingsFootnote()
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text("Keys that control the player rather than the game. esc always opens the game menu too.")
+                ForEach(Self.standaloneEmulators, id: \.id) { emulator in
+                    Text("In \(emulator.name), Game Menu, Fast Forward, Quick Save, Quick Load and Take Screenshot work too; the other hotkeys don't.")
+                }
+            }
+            .settingsFootnote()
         }
     }
 
@@ -213,10 +218,21 @@ struct ControlsSettingsView: View {
         } header: {
             Text("Layout")
         } footer: {
-            Text("A game can have its own controls too: open its inspector and choose Controls › Edit….")
-                .settingsFootnote()
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text("A game can have its own controls too: open its inspector and choose Controls › Edit….")
+                if let scope, let system = SystemCatalog.system(withID: scope), let emulator = system.defaultCore.standalone {
+                    Text("\(system.name) games run in \(emulator.name), which gets these controls when a game starts. Turbo buttons don't work there. The keyboard and the first controller play as player 1, the second controller as player 2.")
+                }
+            }
+            .settingsFootnote()
         }
     }
+
+    /// The standalone emulators some systems run in.
+    private static let standaloneEmulators: [StandaloneEmulator] = {
+        var seen = Set<String>()
+        return SystemCatalog.all.flatMap(\.cores).compactMap(\.standalone).filter { seen.insert($0.id).inserted }
+    }()
 
     private func load() {
         if let scope {

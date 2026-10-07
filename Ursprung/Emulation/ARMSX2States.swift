@@ -17,6 +17,7 @@ nonisolated enum ARMSX2States {
 
     /// What a state file holds, from its name.
     enum Kind: Hashable, Sendable {
+        /// Ursprung's slot number (see `armsx2Slot`).
         case slot(Int)
         case resume
     }
@@ -28,7 +29,20 @@ nonisolated enum ARMSX2States {
         guard !name.hasPrefix("."), name.lowercased().hasSuffix("." + fileExtension) else { return nil }
         let stem = name.dropLast(fileExtension.count + 1)
         guard let match = stem.wholeMatch(of: #/.+\.(?<tag>\d{1,2}|resume)(?: \([^()]*\))?/#.ignoresCase()) else { return nil }
-        return Int(match.tag).map(Kind.slot) ?? .resume
+        return Int(match.tag).map { .slot(armsx2Slot($0)) } ?? .resume
+    }
+
+    /// ARMSX2's slot for one of Ursprung's, and back. ARMSX2's hotkeys reach
+    /// slots 1–10 only, so Ursprung's Quick Save (slot 0) is ARMSX2's slot 1:
+    /// the Quick Save key in ARMSX2's window and Quick Save in Ursprung then
+    /// keep the same state. Ursprung's slot 1 takes ARMSX2's slot 0 in
+    /// exchange; every other slot has the same number in both.
+    static func armsx2Slot(_ slot: Int) -> Int {
+        switch slot {
+        case 0: 1
+        case 1: 0
+        default: slot
+        }
     }
 
     // MARK: Listing
@@ -179,10 +193,10 @@ nonisolated enum ARMSX2States {
 
     // MARK: Saving and loading through PINE
 
-    /// The file ARMSX2 writes for `slot` of the running disc
+    /// The file ARMSX2 writes for Ursprung's `slot` of the running disc
     /// (`VMManager::GetSaveStateFileName`); PINE reports the CRC in lowercase.
     static func slotFileName(serial: String, crc: String, slot: Int) -> String {
-        "\(serial) (\(crc.uppercased())).\(String(format: "%02d", slot)).p2s"
+        "\(serial) (\(crc.uppercased())).\(String(format: "%02d", armsx2Slot(slot))).p2s"
     }
 
     /// Whether ARMSX2 can load `state` by its slot: a slot's own file, not
@@ -204,7 +218,7 @@ nonisolated enum ARMSX2States {
         let archived = try archiveCopy(of: url, date: .now)
         do {
             do {
-                try await client.saveState(slot: UInt8(slot))
+                try await client.saveState(slot: UInt8(armsx2Slot(slot)))
             } catch {
                 throw ARMSX2ControlError(error)
             }
@@ -238,7 +252,7 @@ nonisolated enum ARMSX2States {
         guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { throw ARMSX2ControlError.emptySlot }
         guard isLoadable(url, by: saveStateVersion) else { throw StandaloneLaunchError.stateNotLoadable }
         do {
-            try await client.loadState(slot: UInt8(slot))
+            try await client.loadState(slot: UInt8(armsx2Slot(slot)))
         } catch {
             throw ARMSX2ControlError(error)
         }

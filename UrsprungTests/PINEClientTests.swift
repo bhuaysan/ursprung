@@ -211,7 +211,9 @@ struct ARMSX2ControlTests {
     }
 
     @Test func namesSlotFilesLikeARMSX2() {
-        #expect(ARMSX2States.slotFileName(serial: "SLES-55474", crc: "117d1977", slot: 0) == "SLES-55474 (117D1977).00.p2s")
+        // Ursprung's Quick Save is ARMSX2's slot 1, which its hotkeys reach.
+        #expect(ARMSX2States.slotFileName(serial: "SLES-55474", crc: "117d1977", slot: 0) == "SLES-55474 (117D1977).01.p2s")
+        #expect(ARMSX2States.slotFileName(serial: "SLES-55474", crc: "117d1977", slot: 1) == "SLES-55474 (117D1977).00.p2s")
         #expect(ARMSX2States.slotFileName(serial: "SLES-55474", crc: "117d1977", slot: 7) == "SLES-55474 (117D1977).07.p2s")
     }
 
@@ -256,7 +258,7 @@ struct ARMSX2ControlTests {
         }
         defer { server.stop() }
 
-        let saved = try await ARMSX2States.save(slot: 1, through: PINEClient(socket: server.socket), in: folder,
+        let saved = try await ARMSX2States.save(slot: 0, through: PINEClient(socket: server.socket), in: folder,
                                                 timeout: .seconds(5))
         #expect(saved == old)
         let states = ARMSX2States.states(in: folder)
@@ -265,7 +267,8 @@ struct ARMSX2ControlTests {
         let history = ARMSX2States.history(in: folder)
         #expect(history.count == 1)
         #expect(history.first?.name == "Before the TV world")
-        #expect(history.first?.slot == 1)
+        #expect(history.first?.slot == 0)
+        #expect(server.requests.last.map { [$0.opcode] + $0.arguments } == [0x09, 1], "Quick Save is ARMSX2's slot 1")
     }
 
     @Test func aSaveThatNeverLandsLeavesTheSlotAsItWas() async throws {
@@ -276,7 +279,7 @@ struct ARMSX2ControlTests {
             try? FileManager.default.removeItem(at: socketFolder)
         }
         let folder = root.appending(path: "armsx2", directoryHint: .isDirectory)
-        try Self.writeState("SLES-55474 (117D1977).00.p2s", in: folder, modified: .now.addingTimeInterval(-600))
+        try Self.writeState("SLES-55474 (117D1977).01.p2s", in: folder, modified: .now.addingTimeInterval(-600))
         let quickSave = try #require(ARMSX2States.states(in: folder).slots.first)
         try SaveStateStore.rename(quickSave, to: "Keep me",
                                   origin: ARMSX2States.context(for: quickSave, gameFileName: "p4.iso", gameFileSize: 1))

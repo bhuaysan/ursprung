@@ -53,6 +53,8 @@ nonisolated struct ARMSX2Launch: Sendable {
         var resume: Bool
         var saveStateOnShutdown: Bool
         var fullscreen: Bool
+        /// The game's controls as ARMSX2 bindings.
+        var controls: ARMSX2Controls
         /// States written by another save state version cannot be loaded.
         var saveStateVersion: UInt32
         /// A state to start from, chosen in the Save States browser.
@@ -100,7 +102,8 @@ nonisolated struct ARMSX2Launch: Sendable {
         let config = PCSX2Config(biosFolder: request.biosFolder, biosFileName: bios?.fileName ?? "",
                                  memoryCardFolder: request.memoryCardFolder, saveStateFolder: request.saveStateFolder,
                                  snapshotFolder: request.snapshotFolder, pineSlot: pineSlot,
-                                 saveStateOnShutdown: request.saveStateOnShutdown, fullscreen: request.fullscreen)
+                                 saveStateOnShutdown: request.saveStateOnShutdown, fullscreen: request.fullscreen,
+                                 controls: request.controls)
         do {
             try config.write(dataFolder: request.dataFolder)
         } catch {

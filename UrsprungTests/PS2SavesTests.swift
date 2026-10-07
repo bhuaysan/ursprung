@@ -39,7 +39,9 @@ struct PS2SavesTests {
     }
 
     @Test func readsTheKindFromTheFileName() {
-        #expect(ARMSX2States.kind(ofFileName: "SLES-55474 (117D1977).01.p2s") == .slot(1))
+        // ARMSX2's slot 1 is Ursprung's Quick Save, its slot 0 Ursprung's slot 1.
+        #expect(ARMSX2States.kind(ofFileName: "SLES-55474 (117D1977).01.p2s") == .slot(0))
+        #expect(ARMSX2States.kind(ofFileName: "SLES-55474 (117D1977).00.p2s") == .slot(1))
         #expect(ARMSX2States.kind(ofFileName: "SLES-55474 (117D1977).10.p2s") == .slot(10))
         #expect(ARMSX2States.kind(ofFileName: "SLES-55474 (117D1977).resume.p2s") == .resume)
         #expect(ARMSX2States.kind(ofFileName: "SLES-55474 (117D1977).03 (from backup 2026-10-03 14.22.11).p2s") == .slot(3))
@@ -68,7 +70,7 @@ struct PS2SavesTests {
         // allStates lists the folder's resolved path (/private/var/…).
         #expect(core.autosave?.stateURL.resolvingSymlinksInPath() == resume.resolvingSymlinksInPath())
         #expect(core.autosave?.isAutosave == true)
-        #expect(core.slots.map(\.slot) == [1, 2])
+        #expect(core.slots.map(\.slot) == [0, 2])
         #expect(core.slots.allSatisfy { $0.isARMSX2 && $0.canRename && $0.manifest == nil })
         // The game can resume: the same check the library makes.
         #expect(ARMSX2States.resumeState(in: folder) == resume)
@@ -114,7 +116,7 @@ struct PS2SavesTests {
 
         let history = SaveStateStore.history(in: root, gameID: gameID, coreID: "armsx2")
         let entry = try #require(history.first)
-        #expect(history.count == 1 && entry.slot == 1 && entry.isHistory && entry.name == "Old")
+        #expect(history.count == 1 && entry.slot == 0 && entry.isHistory && entry.name == "Old")
 
         // ARMSX2 has saved into the slot again; restoring swaps the two.
         try writeState(name, in: folder)
@@ -160,7 +162,7 @@ struct PS2SavesTests {
             pineFolder: root.appending(path: "PINE"), game: game, biosFolder: root.appending(path: "bios"), dumps: [],
             fallbackRegion: .europe, memoryCardFolder: root.appending(path: "Saves/ps2/G"), saveStateFolder: states,
             snapshotFolder: root.appending(path: "Extras/G/Screenshots"), resume: true, saveStateOnShutdown: true,
-            fullscreen: false, saveStateVersion: version)
+            fullscreen: false, controls: .standardUS, saveStateVersion: version)
         try writeState("SLES-55474 (117D1977).resume.p2s", in: states)
         request.stateFile = try writeState("SLES-55474 (117D1977).02.p2s", in: states)
 

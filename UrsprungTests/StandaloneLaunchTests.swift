@@ -80,7 +80,7 @@ struct StandaloneLaunchTests {
         let config = PCSX2Config(biosFolder: URL(filePath: "/S/pcsx2/bios"), biosFileName: "EU 200.BIN",
                                  memoryCardFolder: URL(filePath: "/Saves/ps2/G"), saveStateFolder: URL(filePath: "/States/G/armsx2"),
                                  snapshotFolder: URL(filePath: "/Extras/G/Screenshots"), pineSlot: 28012,
-                                 saveStateOnShutdown: true, fullscreen: false)
+                                 saveStateOnShutdown: true, fullscreen: false, controls: .standardUS)
         let existing = """
             [UI]
             SettingsVersion = 1
@@ -103,7 +103,7 @@ struct StandaloneLaunchTests {
         #expect(ini.values("DisplayWindowGeometry", in: "UI") == ["AdnQywAD"], "Window geometry stays")
         #expect(ini.values("Renderer", in: "EmuCore/GS") == ["17"])
         #expect(ini.values("upscale_multiplier", in: "EmuCore/GS") == ["3"], "ARMSX2 settings of the user stay")
-        #expect(ini.values("Cross", in: "Pad1") == ["Keyboard/K", "SDL-0/FaceSouth"])
+        #expect(ini.values("Cross", in: "Pad1") == ["Keyboard/Z", "SDL-0/FaceSouth"], "Ursprung's controls replace the old ones")
         #expect(ini.values("Bios", in: "Folders") == ["/S/pcsx2/bios"])
         #expect(ini.values("MemoryCards", in: "Folders") == ["/Saves/ps2/G"])
         #expect(ini.values("Savestates", in: "Folders") == ["/States/G/armsx2"])
@@ -113,20 +113,10 @@ struct StandaloneLaunchTests {
         #expect(ini.values("PINESlot", in: "EmuCore") == ["28012"])
         #expect(ini.values("SaveStateOnShutdown", in: "EmuCore") == ["true"])
         #expect(ini.values("BackupSavestate", in: "EmuCore") == ["false"])
-        #expect(ini.values("OpenPauseMenu", in: "Hotkeys") == ["Keyboard/Escape"])
+        #expect(ini.values("OpenPauseMenu", in: "Hotkeys") == ["Keyboard/Escape", "SDL-0/Guide", "SDL-1/Guide"])
         // Merging again changes nothing.
         let text = config.merged(into: existing)
         #expect(config.merged(into: text) == text)
-    }
-
-    @Test func padBindingsMatchARMSX2sAutomaticMapping() {
-        let bindings = PCSX2Config.padBindings
-        #expect(bindings.first == .init("Type", "DualShock2"))
-        #expect(bindings.filter { $0.key == "Up" }.map(\.value) == ["Keyboard/Up", "SDL-0/DPadUp"])
-        #expect(bindings.filter { $0.key == "L2" }.map(\.value) == ["Keyboard/1", "SDL-0/+LeftTrigger"])
-        #expect(bindings.filter { $0.key == "LLeft" }.map(\.value) == ["Keyboard/A", "SDL-0/-LeftX"])
-        #expect(bindings.filter { $0.key == "LargeMotor" }.map(\.value) == ["SDL-0/LargeMotor"])
-        #expect(bindings.count == 1 + 24 * 2 + 2)
     }
 
     // MARK: Disc and BIOS
@@ -186,7 +176,7 @@ struct StandaloneLaunchTests {
                 dumps: [bios("EU.bin", .europe, "2.00"), bios("US.bin", .usa, "1.70")], fallbackRegion: .japan,
                 memoryCardFolder: root.appending(path: "Saves/ps2/G"), saveStateFolder: root.appending(path: "States/G/armsx2"),
                 snapshotFolder: root.appending(path: "Extras/G/Screenshots"), resume: false, saveStateOnShutdown: true,
-                fullscreen: true, saveStateVersion: 0x9A59_0000)
+                fullscreen: true, controls: .standardUS, saveStateVersion: 0x9A59_0000)
         }
 
         /// A state as ARMSX2 writes it, with only its version entry.

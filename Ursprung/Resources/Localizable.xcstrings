@@ -11124,6 +11124,26 @@
           }
         }
       }
+    },
+    "In %@, Game Menu, Fast Forward, Quick Save, Quick Load and Take Screenshot work too; the other hotkeys don't.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In %@ funktionieren auch Spielmenü, Vorspulen, Schnell speichern, Schnell laden und Bildschirmfoto machen; die übrigen Tastenkürzel nicht."
+          }
+        }
+      }
+    },
+    "%@ games run in %@, which gets these controls when a game starts. Turbo buttons don't work there. The keyboard and the first controller play as player 1, the second controller as player 2.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele für %1$@ laufen in %2$@, das diese Steuerung beim Start eines Spiels übernimmt. Turbotasten gibt es dort nicht. Tastatur und erster Controller spielen als Spieler 1, der zweite Controller als Spieler 2."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

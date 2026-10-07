@@ -54,8 +54,9 @@ nonisolated struct IniDocument: Equatable, Sendable {
 
     /// Replaces every value of the keys in `entries` within `section`. The
     /// new values of a key take the place of its first old one, keys the
-    /// section did not have go to its end; other keys stay as they are.
-    mutating func set(_ entries: [Entry], in section: String) {
+    /// section did not have go to its end. Other keys stay as they are,
+    /// unless `isRemoved` says so for them.
+    mutating func set(_ entries: [Entry], in section: String, removing isRemoved: (String) -> Bool = { _ in false }) {
         if index(of: section) == nil { sections.append(Section(name: section, entries: [])) }
         guard let index = index(of: section) else { return }
         var pending: [(key: String, values: [Entry])] = []
@@ -70,7 +71,7 @@ nonisolated struct IniDocument: Equatable, Sendable {
         var written = Set<String>()
         for entry in sections[index].entries {
             guard let managed = pending.first(where: { Self.same($0.key, entry.key) }) else {
-                merged.append(entry)
+                if !isRemoved(entry.key) { merged.append(entry) }
                 continue
             }
             if written.insert(managed.key.lowercased()).inserted { merged += managed.values }
@@ -111,6 +112,7 @@ nonisolated struct PCSX2Config: Equatable, Sendable {
     /// ARMSX2 writes `<serial> (<CRC>).resume.p2s` when Ursprung quits it.
     var saveStateOnShutdown: Bool
     var fullscreen: Bool
+    var controls: ARMSX2Controls
 
     /// The single memory card of a game (slot 2 stays empty).
     static let memoryCardFileName = "Mcd001.ps2"
@@ -118,10 +120,14 @@ nonisolated struct PCSX2Config: Equatable, Sendable {
     /// crashes ARMSX2 with an error dialog (S5).
     static let metalRenderer = "17"
 
-    /// Managed entries per section, in the order a new file gets them.
-    var sections: [(name: String, entries: [IniDocument.Entry])] {
+    /// Managed entries per section, in the order a new file gets them, and
+    /// which other keys of the section go: Ursprung owns the bindings.
+    var sections: [(name: String, entries: [IniDocument.Entry], removing: (String) -> Bool)] {
         typealias E = IniDocument.Entry
-        return [
+        let none: (String) -> Bool = { _ in false }
+        let bindings: (String) -> Bool = { ARMSX2Controls.bindingKeys.contains($0.lowercased()) }
+        let all: (String) -> Bool = { _ in true }
+        let settings: [(String, [E])] = [
             ("UI", [
                 // Without these two ARMSX2 shows its setup wizard.
                 E("SettingsVersion", "1"),
@@ -159,8 +165,11 @@ nonisolated struct PCSX2Config: Equatable, Sendable {
                 E("SDL", "true"),
                 E("SDLControllerEnhancedMode", "true"),
             ]),
-            ("Pad1", Self.padBindings),
-            ("Hotkeys", Self.hotkeys),
+        ]
+        return settings.map { ($0.0, $0.1, none) } + [
+            ("Pad1", controls.pad(player: 0), bindings),
+            ("Pad2", controls.pad(player: 1), bindings),
+            ("Hotkeys", controls.hotkeyEntries, all),
         ]
     }
 
@@ -168,7 +177,7 @@ nonisolated struct PCSX2Config: Equatable, Sendable {
     func merged(into existing: String) -> String {
         var document = IniDocument(parsing: existing)
         for section in sections {
-            document.set(section.entries, in: section.name)
+            document.set(section.entries, in: section.name, removing: section.removing)
         }
         return document.text
     }
@@ -187,50 +196,4 @@ nonisolated struct PCSX2Config: Equatable, Sendable {
     }
 
     private static func bool(_ value: Bool) -> String { value ? "true" : "false" }
-
-    /// ARMSX2's default keyboard map plus the first SDL controller, as its
-    /// setup wizard and automatic mapping would write them (S7). Phase 6
-    /// replaces these with the input profile.
-    static let padBindings: [IniDocument.Entry] = {
-        let buttons: [(String, keyboard: String?, controller: String)] = [
-            ("Up", "Up", "DPadUp"), ("Right", "Right", "DPadRight"), ("Down", "Down", "DPadDown"), ("Left", "Left", "DPadLeft"),
-            ("Triangle", "I", "FaceNorth"), ("Circle", "L", "FaceEast"), ("Cross", "K", "FaceSouth"), ("Square", "J", "FaceWest"),
-            ("Select", "Backspace", "Back"), ("Start", "Return", "Start"),
-            ("L1", "Q", "LeftShoulder"), ("L2", "1", "+LeftTrigger"), ("R1", "E", "RightShoulder"), ("R2", "3", "+RightTrigger"),
-            ("L3", "2", "LeftStick"), ("R3", "4", "RightStick"),
-            ("LUp", "W", "-LeftY"), ("LRight", "D", "+LeftX"), ("LDown", "S", "+LeftY"), ("LLeft", "A", "-LeftX"),
-            ("RUp", "T", "-RightY"), ("RRight", "H", "+RightX"), ("RDown", "G", "+RightY"), ("RLeft", "F", "-RightX"),
-            ("LargeMotor", nil, "LargeMotor"), ("SmallMotor", nil, "SmallMotor"),
-        ]
-        var entries = [IniDocument.Entry("Type", "DualShock2")]
-        for (button, keyboard, controller) in buttons {
-            if let keyboard { entries.append(.init(button, "Keyboard/\(keyboard)")) }
-            entries.append(.init(button, "SDL-0/\(controller)"))
-        }
-        return entries
-    }()
-
-    /// ARMSX2's default hotkeys; without them not even Escape opens its menu.
-    static let hotkeys: [IniDocument.Entry] = [
-        ("ToggleFullscreen", "Keyboard/Alt & Keyboard/Return"),
-        ("CycleAspectRatio", "Keyboard/F6"),
-        ("CycleInterlaceMode", "Keyboard/F5"),
-        ("ToggleMipmapMode", "Keyboard/Insert"),
-        ("Screenshot", "Keyboard/F8"),
-        ("ToggleSoftwareRendering", "Keyboard/F9"),
-        ("ToggleOSD", "Keyboard/F10"),
-        ("ZoomIn", "Keyboard/Control & Keyboard/Plus"),
-        ("ZoomOut", "Keyboard/Control & Keyboard/Minus"),
-        ("Mute", "Keyboard/Control & Keyboard/M"),
-        ("LoadStateFromSlot", "Keyboard/F3"),
-        ("SaveStateToSlot", "Keyboard/F1"),
-        ("NextSaveStateSlot", "Keyboard/F2"),
-        ("PreviousSaveStateSlot", "Keyboard/Shift & Keyboard/F2"),
-        ("OpenPauseMenu", "Keyboard/Escape"),
-        ("ToggleFrameLimit", "Keyboard/F4"),
-        ("TogglePause", "Keyboard/Space"),
-        ("ToggleSlowMotion", "Keyboard/Shift & Keyboard/Backtab"),
-        ("ToggleTurbo", "Keyboard/Tab"),
-        ("HoldTurbo", "Keyboard/Period"),
-    ].map { IniDocument.Entry($0.0, $0.1) }
 }
