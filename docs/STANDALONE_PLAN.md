@@ -1,6 +1,6 @@
 # Ursprung — Standalone Emulators and PlayStation 2: Plan
 
-7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026, S7 partly open), nothing implemented. Comes before `docs/VULKAN_PLAN.md`.
+7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), nothing implemented. Comes before `docs/VULKAN_PLAN.md`.
 
 Ursprung runs every game in-process through a libretro core. PlayStation 2 has no libretro core that works on macOS arm64 today (see *Background*). This plan adds a second kind of emulator, a **standalone emulator** that Ursprung downloads, configures and launches as a separate process. The first and only one in this plan is ARMSX2, which makes PlayStation 2 playable.
 
@@ -93,7 +93,7 @@ Nightly `nightly-20261006` (46c06fe7ca), Persona 4 (Europe), the user's EU/US/JP
 
 - Normal runs: nothing. No `~/Library/Preferences/net.armsx2.armsx2.plist`, no caches, no saved application state.
 - Crashes (S5) leave `ARMSX2-<date>.ips` in `~/Library/Logs/DiagnosticReports` and a `CrashReporter/ARMSX2_<uuid>.plist`.
-- About 40 s after the first dialog crash, launchd started ARMSX2 **without arguments** (most likely through the crash alert's "Reopen"). It created `~/Library/Application Support/ARMSX2/` with default settings and showed the setup wizard. Preventing the crashes (S5) is the fix. If Ursprung sees that folder appear, it does not touch it, because the user may run ARMSX2 on their own.
+- About 40 s after the first dialog crash, launchd started ARMSX2 **without arguments**: the user had clicked "Reopen" in the crash alert. It created `~/Library/Application Support/ARMSX2/` with default settings and showed the setup wizard. Preventing the crashes (S5) is the fix. If Ursprung sees that folder appear, it does not touch it, because the user may run ARMSX2 on their own.
 
 ### S5 Dialog cases (each dialog crashes on macOS 27: exit by SIGTRAP, status 133)
 
@@ -128,7 +128,8 @@ Nightly `nightly-20261006` (46c06fe7ca), Persona 4 (Europe), the user's EU/US/JP
 - Controller bindings are explicit, per SDL player index: `SDL-0/FaceSouth`, `SDL-0/DPadUp`, `SDL-0/LeftShoulder`, `SDL-0/+LeftTrigger`, `SDL-0/-LeftX`, … ARMSX2 never maps a newly connected controller by itself; "automatic mapping" is a button in its settings.
 - One button can have several bindings as **repeated keys** (`Cross = Keyboard/K` and `Cross = SDL-0/FaceSouth` on two lines). ARMSX2 loads and rewrites both. The ini merger therefore has to treat a section as an ordered list of key/value pairs, not a dictionary.
 - Consequence: Ursprung writes `[InputSources]`, `[Pad1]` (keyboard + `SDL-0` bindings) and `[Hotkeys]` from phase 3 on, using ARMSX2's defaults; phase 6 replaces them with the input profile.
-- **Open**: whether `SDL-0` bindings work with the Xbox, DualSense, Switch Pro and 8BitDo controllers (no controller was switched on during the spike).
+- Xbox Series X controller (Bluetooth), tested with the user at the controller: detected as `SDL-0` ("Xbox Series X Controller", rumble supported); D-pad, stick, A and Start drive Persona 4; a hotkey bound to `SDL-0/Back` takes screenshots. After switching the controller off and on, SDL gives it a new instance ID but the same player ID 0, so `SDL-0` bindings keep working without a restart.
+- Not tested: DualSense, Switch Pro, 8BitDo. The binding names are the same for every gamepad type (only the display names differ), so the same `SDL-0` map should apply; a quick check per controller belongs to the manual tests.
 
 ### S8 Save state files
 
@@ -205,7 +206,7 @@ Effort as in FEATURE_EVALUATION: S = local change, M = several components, L = n
 
 ### Phase 0 — Spike (S, scratch folder) — done 7 October 2026
 
-A shell script in the scratchpad drives the downloaded nightly with a prepared data folder. Results in *Spike results*; S7 with real controllers is still open. Questions:
+A shell script in the scratchpad drives the downloaded nightly with a prepared data folder. Results in *Spike results*. Questions:
 
 - **S1** Which `[Folders]` overrides are honoured (Bios, MemoryCards, Savestates, Snapshots), and are absolute paths outside the data folder accepted?
 - **S2** Does SIGTERM honour `SaveStateOnShutdown`? Does `-statefile` resume reliably, also after an ARMSX2 update? Does a PINE `MsgSaveState` finish before SIGTERM, and how does Ursprung know it has (`MsgStatus`, file appears)?
