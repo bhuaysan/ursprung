@@ -192,7 +192,14 @@ nonisolated struct PCSX2Config: Equatable, Sendable {
 
     /// ARMSX2 keeps everything in an `ARMSX2` folder below `-datapath`.
     static func iniURL(dataFolder: URL) -> URL {
-        dataFolder.appending(path: "ARMSX2/inis/PCSX2.ini")
+        ownFolder("inis", dataFolder: dataFolder).appending(path: "PCSX2.ini")
+    }
+
+    /// One of ARMSX2's default folders (`memcards`, `sstates`, `snaps`, …).
+    /// Games started from ARMSX2's own window save there, not into
+    /// Ursprung's per-game folders.
+    static func ownFolder(_ name: String, dataFolder: URL) -> URL {
+        dataFolder.appending(path: "ARMSX2/\(name)", directoryHint: .isDirectory)
     }
 
     private static func bool(_ value: Bool) -> String { value ? "true" : "false" }

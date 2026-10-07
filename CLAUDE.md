@@ -27,6 +27,7 @@ GPL-3.0-or-later. See `docs/ARCHITECTURE.md` for the full picture.
 - Only one core can run at a time (libretro callbacks are global C functions). All `retro_*` calls happen on the `UREmulationRunner` thread; use `performOnEmulationThread(_:)` from Swift.
 - Systems, cores, BIOS files and core option defaults are data in `Ursprung/Systems/SystemCatalog.swift`.
 - Shaders live in `Ursprung/Emulation/ShaderSource.swift` and are compiled at runtime (no Metal toolchain needed).
+- Standalone emulators (`CoreBackend.standalone`, today only ARMSX2 for PS2) run as their own process: `EmulatorManager` installs, `ARMSX2Launch`/`PCSX2Config` write `PCSX2.ini` before every launch, `ExternalSession` quits with ONE SIGTERM (a second one makes ARMSX2 exit without saving), `PINEClient` saves/loads states. Never let ARMSX2 show a dialog: Qt message boxes crash it on macOS 27, so add a pre-flight check instead.
 
 ## Debugging without UI access
 
@@ -36,3 +37,4 @@ Debug builds read `URSPRUNG_*` environment variables (snapshots, autoplay, core 
 
 - GLideN64 frame buffer emulation renders black on Apple OpenGL → N64 defaults to angrylion.
 - Vulkan cores/renderers unsupported.
+- ARMSX2: every error dialog crashes it on macOS 27 (`NSAlert` icon rasterising in CoreUI); quitting while a memory card is being written may hit that too. Only macOS nightlies exist, so the pin in `SystemCatalog` moves after the manual checks in `docs/STANDALONE_PLAN.md`.

@@ -199,7 +199,7 @@ struct StandaloneLaunchTests {
         #expect(launch.executable == request.app.appending(path: "Contents/MacOS/ARMSX2"))
         #expect(launch.arguments == ["-datapath", request.dataFolder.path(percentEncoded: false), "-batch", "-nogui",
                                      "-logfile", request.logFile.path(percentEncoded: false), "-fullscreen",
-                                     "--", request.game.path(percentEncoded: false)])
+                                     "--", request.game!.path(percentEncoded: false)])
         #expect(launch.environment == ["HOME": "/Users/x", "TMPDIR": request.pineFolder.path(percentEncoded: false)])
         #expect(launch.stateFile == nil)
         // The disc is SLUS: the US dump, although the file name says Europe.
@@ -211,6 +211,29 @@ struct StandaloneLaunchTests {
         for folder in [request.memoryCardFolder, request.saveStateFolder, request.snapshotFolder, request.pineFolder] {
             #expect(FileManager.default.fileExists(atPath: folder.path(percentEncoded: false)))
         }
+    }
+
+    @Test func opensARMSX2sOwnWindowWithoutAGame() throws {
+        var fixture = try Fixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        fixture.request.game = nil
+        fixture.request.resume = true
+        fixture.request.fallbackRegion = .usa
+        let dataFolder = fixture.request.dataFolder
+        fixture.request.memoryCardFolder = PCSX2Config.ownFolder("memcards", dataFolder: dataFolder)
+        _ = try fixture.writeState(named: "SLUS-21782 (01234567).resume.p2s", version: 0x9A59_0000)
+        let launch = try ARMSX2Launch.prepare(fixture.request, environment: [:])
+
+        // No -batch/-nogui: closing its main window quits ARMSX2.
+        #expect(launch.arguments == ["-datapath", dataFolder.path(percentEncoded: false),
+                                     "-logfile", fixture.request.logFile.path(percentEncoded: false)])
+        #expect(launch.stateFile == nil)
+        #expect(launch.config.biosFileName == "US.bin", "The fallback region's dump")
+        let written = try String(contentsOf: PCSX2Config.iniURL(dataFolder: dataFolder), encoding: .utf8)
+        let document = IniDocument(parsing: written)
+        #expect(document.values("SetupWizardIncomplete", in: "UI") == ["false"])
+        #expect(document.values("MemoryCards", in: "Folders")
+                == [fixture.request.memoryCardFolder.path(percentEncoded: false)])
     }
 
     @Test func picksAFreePINESlot() throws {
@@ -233,7 +256,7 @@ struct StandaloneLaunchTests {
         let launch = try ARMSX2Launch.prepare(fixture.request, environment: [:])
         #expect(launch.stateFile == state)
         #expect(launch.arguments.suffix(4) == ["-statefile", state.path(percentEncoded: false),
-                                               "--", fixture.request.game.path(percentEncoded: false)])
+                                               "--", fixture.request.game!.path(percentEncoded: false)])
 
         _ = try fixture.writeState(named: "SLUS-21782 (01234567).resume.p2s", version: 0x9A59_0001)
         #expect(try ARMSX2Launch.prepare(fixture.request, environment: [:]).stateFile == nil, "Newer than ARMSX2")
@@ -254,7 +277,7 @@ struct StandaloneLaunchTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: card.path(percentEncoded: false))
         _ = try ARMSX2Launch.prepare(fixture.request, environment: [:])
 
-        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: fixture.request.game.path(percentEncoded: false))
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: fixture.request.game!.path(percentEncoded: false))
         #expect(throws: StandaloneLaunchError.self) { try ARMSX2Launch.prepare(fixture.request, environment: [:]) }
         fixture.request.game = fixture.root.appending(path: "missing.iso")
         #expect(throws: StandaloneLaunchError.self) { try ARMSX2Launch.prepare(fixture.request, environment: [:]) }

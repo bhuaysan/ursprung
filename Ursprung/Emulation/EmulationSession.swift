@@ -154,6 +154,11 @@ final class EmulationSession {
     private var externalSaveStateVersion: UInt32 = 0
     /// The game has shown its first frame (PINE's frame counter).
     private var externalHasStarted = false
+    /// A standalone emulator opened with its own window, for its settings.
+    private var standaloneSettings: ExternalSession?
+    /// The emulator whose own window is open or opening.
+    private(set) var standaloneSettingsID: String?
+    private var standaloneSettingsOpening: Task<Void, any Error>?
     private var gameUUID: UUID?
     private var coreID: String?
     /// Where the running game's states live below its folder: the core, or
@@ -211,6 +216,7 @@ final class EmulationSession {
                     let exit = external.stopAndWait()
                     self?.finishExternal(cleanExit: exit?.isClean ?? false, context: nil)
                 }
+                self?.standaloneSettings?.stopAndWait()
                 self?.recordPlayTime(context: nil)
             }
         }
@@ -502,36 +508,14 @@ final class EmulationSession {
             try checkCurrent(generation)
             settingsTab = nil
 
+            // Its own window would write the settings this launch writes.
+            await closeStandaloneSettings()
+            try checkCurrent(generation)
+
             let stateFolder = SaveStateStore.directory(in: AppPaths.states, gameID: game.id, coreID: emulator.id)
-            // The metadata region, when the disc does not tell which BIOS it wants.
-            let fallbackRegion: PS2BIOS.Region = switch Preferences.scraperRegion {
-            case "us": .usa
-            case "jp": .japan
-            default: .europe
-            }
             let logFolder = emulators.logFolder(for: emulator)
-            let request = ARMSX2Launch.Request(
-                app: app, executable: emulator.executable,
-                dataFolder: emulators.dataFolder(for: emulator),
-                logFile: logFolder.appending(path: "last-run.log"),
-                pineFolder: URL(filePath: NSTemporaryDirectory()).appending(path: "Ursprung-PINE", directoryHint: .isDirectory),
-                game: game.fileURL,
-                biosFolder: AppPaths.system.appending(path: system.biosFolder?.path ?? "", directoryHint: .isDirectory),
-                dumps: system.biosFolder.map(bios.dumps(in:)) ?? [],
-                fallbackRegion: fallbackRegion,
-                memoryCardFolder: PS2MemoryCard.folder(in: AppPaths.saves, systemID: system.id, gameID: game.id),
-                saveStateFolder: stateFolder,
-                snapshotFolder: ScreenshotStore.directory(in: AppPaths.extras, gameID: game.id),
-                resume: resume,
-                saveStateOnShutdown: Preferences.autosaveOnQuit,
-                fullscreen: Preferences.standaloneFullscreen,
-                controls: ARMSX2Controls(
-                    profile: InputProfile.resolved(gameProfile: game.inputProfileData, systemID: system.id),
-                    hotkeys: .current, rumble: Preferences.rumble, deadZone: Preferences.stickDeadZone,
-                    keyNames: ARMSX2Keys.currentLayout()),
-                saveStateVersion: emulator.saveStateVersion,
-                stateFile: state)
-            let launch = try await Self.prepare(request)
+            let launch = try await Self.prepare(armsx2Request(app: app, emulator: emulator, system: system, game: game,
+                                                              resume: resume, state: state))
             try checkCurrent(generation)
 
             let external = try ExternalSession(executable: launch.executable, arguments: launch.arguments,
@@ -577,6 +561,106 @@ final class EmulationSession {
         } catch {
             guard generation == self.generation, !(error is CancellationError) else { return }
             phase = .failed(Failure(message: error.localizedDescription, settingsTab: settingsTab))
+        }
+    }
+
+    /// What ARMSX2 is started with: `game` in Ursprung's folders for it, or
+    /// without a game ARMSX2's own window and folders.
+    private func armsx2Request(app: URL, emulator: StandaloneEmulator, system: GameSystem, game: Game?,
+                               resume: Bool = false, state: URL? = nil) -> ARMSX2Launch.Request {
+        // The metadata region, when the disc does not tell which BIOS it wants.
+        let fallbackRegion: PS2BIOS.Region = switch Preferences.scraperRegion {
+        case "us": .usa
+        case "jp": .japan
+        default: .europe
+        }
+        let dataFolder = emulators.dataFolder(for: emulator)
+        return ARMSX2Launch.Request(
+            app: app, executable: emulator.executable,
+            dataFolder: dataFolder,
+            logFile: emulators.logFolder(for: emulator).appending(path: "last-run.log"),
+            pineFolder: URL(filePath: NSTemporaryDirectory()).appending(path: "Ursprung-PINE", directoryHint: .isDirectory),
+            game: game?.fileURL,
+            biosFolder: AppPaths.system.appending(path: system.biosFolder?.path ?? "", directoryHint: .isDirectory),
+            dumps: system.biosFolder.map(bios.dumps(in:)) ?? [],
+            fallbackRegion: fallbackRegion,
+            memoryCardFolder: game.map { PS2MemoryCard.folder(in: AppPaths.saves, systemID: system.id, gameID: $0.id) }
+                ?? PCSX2Config.ownFolder("memcards", dataFolder: dataFolder),
+            saveStateFolder: game.map { SaveStateStore.directory(in: AppPaths.states, gameID: $0.id, coreID: emulator.id) }
+                ?? PCSX2Config.ownFolder("sstates", dataFolder: dataFolder),
+            snapshotFolder: game.map { ScreenshotStore.directory(in: AppPaths.extras, gameID: $0.id) }
+                ?? PCSX2Config.ownFolder("snaps", dataFolder: dataFolder),
+            resume: resume,
+            saveStateOnShutdown: Preferences.autosaveOnQuit,
+            fullscreen: Preferences.standaloneFullscreen,
+            controls: ARMSX2Controls(
+                profile: InputProfile.resolved(gameProfile: game?.inputProfileData, systemID: system.id),
+                hotkeys: .current, rumble: Preferences.rumble, deadZone: Preferences.stickDeadZone,
+                keyNames: ARMSX2Keys.currentLayout()),
+            saveStateVersion: emulator.saveStateVersion,
+            stateFile: state)
+    }
+
+    // MARK: - A standalone emulator's own settings
+
+    /// Opens the emulator's own window on Ursprung's data folder, for the
+    /// settings Ursprung does not manage (graphics, achievements; Q5). The
+    /// settings Ursprung manages are written first and again before every
+    /// game. Brings an open one to the front.
+    func openStandaloneSettings(_ emulator: StandaloneEmulator) async throws {
+        if let standaloneSettings, standaloneSettings.isRunning {
+            return standaloneSettings.activate()
+        }
+        guard !isStandaloneGameActive, standaloneSettingsOpening == nil, let system = SystemCatalog.all.first(where: {
+            $0.cores.contains { $0.standalone?.id == emulator.id }
+        }) else { return }
+        standaloneSettingsID = emulator.id
+        let opening = Task { try await startStandaloneSettings(emulator, system: system) }
+        standaloneSettingsOpening = opening
+        defer { standaloneSettingsOpening = nil }
+        do {
+            try await opening.value
+        } catch {
+            standaloneSettingsID = nil
+            throw error
+        }
+    }
+
+    private func startStandaloneSettings(_ emulator: StandaloneEmulator, system: GameSystem) async throws {
+        let app = try await emulators.ensureInstalled(emulator)
+        await bios.refresh()
+        let launch = try await Self.prepare(armsx2Request(app: app, emulator: emulator, system: system, game: nil))
+        // A game launch waits for this, then writes the settings again.
+        guard !isStandaloneGameActive else {
+            standaloneSettingsID = nil
+            return
+        }
+        let process = try ExternalSession(executable: launch.executable, arguments: launch.arguments,
+                                          environment: launch.environment,
+                                          output: emulators.logFolder(for: emulator).appending(path: "last-run-output.log"))
+        process.onExit = { [weak self, weak process] _ in
+            guard let self, self.standaloneSettings === process else { return }
+            self.standaloneSettings = nil
+            self.standaloneSettingsID = nil
+        }
+        standaloneSettings = process
+    }
+
+    /// A game is starting or running in a standalone emulator.
+    var isStandaloneGameActive: Bool {
+        if case .preparing = phase { return standaloneName != nil }
+        return phase == .external
+    }
+
+    /// Quits the emulator's own window, which saves its settings as it goes.
+    /// One that is still opening is waited for: it writes the settings too.
+    private func closeStandaloneSettings() async {
+        _ = try? await standaloneSettingsOpening?.value
+        guard let standaloneSettings else { return }
+        await standaloneSettings.stop()
+        if self.standaloneSettings === standaloneSettings {
+            self.standaloneSettings = nil
+            standaloneSettingsID = nil
         }
     }
 

@@ -28,8 +28,9 @@ nonisolated enum StandaloneLaunchError: LocalizedError {
     }
 }
 
-/// Everything needed to start ARMSX2 for one game: checked, with its
-/// settings written (docs/STANDALONE_PLAN.md, "Process and window").
+/// Everything needed to start ARMSX2 for one game, or with its own window
+/// for its settings: checked, with its settings written
+/// (docs/STANDALONE_PLAN.md, "Process and window").
 nonisolated struct ARMSX2Launch: Sendable {
     /// Where the game's files go and what ARMSX2 is started with.
     nonisolated struct Request: Sendable {
@@ -41,7 +42,9 @@ nonisolated struct ARMSX2Launch: Sendable {
         /// Where the PINE socket goes: ARMSX2 replaces whatever is at its
         /// socket path, so only Ursprung uses this folder (S3).
         var pineFolder: URL
-        var game: URL
+        /// Without a game ARMSX2 opens its own window, where its settings
+        /// are (Q5); the folders then are ARMSX2's own (`ownFolder`).
+        var game: URL?
         var biosFolder: URL
         var dumps: [PS2BIOS]
         /// Region of the BIOS to prefer when the disc does not tell.
@@ -74,10 +77,12 @@ nonisolated struct ARMSX2Launch: Sendable {
     /// Checks the request, chooses the BIOS and writes `PCSX2.ini`.
     static func prepare(_ request: Request, environment base: [String: String]) throws -> ARMSX2Launch {
         let fileManager = FileManager.default
-        guard let handle = try? FileHandle(forReadingFrom: request.game), (try? handle.read(upToCount: 1))?.count == 1 else {
-            throw StandaloneLaunchError.gameUnreadable(name: request.game.lastPathComponent)
+        if let game = request.game {
+            guard let handle = try? FileHandle(forReadingFrom: game), (try? handle.read(upToCount: 1))?.count == 1 else {
+                throw StandaloneLaunchError.gameUnreadable(name: game.lastPathComponent)
+            }
+            try? handle.close()
         }
-        try? handle.close()
 
         for folder in [request.memoryCardFolder, request.saveStateFolder, request.snapshotFolder,
                        request.dataFolder, request.pineFolder, request.logFile.deletingLastPathComponent()] {
@@ -92,9 +97,9 @@ nonisolated struct ARMSX2Launch: Sendable {
             throw StandaloneLaunchError.memoryCardReadOnly(card)
         }
 
-        let region = PS2Disc.serial(of: request.game).flatMap(PS2Disc.region(ofSerial:))
-            ?? PS2Disc.region(ofFileName: request.game.lastPathComponent)
-            ?? request.fallbackRegion
+        let region = request.game.flatMap { game in
+            PS2Disc.serial(of: game).flatMap(PS2Disc.region(ofSerial:)) ?? PS2Disc.region(ofFileName: game.lastPathComponent)
+        } ?? request.fallbackRegion
         // The BIOS check before the launch makes sure there is a dump.
         let bios = PS2BIOS.preferred(in: request.dumps, region: region)
 
@@ -114,7 +119,9 @@ nonisolated struct ARMSX2Launch: Sendable {
         // is refused; without a loadable resume state the game starts from
         // the beginning.
         let stateFile: URL?
-        if let chosen = request.stateFile {
+        if request.game == nil {
+            stateFile = nil
+        } else if let chosen = request.stateFile {
             guard ARMSX2States.isLoadable(chosen, by: request.saveStateVersion) else {
                 throw StandaloneLaunchError.stateNotLoadable
             }
@@ -127,11 +134,16 @@ nonisolated struct ARMSX2Launch: Sendable {
         }
 
         try? fileManager.removeItem(at: request.logFile)
-        var arguments = ["-datapath", request.dataFolder.path(percentEncoded: false), "-batch", "-nogui",
-                         "-logfile", request.logFile.path(percentEncoded: false),
-                         request.fullscreen ? "-fullscreen" : "-nofullscreen"]
-        if let stateFile { arguments += ["-statefile", stateFile.path(percentEncoded: false)] }
-        arguments += ["--", request.game.path(percentEncoded: false)]
+        var arguments = ["-datapath", request.dataFolder.path(percentEncoded: false)]
+        if let game = request.game {
+            arguments += ["-batch", "-nogui", "-logfile", request.logFile.path(percentEncoded: false),
+                          request.fullscreen ? "-fullscreen" : "-nofullscreen"]
+            if let stateFile { arguments += ["-statefile", stateFile.path(percentEncoded: false)] }
+            arguments += ["--", game.path(percentEncoded: false)]
+        } else {
+            // Its main window, with the settings in its Settings menu; closing it quits ARMSX2.
+            arguments += ["-logfile", request.logFile.path(percentEncoded: false)]
+        }
 
         var environment = base
         environment["TMPDIR"] = request.pineFolder.path(percentEncoded: false)

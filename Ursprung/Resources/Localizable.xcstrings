@@ -11144,6 +11144,106 @@
           }
         }
       }
+    },
+    "Open %@ Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@-Einstellungen öffnen"
+          }
+        }
+      }
+    },
+    "Available when no game is running in %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verfügbar, wenn kein Spiel in %@ läuft"
+          }
+        }
+      }
+    },
+    "Opens %@'s window; its settings are in its Settings menu": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet das Fenster von %@; die Einstellungen sind in dessen Menü „Einstellungen“"
+          }
+        }
+      }
+    },
+    "%@ couldn't be opened": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ konnte nicht geöffnet werden"
+          }
+        }
+      }
+    },
+    "%@ Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@-Einstellungen"
+          }
+        }
+      }
+    },
+    "Graphics, achievements and more, in %@'s own window. Ursprung sets its folders, BIOS, renderer, controls and hotkeys again before every game.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grafik, Erfolge und mehr, im eigenen Fenster von %@. Ordner, BIOS, Renderer, Steuerung und Tastenkürzel setzt Ursprung vor jedem Spiel neu."
+          }
+        }
+      }
+    },
+    "Graphics": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grafik"
+          }
+        }
+      }
+    },
+    "Set in %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellbar in %@"
+          }
+        }
+      }
+    },
+    "Sign in to RetroAchievements in %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmeldung bei RetroAchievements in %@"
+          }
+        }
+      }
+    },
+    "These games run in %@, which earns achievements with its own RetroAchievements sign-in. Sign in under Achievements in its settings.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Spiele laufen in %@, das Erfolge mit einer eigenen RetroAchievements-Anmeldung sammelt. Melde dich in seinen Einstellungen unter „Errungenschaften“ an."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -55,7 +55,14 @@ struct CoresSettingsView: View {
                 ForEach(CoreManager.standaloneEmulators) { emulator in
                     if let standalone = emulator.standalone {
                         StandaloneEmulatorRow(definition: emulator, emulator: standalone, install: install, remove: remove,
-                                              isInUse: session.isActive && session.coreName == emulator.name)
+                                              isInUse: session.isActive && session.coreName == emulator.name
+                                                  || session.standaloneSettingsID == standalone.id)
+                        LabeledContent {
+                            StandaloneSettingsButton(emulator: standalone, isShort: true)
+                        } label: {
+                            Text("\(standalone.name) Settings")
+                            Text("Graphics, achievements and more, in \(standalone.name)'s own window. Ursprung sets its folders, BIOS, renderer, controls and hotkeys again before every game.")
+                        }
                     }
                 }
                 Toggle("Play in full screen", isOn: $standaloneFullscreen)

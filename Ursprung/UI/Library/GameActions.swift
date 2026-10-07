@@ -130,7 +130,10 @@ struct GameActionItems: View {
                 .keyboardShortcut(shortcut("r"))
         }
         Button("Save States…", systemImage: "square.stack.3d.up", action: actions.showSaveStates)
-        Button("Edit Shader…", systemImage: "camera.filters", action: actions.editShader)
+        // A standalone emulator applies its own post-processing.
+        if actions.game.effectiveCore?.isLibretro != false {
+            Button("Edit Shader…", systemImage: "camera.filters", action: actions.editShader)
+        }
         Button(actions.importSaveTitle, systemImage: "square.and.arrow.down", action: actions.importBatterySave)
             .disabled(!actions.canImportBatterySave)
         if let discs = actions.discs {

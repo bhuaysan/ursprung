@@ -58,7 +58,9 @@ struct GameInspector: View {
                     if game.system?.supportsPatches == true {
                         PatchesSection(game: game)
                     }
-                    CheatsSection(game: game)
+                    if game.effectiveCore?.isLibretro != false {
+                        CheatsSection(game: game)
+                    }
                     ManualSection(game: game)
                     fileSection
                 }
@@ -464,12 +466,21 @@ struct GameInspector: View {
                             .buttonStyle(.link)
                     }
                 }
-                InfoRowLayout("Shader") {
-                    GameShaderPicker(gameID: game.id, systemID: system.id)
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .controlSize(.small)
-                        .frame(maxWidth: 180, alignment: .leading)
+                if let emulator = game.effectiveCore?.standalone {
+                    // Shaders and achievements are the standalone emulator's own.
+                    InfoRow("Graphics", String(localized: "Set in \(emulator.name)"))
+                    InfoRow("Achievements", String(localized: "Sign in to RetroAchievements in \(emulator.name)"))
+                    StandaloneSettingsButton(emulator: emulator)
+                        .buttonStyle(.link)
+                        .font(.callout)
+                } else {
+                    InfoRowLayout("Shader") {
+                        GameShaderPicker(gameID: game.id, systemID: system.id)
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .controlSize(.small)
+                            .frame(maxWidth: 180, alignment: .leading)
+                    }
                 }
             }
             .sheet(isPresented: $isEditingControls) {

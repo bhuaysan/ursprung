@@ -55,6 +55,14 @@ Files that cores manage themselves (memory cards, backup RAM) are named after
 the game inside `Saves/<system>/`. They are renamed along with the game when
 no other game in the library uses the old name.
 
+PlayStation 2 games (run by ARMSX2) keep one 8 MB memory card per game,
+`Saves/ps2/<game id>/Mcd001.ps2`; the second card slot stays empty. ARMSX2
+creates it when the game first starts, and the game formats it. It moves, merges and is
+backed up like any other save folder. Game menu › Import Memory Card… takes a
+card from PCSX2 or another ARMSX2 (formatted, or blank of 8–64 MB) and keeps
+the current one as a copy. Games that read another game's save (a sequel's
+bonus) don't see it, because each game has its own card.
+
 Game menu › Import Battery Save… copies a `.srm`/`.sav` file from another
 emulator or installation into place. The previous save is kept as a copy.
 
@@ -66,6 +74,19 @@ emulator or installation into place. The previous save is kept as a copy.
 
 Slot 0 is Quick Save; slots 1–9 are in the pause menu.
 
+ARMSX2 (PlayStation 2) writes its own state files instead:
+
+    States/<game id>/armsx2/<serial> (<disc CRC>).<NN>.p2s   a slot (zip, thumbnail inside)
+    States/<game id>/armsx2/<serial> (<disc CRC>).resume.p2s the automatic state
+    States/<game id>/armsx2/<state>.json                     its name, if any
+
+Ursprung's Quick Save is ARMSX2's slot 1 (`.01.p2s`) so that the Quick Save
+key in ARMSX2's window saves into the same state; Ursprung's slot 1 is file
+`.00.p2s`. Saving and loading from the library go through ARMSX2's PINE
+socket. A `.p2s` carries ARMSX2's save state version; states from a version
+the installed ARMSX2 can't read are not offered for loading. States ARMSX2
+saves through its own keys don't go into the history.
+
 ### Automatic state
 
 When a game stops (also when Ursprung quits), its state is saved as
@@ -75,6 +96,11 @@ continues from it and the game's menu offers Start from Beginning; otherwise
 Play starts fresh and the menu offers Resume. Optionally the automatic state
 is also written every 5 minutes. Like a slot, a failed write keeps the
 previous file. Cores that cannot save states have no automatic state.
+
+For PlayStation 2 the automatic state is ARMSX2's `.resume.p2s`, written
+when Ursprung quits the game; quitting in ARMSX2's own window (⌘Q, close
+button) writes none, and the older one is then deleted so Resume never goes
+back behind the memory card.
 
 Resuming loads the automatic state right after the game starts and tries
 again a few times over two seconds, as some cores reject a state before they

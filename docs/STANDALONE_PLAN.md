@@ -1,6 +1,6 @@
 # Ursprung — Standalone Emulators and PlayStation 2: Plan
 
-7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), phases 1–6 done on branch `feature/ps2-armsx2` (7 October 2026). Comes before `docs/VULKAN_PLAN.md`.
+7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), phases 1–7 done on branch `feature/ps2-armsx2` (7 October 2026). Comes before `docs/VULKAN_PLAN.md`.
 
 Ursprung runs every game in-process through a libretro core. PlayStation 2 has no libretro core that works on macOS arm64 today (see *Background*). This plan adds a second kind of emulator, a **standalone emulator** that Ursprung downloads, configures and launches as a separate process. The first and only one in this plan is ARMSX2, which makes PlayStation 2 playable.
 
@@ -271,7 +271,7 @@ A shell script in the scratchpad drives the downloaded nightly with a prepared d
 - Quick Save is now ARMSX2's slot 1: ARMSX2's hotkeys reach slots 1–10 only, so Ursprung's Quick Save (slot 0) and its slot 1 swap places in `ARMSX2States.armsx2Slot` (file `.01.p2s` = Quick Save, `.00.p2s` = Slot 1). The Quick Save key in ARMSX2's window and Quick Save in the library then keep the same state; ARMSX2's on-screen message says "slot 1" for it. States saved by the key do not go into the history (ARMSX2 overwrites them itself).
 - Settings › Controls: the hotkeys footer says which hotkeys work in ARMSX2; with PlayStation 2 chosen under Layout, a note says that ARMSX2 gets these controls at launch, that turbo buttons don't apply, and how players are assigned.
 
-### Phase 7 — Polish (S)
+### Phase 7 — Polish (S) — done 7 October 2026
 
 - "Open ARMSX2 Settings" in Settings › Cores and the PS2 game's inspector: starts ARMSX2 with its GUI on Ursprung's data folder (Q5).
 - The achievements section of a PS2 game says that achievements are handled in ARMSX2 (Q4).
@@ -279,6 +279,7 @@ A shell script in the scratchpad drives the downloaded nightly with a prepared d
 - `docs/SUPPORTED_SYSTEMS.md` (PS2 supported through ARMSX2, BIOS required), `docs/ARCHITECTURE.md` (backends), `docs/BIOS.md` (PS2 folder), `docs/SAVES.md` (memory cards, `.p2s`), CLAUDE.md (agreed external emulator, Known issues).
 - System icon and accent for PS2 (the hardware-identity design if it is merged by then).
 - Upstream reports: the macOS 27 `NSAlert` crash to ARMSX2, plus a request to skip the memory-card-busy message box on SIGTERM in batch mode; the Play! `retro_deinit` race to Play!.
+- As built: "Open ARMSX2 Settings" starts ARMSX2 without a game (`ARMSX2Launch` with `game == nil`): `-datapath` and `-logfile` only, no `-batch`/`-nogui`, so ARMSX2 shows its main window (an empty game list) and its settings are in its Settings menu; closing the window quits it. The ini is written first with the same managed keys, but the memory card, state and snapshot folders point at ARMSX2's own (`data/ARMSX2/memcards`, `sstates`, `snaps`), so a game started from ARMSX2's window can't write into a library game's folders, and the BIOS is the newest dump of the metadata region. One such window at a time (a second click brings it to the front); it is unavailable while a PS2 game starts or runs, a PS2 launch quits it first (one SIGTERM, it saves its settings as they change), and quitting Ursprung quits it. Checked live: main window, Graphics and Achievements pages open without a crash (Qt widgets, no `NSAlert`), SIGTERM exits cleanly, nothing written to `~/Library/Application Support/ARMSX2`. The button is in Settings › Cores (row "ARMSX2 Settings"), in a PS2 game's inspector (Emulation section, below "Graphics: Set in ARMSX2" and "Achievements: Sign in to RetroAchievements in ARMSX2") and in Settings › Achievements (a PlayStation 2 section saying ARMSX2 has its own sign-in). There is no per-game achievements section in the inspector, so the note went into those two places. For standalone games the inspector also drops the Shader picker and the Cheats section, and the game's and the system's "Edit Shader…" items are hidden. Docs: `SUPPORTED_SYSTEMS.md` (PS2 row, notes, "Standalone emulators"), `BIOS.md` (PS2 dumps), `SAVES.md` (memory cards, `.p2s` layout, resume), `ARCHITECTURE.md` (backends), CLAUDE.md (convention, known issue). The PS2 accent (0x2B3990) exists since phase 1; the hardware-identity design is not merged, so no new icon. The three upstream reports are drafted (crash backtraces from the spike's `.ips` files, Play!'s `retro_deinit` read at master 83700b2c31); filing them on GitHub waits for the user's go.
 
 ## Features for standalone games
 
@@ -336,6 +337,6 @@ The user followed the recommendations. Where the plan had none, the choice below
 5. **Q5 ARMSX2's own settings: yes, as "Open ARMSX2 Settings" in phase 7.**
    - Graphics options (upscaling, texture filtering, per-game fixes) are ARMSX2's strength, and duplicating them in Ursprung is out of proportion.
    - It starts ARMSX2 with its GUI on the same data folder. Keys Ursprung manages (folders, PINE, renderer, setup wizard) are rewritten before every launch; the settings note says so.
-   - Its settings window uses Qt widgets, not message boxes. The spike saw the setup wizard (also Qt widgets) render without crashing; the settings window itself was not opened yet (check in phase 7).
+   - Its settings window uses Qt widgets, not message boxes. The spike saw the setup wizard (also Qt widgets) render without crashing; in phase 7 the main window and the settings window (Graphics, Achievements) opened without a crash too.
 6. **Q6 Play!: not now.**
    - Report the `retro_deinit` race upstream (phase 7). Revisit when a fixed build passes the 12-run teardown check.

@@ -33,6 +33,7 @@ arcade sets are passed to the core as they are.
 | **Saturn** (Sega) | `saturn`, `segasaturn`, `ss` | .cue, .chd, .iso, .m3u | Beetle Saturn, Yabause | `sega_101.bin` (required), `mpr-17933.bin` (required) |
 | **Dreamcast** (Sega) | `dc`, `dreamcast`, `segadreamcast` | .cdi, .gdi, .cue, .chd, .iso, .m3u | Flycast | `dc/dc_boot.bin`, `dc/dc_flash.bin` |
 | **PlayStation** (Sony) | `psx`, `ps1`, `playstation`, `sonyplaystation` | .cue, .chd, .iso, .m3u, .pbp | PCSX ReARMed, SwanStation, Beetle PSX | `scph5500.bin`, `scph5501.bin`, `scph5502.bin`, `scph1001.bin` |
+| **PlayStation 2** (Sony) | `ps2`, `playstation2`, `sonyplaystation2` | .iso, .chd, .cso, .zso, .bin, .mdf | ARMSX2 (standalone) | any PS2 BIOS dump in `pcsx2/bios/` (required) |
 | **PlayStation Portable** (Sony) | `psp`, `playstationportable` | .cso, .iso, .pbp, .chd | PPSSPP | – |
 | **PC Engine / TurboGrafx-16** (NEC) | `pce`, `pcengine`, `tg16`, `turbografx` | .pce, .zip | Beetle PCE Fast | – |
 | **PC Engine CD** (NEC) | `pcecd`, `pcenginecd`, `tgcd`, `turbografxcd` | .cue, .chd, .iso, .m3u | Beetle PCE Fast | `syscard3.pce` (required) |
@@ -64,6 +65,13 @@ arcade sets are passed to the core as they are.
   optional (but improves compatibility). SwanStation and Beetle PSX require one.
   Multi-disc games work best as an `.m3u` playlist listing the `.cue`/`.chd`
   files; swap discs from the game menu.
+- **PlayStation 2** — runs in [ARMSX2](https://github.com/ARMSX2/ARMSX2), a
+  standalone emulator (GPL-3.0) that Ursprung downloads on first use (about
+  170 MB), checks and starts in its own window; see *Standalone emulators*
+  below. A BIOS dump from a PS2 is required (see `docs/BIOS.md`). Each game
+  gets its own memory card. Graphics options (upscaling, filtering) and
+  RetroAchievements are set in ARMSX2's own settings: Settings → Cores →
+  ARMSX2 Settings → Open, or the game's info panel.
 - **PSP** — PPSSPP renders with OpenGL. Its font and shader assets are
   downloaded into the system folder automatically.
 - **Nintendo DS** — the mouse acts as the stylus on the touch screen. melonDS DS
@@ -76,11 +84,31 @@ arcade sets are passed to the core as they are.
 - **GameCube / Wii** — experimental. Dolphin's libretro core is heavy and
   depends on OpenGL; expect issues.
 
+## Standalone emulators
+
+For systems no libretro core plays well on a Mac, Ursprung starts a separate
+emulator app. Today that is ARMSX2 for PlayStation 2. Ursprung pins the release
+it was tested with (Settings → Cores shows it; the version before an update
+stays available), writes the emulator's settings before every game and keeps
+saves in its own folders. The game runs in the emulator's window, full screen
+by default; the library shows it as running, with Quick Save, Quick Load and
+Quit.
+
+What carries over from Ursprung: the library, artwork and play time; save
+states, the automatic resume state and the Save States window; memory cards in
+backups; screenshots taken with your screenshot hotkey; the controls of
+the game's input profile and six hotkeys (game menu, fast forward, quick
+save/load, screenshot). What does not: shaders, rewind, run-ahead, cheats, ROM
+patches, turbo buttons, core options and Ursprung's RetroAchievements sign-in.
+ARMSX2 has its own post-processing and its own RetroAchievements sign-in; in
+its hardcore mode, saving states from Ursprung is unavailable (use F1/F3 in
+ARMSX2's window).
+
 ## Not supported (yet)
 
 - Vulkan-only renderers (ParaLLEl-RDP, ParaLLEl-GS, Beetle PSX HW's Vulkan
   renderer).
-- PlayStation 2, Nintendo 3DS, Xbox — their libretro cores are not in a usable
-  state on macOS arm64 at the moment.
+- Nintendo 3DS, Xbox — their libretro cores are not in a usable state on macOS
+  arm64 at the moment. (PlayStation 2 runs in ARMSX2, see above.)
 - Home computers beyond MSX (Amiga, C64, DOS, …) — the cores exist, but need
   keyboard and disk UI that Ursprung does not have yet.

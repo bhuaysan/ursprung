@@ -61,5 +61,17 @@ is enough.
 \* Only for SwanStation and Beetle PSX. PCSX ReARMed (the default PlayStation
 core) has a built-in HLE BIOS.
 
+### PlayStation 2
+
+PS2 BIOS dumps come in dozens of versions with arbitrary file names, so they
+are not matched by name or checksum. Ursprung accepts any file whose content
+is a PS2 BIOS (a 4 MB image with `RESET`, `ROMVER` and `OSDSYS` in its ROM
+directory) and copies it, with side files of the same name (`.EROM`, `.ROM1`,
+`.ROM2`, `.NVM`, `.MEC`), to `System/pcsx2/bios/`. Settings → BIOS lists each
+dump with its region and version. At least one dump is required. For every
+game Ursprung picks the newest dump of the disc's region (from the disc
+serial, else the file name, else the metadata region), and any dump when
+there is none of that region.
+
 The authoritative source is `SystemCatalog.swift`; the checksums follow the
 [libretro documentation](https://docs.libretro.com/).

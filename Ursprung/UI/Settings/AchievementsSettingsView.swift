@@ -45,6 +45,19 @@ struct AchievementsSettingsView: View {
                     }
                 }
             }
+            ForEach(CoreManager.standaloneEmulators) { core in
+                if let emulator = core.standalone {
+                    Section {
+                        LabeledContent {
+                            StandaloneSettingsButton(emulator: emulator)
+                        } label: {
+                            Text(verbatim: SystemCatalog.all.filter { $0.cores.contains(core) }.map(\.name)
+                                .formatted(.list(type: .and)))
+                            Text("These games run in \(emulator.name), which earns achievements with its own RetroAchievements sign-in. Sign in under Achievements in its settings.")
+                        }
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear { username = storedUsername }

@@ -70,9 +70,12 @@ struct SidebarView: View {
                         .badge(entry.count)
                         .tag(LibrarySelection.system(entry.system.id))
                         .contextMenu {
-                            Button("Edit Shader…") {
-                                shaderEditor.open(.system(entry.system.id))
-                                openWindow(id: WindowID.shaderEditor)
+                            // A standalone emulator applies its own post-processing.
+                            if entry.system.cores.contains(where: \.isLibretro) {
+                                Button("Edit Shader…") {
+                                    shaderEditor.open(.system(entry.system.id))
+                                    openWindow(id: WindowID.shaderEditor)
+                                }
                             }
                         }
                     }

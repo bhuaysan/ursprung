@@ -273,8 +273,29 @@ Installing a core again keeps the previous dylib in `Cores/Previous/`;
 has run with it, its `library_version`. Going back swaps the two. The update
 check compares the buildbot's `Last-Modified` with the install date.
 
+**Standalone emulators.** A `CoreDefinition` has a `backend`: `.libretro`
+(everything above) or `.standalone(StandaloneEmulator)`, a separate app that
+runs the game in its own process and window. The only one is ARMSX2 for
+PlayStation 2 (`docs/STANDALONE_PLAN.md`). `EmulatorManager` downloads the
+release pinned in `SystemCatalog` from GitHub, checks its SHA-256 and its
+Developer ID team, and keeps the active and the previous version in
+`Emulators/ARMSX2/<commit>/ARMSX2.app`; `Emulators/ARMSX2/data` is ARMSX2's own
+data folder (`-datapath`). Before every launch `ARMSX2Launch` runs pre-flight
+checks (every ARMSX2 error dialog crashes it on macOS 27), picks the BIOS by
+disc region and writes `PCSX2.ini` through `PCSX2Config`, merging the keys
+Ursprung manages (folders, BIOS, renderer, PINE, resume, `ARMSX2Controls`'
+bindings and hotkeys) into the file so ARMSX2's other settings survive.
+`ExternalSession` owns the process: one SIGTERM to quit (ARMSX2 then writes its
+resume state), SIGKILL after 10 s. `PINEClient` talks to ARMSX2's PINE socket
+in a folder of Ursprung's own (`TMPDIR` of the child) for status, the first
+frame and save/load state. `EmulationSession` has a `.external` phase instead
+of the player window. "Open ARMSX2 Settings" starts ARMSX2 with its own window
+on the same data folder; a game launch quits it first.
+
 `BIOSManager` verifies BIOS files by MD5 and, on import, renames files to the
-name the core expects (e.g. `SCPH1001.BIN` → `scph1001.bin`).
+name the core expects (e.g. `SCPH1001.BIN` → `scph1001.bin`). PS2 dumps are a
+folder requirement instead (`BIOSFolder`): any file `PS2BIOS` recognises by its
+ROM directory counts.
 
 ## RetroAchievements
 
