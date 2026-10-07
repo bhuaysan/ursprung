@@ -35,6 +35,10 @@ struct GameInspector: View {
                     .padding(.top, AppSpacing.m)
                 actionRow
                     .padding(.top, AppSpacing.l)
+                if isRunningExternally {
+                    externalStatesRow
+                        .padding(.top, AppSpacing.s)
+                }
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
                     if game.isMissing {
                         missingFileRow
@@ -217,6 +221,34 @@ struct GameInspector: View {
             .glassEffect(.regular.interactive(), in: .circle)
             .help("More Actions")
             .accessibilityLabel("More Actions")
+        }
+        .padding(.horizontal, AppSpacing.l)
+    }
+
+    /// Quick Save and Quick Load for a game in a standalone emulator, which
+    /// has no pause menu in Ursprung.
+    private var externalStatesRow: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack(spacing: AppSpacing.s) {
+                Button("Quick Save", systemImage: "square.and.arrow.down") { session.saveState(slot: 0) }
+                    .help("Save the game in \(session.coreName)")
+                Button("Quick Load", systemImage: "square.and.arrow.up") { session.loadState(slot: 0) }
+                    .disabled(!session.slots.contains { $0.slot == 0 })
+                    .help("Continue from the quick save in \(session.coreName)")
+                if session.isExternalStateBusy {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .buttonStyle(.glass)
+            .controlSize(.small)
+            .disabled(!session.canUseExternalStates)
+            if let note = session.externalStatesNote {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, AppSpacing.l)
     }

@@ -11004,6 +11004,126 @@
           }
         }
       }
+    },
+    "ARMSX2 doesn't answer right now. Try again in a moment, or save in its window.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ARMSX2 antwortet gerade nicht. Versuche es gleich noch einmal oder sichere in seinem Fenster."
+          }
+        }
+      }
+    },
+    "ARMSX2 isn't running the game yet. Try again in a moment.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ARMSX2 führt das Spiel noch nicht aus. Versuche es gleich noch einmal."
+          }
+        }
+      }
+    },
+    "ARMSX2 didn't save the state. Its window may say why, for example while the memory card is being written.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ARMSX2 hat den Spielstand nicht gesichert. Sein Fenster nennt vielleicht den Grund, etwa wenn gerade die Memory Card beschrieben wird."
+          }
+        }
+      }
+    },
+    "This state belongs to another disc of the game.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Spielstand gehört zu einer anderen Disc des Spiels."
+          }
+        }
+      }
+    },
+    "Only states in a slot can be loaded while the game runs.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Während das Spiel läuft, lassen sich nur Spielstände aus einem Slot laden."
+          }
+        }
+      }
+    },
+    "Connecting to %@…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinde mit %@ …"
+          }
+        }
+      }
+    },
+    "%@ doesn't answer, so save and load in its window (F1 saves, F3 loads). Hardcore mode turns this off.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ antwortet nicht, sichere und lade deshalb in seinem Fenster (F1 sichert, F3 lädt). Im Hardcore-Modus ist das aus."
+          }
+        }
+      }
+    },
+    "Save the game in %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiel in %@ sichern"
+          }
+        }
+      }
+    },
+    "Continue from the quick save in %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Den schnell gesicherten Spielstand in %@ laden"
+          }
+        }
+      }
+    },
+    "Save State": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielstand sichern"
+          }
+        }
+      }
+    },
+    "Load State": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielstand laden"
+          }
+        }
+      }
+    },
+    "Save the running game into a slot": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das laufende Spiel in einem Slot sichern"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -177,6 +177,115 @@ nonisolated enum ARMSX2States {
                          gameCRC32: nil, gameFileName: gameFileName, gameFileSize: gameFileSize)
     }
 
+    // MARK: Saving and loading through PINE
+
+    /// The file ARMSX2 writes for `slot` of the running disc
+    /// (`VMManager::GetSaveStateFileName`); PINE reports the CRC in lowercase.
+    static func slotFileName(serial: String, crc: String, slot: Int) -> String {
+        "\(serial) (\(crc.uppercased())).\(String(format: "%02d", slot)).p2s"
+    }
+
+    /// Whether ARMSX2 can load `state` by its slot: a slot's own file, not
+    /// the resume state, a merged copy or one from the history.
+    static func isSlotFile(_ state: SaveStateSlot) -> Bool {
+        guard state.isARMSX2, !state.isHistory, case .slot = kind(ofFileName: state.stateURL.lastPathComponent) else { return false }
+        return !FileMerge.isLabelledCopy(state.stateURL)
+    }
+
+    /// Saves the running game into `slot` and waits until ARMSX2 has written
+    /// the state: PINE answers as soon as the save is queued. The state it
+    /// replaces goes into the history first, like a libretro core's slot, and
+    /// comes back if the save fails.
+    @concurrent
+    static func save(slot: Int, through client: PINEClient, in folder: URL,
+                     timeout: Duration = .seconds(10)) async throws -> URL {
+        let url = folder.appending(path: try await slotFileName(slot: slot, through: client))
+        let previous = modificationDate(url)
+        let archived = try archiveCopy(of: url, date: .now)
+        do {
+            do {
+                try await client.saveState(slot: UInt8(slot))
+            } catch {
+                throw ARMSX2ControlError(error)
+            }
+            // ARMSX2 writes `<state>.<random>.part` and renames it when done.
+            let clock = ContinuousClock()
+            let deadline = clock.now + timeout
+            while clock.now < deadline {
+                try await Task.sleep(for: .milliseconds(100))
+                if modificationDate(url) > previous {
+                    SaveStateStore.pruneHistory(in: folder)
+                    return url
+                }
+            }
+            throw ARMSX2ControlError.notSaved
+        } catch {
+            if let archived { unarchive(archived, to: url) }
+            throw error
+        }
+    }
+
+    /// Loads the state in `slot` of the running disc. With `expected`, only
+    /// when that is the file ARMSX2 would load. ARMSX2 shows a dialog for a
+    /// state it cannot read, which crashes it, so the version is checked first.
+    @concurrent
+    static func load(slot: Int, in folder: URL, expected: URL? = nil, through client: PINEClient,
+                     saveStateVersion: UInt32) async throws {
+        let url = folder.appending(path: try await slotFileName(slot: slot, through: client))
+        if let expected, expected.standardizedFileURL.path(percentEncoded: false) != url.standardizedFileURL.path(percentEncoded: false) {
+            throw ARMSX2ControlError.otherDisc
+        }
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { throw ARMSX2ControlError.emptySlot }
+        guard isLoadable(url, by: saveStateVersion) else { throw StandaloneLaunchError.stateNotLoadable }
+        do {
+            try await client.loadState(slot: UInt8(slot))
+        } catch {
+            throw ARMSX2ControlError(error)
+        }
+    }
+
+    private static func slotFileName(slot: Int, through client: PINEClient) async throws -> String {
+        guard (0...99).contains(slot) else { throw ARMSX2ControlError.emptySlot }
+        do {
+            let serial = try await client.serial(), crc = try await client.discCRC()
+            // Without a serial ARMSX2 has no name for states and saves nothing.
+            guard !serial.isEmpty, !crc.isEmpty else { throw ARMSX2ControlError.noGame }
+            return slotFileName(serial: serial, crc: crc, slot: slot)
+        } catch let error as PINEClient.Failure {
+            throw ARMSX2ControlError(error)
+        }
+    }
+
+    /// Copies the state at `url` (if any) into the history and moves its
+    /// manifest along. The copy keeps the state's date, which the manifest
+    /// is checked against.
+    private static func archiveCopy(of url: URL, date: Date) throws -> (state: URL, manifest: URL?)? {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: url.path(percentEncoded: false)) else { return nil }
+        let folder = url.deletingLastPathComponent()
+        let history = SaveStateStore.historyDirectory(folder)
+        try fileManager.createDirectory(at: history, withIntermediateDirectories: true)
+        let prefix = SaveStateStore.historyStamp(date) + "-"
+        let copy = history.appending(path: prefix + url.lastPathComponent)
+        try? fileManager.removeItem(at: copy)
+        try fileManager.copyItem(at: url, to: copy)
+        try? fileManager.setAttributes([.modificationDate: modificationDate(url)], ofItemAtPath: copy.path(percentEncoded: false))
+        let manifest = manifestURL(for: url)
+        guard fileManager.fileExists(atPath: manifest.path(percentEncoded: false)) else { return (copy, nil) }
+        let movedManifest = history.appending(path: prefix + manifest.lastPathComponent)
+        try? fileManager.removeItem(at: movedManifest)
+        try? fileManager.moveItem(at: manifest, to: movedManifest)
+        return (copy, movedManifest)
+    }
+
+    /// Undoes `archiveCopy` after a failed save: the state is still in place.
+    private static func unarchive(_ archived: (state: URL, manifest: URL?), to url: URL) {
+        try? FileManager.default.removeItem(at: archived.state)
+        if let manifest = archived.manifest {
+            try? FileManager.default.moveItem(at: manifest, to: manifestURL(for: url))
+        }
+    }
+
     // MARK: Resume
 
     /// Removes the resume state unless ARMSX2 wrote it since `date`. Quitting
@@ -189,6 +298,45 @@ nonisolated enum ARMSX2States {
     }
 
     private static func modificationDate(_ url: URL) -> Date {
-        (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+        // Fresh values: a save is detected by the date changing.
+        var url = url
+        url.removeAllCachedResourceValues()
+        return (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+    }
+}
+
+/// Why a save or load through PINE did not happen.
+nonisolated enum ARMSX2ControlError: LocalizedError, Equatable {
+    /// PINE does not answer: ARMSX2 is starting, quitting, or in hardcore mode.
+    case notAnswering
+    /// ARMSX2 runs, but no game yet (or one without a serial).
+    case noGame
+    /// The state did not appear in time, e.g. while the memory card was written.
+    case notSaved
+    case emptySlot
+    /// The slot holds a state of another disc of the game.
+    case otherDisc
+
+    init(_ error: any Error) {
+        switch error {
+        case let error as ARMSX2ControlError: self = error
+        case PINEClient.Failure.refused: self = .noGame
+        default: self = .notAnswering
+        }
+    }
+
+    var errorDescription: String? {
+        switch self {
+        case .notAnswering:
+            String(localized: "ARMSX2 doesn't answer right now. Try again in a moment, or save in its window.")
+        case .noGame:
+            String(localized: "ARMSX2 isn't running the game yet. Try again in a moment.")
+        case .notSaved:
+            String(localized: "ARMSX2 didn't save the state. Its window may say why, for example while the memory card is being written.")
+        case .emptySlot:
+            String(localized: "No saved state in this slot")
+        case .otherDisc:
+            String(localized: "This state belongs to another disc of the game.")
+        }
     }
 }

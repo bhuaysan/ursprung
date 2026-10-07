@@ -139,6 +139,14 @@ struct LibraryView: View {
         } detail: {
             content(shelf)
                 .overlay { dropHighlight }
+                .overlay(alignment: .bottom) {
+                    // A game in a standalone emulator has no player window for its toasts.
+                    if session.phase == .external {
+                        ToastStack(toasts: session.toasts)
+                            .padding(.bottom, AppSpacing.l)
+                    }
+                }
+                .appAnimation(AppAnimation.standard, value: session.toasts)
                 .dropDestination(for: URL.self) { urls, _ in
                     importItems(urls, playsSingleGame: false)
                     return !urls.isEmpty
@@ -291,8 +299,8 @@ struct LibraryView: View {
 
     private var standaloneFailureTitle: Text {
         // Only a run that ended has a log.
-        standaloneFailure?.logURL == nil ? Text("“\(session.gameTitle)” couldn't be started")
-                                         : Text("“\(session.gameTitle)” stopped")
+        standaloneFailure?.hasStarted == true ? Text("“\(session.gameTitle)” stopped")
+                                              : Text("“\(session.gameTitle)” couldn't be started")
     }
 
     private func observers(_ content: some View, shelf: Shelf) -> some View {
@@ -650,6 +658,12 @@ struct LibraryView: View {
             ToolbarItem {
                 Menu {
                     Button("Switch to \(session.coreName)", systemImage: "macwindow") { session.showExternalWindow() }
+                    Divider()
+                    Button("Quick Save", systemImage: "square.and.arrow.down") { session.saveState(slot: 0) }
+                        .disabled(!session.canUseExternalStates)
+                    Button("Quick Load", systemImage: "square.and.arrow.up") { session.loadState(slot: 0) }
+                        .disabled(!session.canUseExternalStates || !session.slots.contains { $0.slot == 0 })
+                    Divider()
                     Button("Quit “\(session.gameTitle)”", systemImage: "stop.fill") {
                         Task { await session.stop(context: context) }
                     }

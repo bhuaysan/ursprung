@@ -298,7 +298,8 @@ private struct FailureView: View {
     }
 }
 
-private struct ToastStack: View {
+/// Short messages about what just happened, newest last.
+struct ToastStack: View {
     let toasts: [EmulationSession.Toast]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

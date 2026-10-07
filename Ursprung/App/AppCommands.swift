@@ -118,13 +118,14 @@ struct AppCommands: Commands {
                 Button("Save to Slot \(saveStateSlot)") { session.saveState(slot: saveStateSlot) }
                     .keyboardShortcut("s")
             } else {
+                // A game in a standalone emulator saves through its remote control.
                 Button("Quick Save") { session.saveState(slot: 0) }
                     .keyboardShortcut("s")
-                    .disabled(!running)
+                    .disabled(!running && !session.canUseExternalStates)
             }
             Button("Quick Load") { session.loadState(slot: 0) }
                 .keyboardShortcut("l")
-                .disabled(!running)
+                .disabled(!running && !session.canUseExternalStates)
             Button("Take Screenshot") { session.takeScreenshot() }
                 .disabled(!running)
             Divider()

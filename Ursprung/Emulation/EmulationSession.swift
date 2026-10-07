@@ -42,6 +42,17 @@ final class EmulationSession {
         var settingsTab: SettingsTab?
         /// The standalone emulator's log of the failed run.
         var logURL: URL?
+        /// The game had shown its first frame before it stopped.
+        var hasStarted = false
+    }
+
+    /// How Ursprung reaches the standalone emulator while `phase == .external`.
+    enum ExternalControl: Equatable {
+        /// Waiting for its PINE socket to answer.
+        case connecting
+        case ready
+        /// PINE does not answer, e.g. in hardcore mode: states are saved in its window.
+        case unavailable
     }
 
     struct Toast: Identifiable, Equatable {
@@ -134,6 +145,15 @@ final class EmulationSession {
     /// Its state folder and log, for cleaning up when it ends.
     private var externalStateFolder: URL?
     private var externalLog: URL?
+    /// Save and load go through PINE while `externalControl == .ready`.
+    private(set) var externalControl: ExternalControl?
+    /// A save or load through PINE is under way.
+    private(set) var isExternalStateBusy = false
+    private var pine: PINEClient?
+    private var pineTask: Task<Void, Never>?
+    private var externalSaveStateVersion: UInt32 = 0
+    /// The game has shown its first frame (PINE's frame counter).
+    private var externalHasStarted = false
     private var gameUUID: UUID?
     private var coreID: String?
     /// Where the running game's states live below its folder: the core, or
@@ -517,8 +537,15 @@ final class EmulationSession {
             self.external = external
             externalStateFolder = stateFolder
             externalLog = launch.logFile
+            externalSaveStateVersion = emulator.saveStateVersion
+            self.stateFolder = emulator.id
             startedAt = .now
             phase = .external
+            reloadSlots()
+            let pine = PINEClient(socket: launch.pineSocket)
+            self.pine = pine
+            externalControl = .connecting
+            pineTask = Task { [weak self] in await self?.watchPINE(pine, generation: generation) }
             game.lastPlayed = .now
             game.playCount += 1
             try? context.save()
@@ -527,6 +554,18 @@ final class EmulationSession {
                 // Development aid: quit the emulator like the Quit button, then Ursprung.
                 Task {
                     try? await Task.sleep(for: .seconds(20)); await stop(context: nil)
+                    try? await Task.sleep(for: .seconds(2)); NSApp.terminate(nil)
+                }
+            }
+            if ProcessInfo.processInfo.environment["URSPRUNG_DEBUG_STATES"] != nil {
+                // Development aid: once the game shows, save and load through PINE, then quit.
+                Task {
+                    while externalControl == .connecting || (externalControl == .ready && !externalHasStarted) {
+                        try? await Task.sleep(for: .milliseconds(500))
+                    }
+                    try? await Task.sleep(for: .seconds(4)); saveState(slot: 1)
+                    try? await Task.sleep(for: .seconds(4)); loadState(slot: 1)
+                    try? await Task.sleep(for: .seconds(4)); await stop(context: nil)
                     try? await Task.sleep(for: .seconds(2)); NSApp.terminate(nil)
                 }
             }
@@ -542,12 +581,31 @@ final class EmulationSession {
         try ARMSX2Launch.prepare(request, environment: ProcessInfo.processInfo.environment)
     }
 
+    /// Connects to the emulator's PINE socket, then watches for the game's
+    /// first frame: a crash before it means the game could not be started.
+    private func watchPINE(_ client: PINEClient, generation: Int) async {
+        let isReady = (try? await client.waitUntilReady(timeout: .seconds(30))) != nil
+        guard generation == self.generation, phase == .external else { return }
+        externalControl = isReady ? .ready : .unavailable
+        guard isReady else { return }
+        while !Task.isCancelled, !externalHasStarted {
+            if let stats = try? await client.stats() {
+                externalHasStarted = stats.frameNumber > 0
+            } else if (try? await client.status()) == .running {
+                externalHasStarted = true
+            }
+            if !externalHasStarted { try? await Task.sleep(for: .milliseconds(500)) }
+        }
+    }
+
     /// The emulator ended without Ursprung asking: the user quit it, or it crashed.
     private func externalDidExit(_ exit: ExternalSession.Exit) {
         // A stop or another launch is finishing the session.
         guard shutdown == nil, !exit.wasRequested else { return }
         let log = externalLog
         let name = coreName
+        // Without PINE there is no telling; a crash then counts as a stop.
+        let hasStarted = externalHasStarted || externalControl == .unavailable
         finishExternal(cleanExit: exit.isClean, context: nil)
         guard !exit.isClean else {
             phase = .idle
@@ -556,7 +614,7 @@ final class EmulationSession {
         let reason = log.flatMap { try? String(contentsOf: $0, encoding: .utf8) }.flatMap(ARMSX2Launch.errorMessage(inLog:))
         let message = reason.map { String(localized: "\(name) quit unexpectedly: \($0)") }
             ?? String(localized: "\(name) quit unexpectedly. Its log may tell why.")
-        phase = .failed(Failure(message: message, logURL: log))
+        phase = .failed(Failure(message: message, logURL: log, hasStarted: hasStarted))
     }
 
     /// Records the play time and drops a resume state the session did not
@@ -566,10 +624,18 @@ final class EmulationSession {
         if cleanExit, let folder = externalStateFolder, let startedAt {
             ARMSX2States.removeStaleResumeState(in: folder, olderThan: startedAt)
         }
+        pineTask?.cancel()
+        pineTask = nil
+        pine = nil
+        externalControl = nil
+        isExternalStateBusy = false
+        externalHasStarted = false
         external = nil
         externalStateFolder = nil
         externalLog = nil
+        stateFolder = nil
         startedAt = nil
+        reloadSlots()
     }
 
     /// Brings the standalone emulator's window to the front.
@@ -1008,7 +1074,12 @@ final class EmulationSession {
             history = []
             return
         }
-        slots = SaveStateStore.slots(in: AppPaths.states, gameID: gameUUID, coreID: stateFolder)
+        if let externalStateFolder {
+            let states = ARMSX2States.states(in: externalStateFolder)
+            slots = [states.autosave].compactMap { $0 } + states.slots
+        } else {
+            slots = SaveStateStore.slots(in: AppPaths.states, gameID: gameUUID, coreID: stateFolder)
+        }
         history = SaveStateStore.history(in: AppPaths.states, gameID: gameUUID, coreID: stateFolder)
     }
 
@@ -1018,6 +1089,7 @@ final class EmulationSession {
     }
 
     func saveState(slot: Int) {
+        if phase == .external { return saveExternalState(slot: slot) }
         guard let runner, let gameUUID, let context = stateContext, let stateFolder else { return }
         let directory = SaveStateStore.directory(in: AppPaths.states, gameID: gameUUID, coreID: stateFolder)
         runner.performOnEmulationThread { [weak self] core in
@@ -1049,6 +1121,7 @@ final class EmulationSession {
     }
 
     func loadState(slot: Int) {
+        if phase == .external { return loadExternalState(slot: slot) }
         guard let state = slots.first(where: { $0.slot == slot }) else {
             showToast(String(localized: "No saved state in this slot"))
             return
@@ -1058,6 +1131,12 @@ final class EmulationSession {
 
     /// Loads any state of the running game and core, e.g. one from the history.
     func loadState(_ state: SaveStateSlot) {
+        if phase == .external {
+            guard ARMSX2States.isSlotFile(state) else {
+                return showToast(String(localized: "Only states in a slot can be loaded while the game runs."), kind: .warning, duration: 5)
+            }
+            return loadExternalState(slot: state.slot, expected: state.stateURL)
+        }
         guard let runner else { return }
         if isHardcore {
             return showToast(String(localized: "Loading states is off in hardcore mode."), kind: .warning)
@@ -1087,6 +1166,63 @@ final class EmulationSession {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Save states in a standalone emulator
+
+    /// Save and load through PINE can be used now.
+    var canUseExternalStates: Bool {
+        phase == .external && externalControl == .ready && !isExternalStateBusy
+    }
+
+    /// Why save and load are not available while the game runs in its own window.
+    var externalStatesNote: String? {
+        guard phase == .external else { return nil }
+        return switch externalControl {
+        case .connecting: String(localized: "Connecting to \(coreName)…")
+        case .unavailable: String(localized: "\(coreName) doesn't answer, so save and load in its window (F1 saves, F3 loads). Hardcore mode turns this off.")
+        default: nil
+        }
+    }
+
+    private func saveExternalState(slot: Int) {
+        guard let pine, let folder = externalStateFolder else { return }
+        guard externalControl == .ready else {
+            return showToast(externalStatesNote ?? "", kind: .warning, duration: 5)
+        }
+        guard !isExternalStateBusy else { return }
+        isExternalStateBusy = true
+        Task {
+            do {
+                _ = try await ARMSX2States.save(slot: slot, through: pine, in: folder)
+                showToast(String(localized: "State saved"), kind: .saved)
+            } catch {
+                showToast(error.localizedDescription, kind: .warning, duration: 5)
+            }
+            isExternalStateBusy = false
+            reloadSlots()
+        }
+    }
+
+    /// Loads a state in the emulator's window and brings that window forward.
+    private func loadExternalState(slot: Int, expected: URL? = nil) {
+        guard let pine, let folder = externalStateFolder else { return }
+        guard externalControl == .ready else {
+            return showToast(externalStatesNote ?? "", kind: .warning, duration: 5)
+        }
+        guard !isExternalStateBusy else { return }
+        isExternalStateBusy = true
+        let version = externalSaveStateVersion
+        Task {
+            do {
+                try await ARMSX2States.load(slot: slot, in: folder, expected: expected, through: pine, saveStateVersion: version)
+                showToast(String(localized: "State loaded"), kind: .loaded)
+                external?.activate()
+            } catch {
+                showToast(error.localizedDescription, kind: .warning, duration: 5)
+            }
+            isExternalStateBusy = false
         }
     }
 

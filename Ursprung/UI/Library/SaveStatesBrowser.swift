@@ -31,7 +31,17 @@ struct SaveStatesBrowser: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if isRunning {
+                if isRunningExternally {
+                    // The game has no pause menu in Ursprung; its emulator saves on request.
+                    Menu("Save State", systemImage: "square.and.arrow.down") {
+                        ForEach(SaveStateStore.slotRange, id: \.self) { slot in
+                            Button(slot == 0 ? "Quick Save" : "Slot \(slot)") { session.saveState(slot: slot) }
+                        }
+                    }
+                    .fixedSize()
+                    .disabled(!session.canUseExternalStates)
+                    .help(session.externalStatesNote.map { Text($0) } ?? Text("Save the running game into a slot"))
+                } else if isRunning {
                     StatusLabel("Running", systemImage: "play.circle", kind: .neutral)
                         .font(.callout)
                         .help(standalone.map { Text("Save and load in \($0.name) while the game runs.") }
@@ -72,6 +82,8 @@ struct SaveStatesBrowser: View {
         }
         .frame(width: 640, height: 560)
         .onAppear(perform: reload)
+        // A save through the running emulator lands while the sheet is open.
+        .onChange(of: session.slots) { reload() }
         .alert("Name Save State", isPresented: Binding(get: { stateToRename != nil }, set: { if !$0 { stateToRename = nil } }),
                presenting: stateToRename) { state in
             TextField("Name", text: $newName)
@@ -127,8 +139,13 @@ struct SaveStatesBrowser: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: AppSpacing.m, alignment: .top)],
                       alignment: .leading, spacing: AppSpacing.m) {
                 ForEach([core.autosave].compactMap { $0 } + core.slots) { state in
-                    StateCard(state: state, canPlay: canPlay, play: { start(state) },
-                              rename: { beginRenaming(state) }, delete: { stateToDelete = state })
+                    if loadsInRunningEmulator(core) {
+                        StateCard(state: state, canPlay: canLoad(state), playTitle: "Load State", play: { load(state) },
+                                  rename: { beginRenaming(state) }, delete: { stateToDelete = state })
+                    } else {
+                        StateCard(state: state, canPlay: canPlay, play: { start(state) },
+                                  rename: { beginRenaming(state) }, delete: { stateToDelete = state })
+                    }
                 }
             }
             if !core.history.isEmpty {
@@ -152,6 +169,25 @@ struct SaveStatesBrowser: View {
 
     private var isRunning: Bool {
         session.isActive && session.gameID == game.persistentModelID
+    }
+
+    /// The game runs in its standalone emulator, which loads its slots on request.
+    private var isRunningExternally: Bool {
+        session.phase == .external && session.gameID == game.persistentModelID
+    }
+
+    private func loadsInRunningEmulator(_ core: SaveStateStore.CoreStates) -> Bool {
+        isRunningExternally && core.coreID != nil && core.coreID == standalone?.id
+    }
+
+    /// The emulator loads states by slot, so the automatic state and copies wait until it quits.
+    private func canLoad(_ state: SaveStateSlot) -> Bool {
+        ARMSX2States.isSlotFile(state) && session.canUseExternalStates
+    }
+
+    private func load(_ state: SaveStateSlot) {
+        dismiss()
+        session.loadState(state)
     }
 
     /// The emulator a game of a standalone system runs in, which makes its states.
@@ -190,6 +226,7 @@ struct SaveStatesBrowser: View {
 private struct StateCard: View {
     let state: SaveStateSlot
     let canPlay: Bool
+    var playTitle: LocalizedStringKey = "Play from Here"
     let play: () -> Void
     var rename: (() -> Void)?
     var restore: (() -> Void)?
@@ -214,7 +251,7 @@ private struct StateCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             HStack(spacing: AppSpacing.s) {
-                Button("Play from Here", action: play)
+                Button(playTitle, action: play)
                     .disabled(!canPlay)
                 Spacer(minLength: 0)
                 if let restore {
@@ -235,7 +272,7 @@ private struct StateCard: View {
             .padding(.top, AppSpacing.xxs)
         }
         .contextMenu {
-            Button("Play from Here", action: play)
+            Button(playTitle, action: play)
                 .disabled(!canPlay)
             if let restore {
                 Button(state.slot == 0 ? "Restore as Quick Save" : "Restore to Slot \(state.slot)", action: restore)
