@@ -101,7 +101,7 @@ struct StandaloneLaunchTests {
         #expect(ini.values("ConfirmShutdown", in: "UI") == ["false"])
         #expect(ini.values("StartFullscreen", in: "UI") == ["false"])
         #expect(ini.values("DisplayWindowGeometry", in: "UI") == ["AdnQywAD"], "Window geometry stays")
-        #expect(ini.values("Renderer", in: "EmuCore/GS") == ["17"])
+        #expect(ini.values("Renderer", in: "EmuCore/GS") == ["-1"], "Automatic is Metal; naming Metal warns at every start")
         #expect(ini.values("upscale_multiplier", in: "EmuCore/GS") == ["3"], "ARMSX2 settings of the user stay")
         #expect(ini.values("Cross", in: "Pad1") == ["Keyboard/Z", "SDL-0/FaceSouth"], "Ursprung's controls replace the old ones")
         #expect(ini.values("Bios", in: "Folders") == ["/S/pcsx2/bios"])

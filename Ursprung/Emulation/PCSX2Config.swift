@@ -116,9 +116,11 @@ nonisolated struct PCSX2Config: Equatable, Sendable {
 
     /// The single memory card of a game (slot 2 stays empty).
     static let memoryCardFileName = "Mcd001.ps2"
-    /// The Metal renderer. OpenGL (12) cannot create a device on macOS and
-    /// crashes ARMSX2 with an error dialog (S5).
-    static let metalRenderer = "17"
+    /// Automatic, which is Metal on macOS (`GSUtil::GetPreferredRenderer`).
+    /// OpenGL (12) cannot create a device on macOS and crashes ARMSX2 with an
+    /// error dialog (S5); naming Metal (17) shows an "unsafe settings"
+    /// message at every start.
+    static let renderer = "-1"
 
     /// Managed entries per section, in the order a new file gets them, and
     /// which other keys of the section go: Ursprung owns the bindings.
@@ -158,7 +160,7 @@ nonisolated struct PCSX2Config: Equatable, Sendable {
                 // Ursprung keeps replaced states itself.
                 E("BackupSavestate", "false"),
             ]),
-            ("EmuCore/GS", [E("Renderer", Self.metalRenderer)]),
+            ("EmuCore/GS", [E("Renderer", Self.renderer)]),
             ("InputSources", [
                 E("Keyboard", "true"),
                 E("Mouse", "true"),

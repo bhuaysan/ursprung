@@ -1,6 +1,6 @@
 # Ursprung — Standalone Emulators and PlayStation 2: Plan
 
-7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), phases 1–7 done on branch `feature/ps2-armsx2` (7 October 2026). Comes before `docs/VULKAN_PLAN.md`.
+7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), phase 0 spike done (7 October 2026), phases 1–8 done on branch `feature/ps2-armsx2` (7 October 2026). Comes before `docs/VULKAN_PLAN.md`.
 
 Ursprung runs every game in-process through a libretro core. PlayStation 2 has no libretro core that works on macOS arm64 today (see *Background*). This plan adds a second kind of emulator, a **standalone emulator** that Ursprung downloads, configures and launches as a separate process. The first and only one in this plan is ARMSX2, which makes PlayStation 2 playable.
 
@@ -105,7 +105,7 @@ Nightly `nightly-20261006` (46c06fe7ca), Persona 4 (Europe), the user's EU/US/JP
 | Game file missing | crash | pre-flight: file exists |
 | Game file unreadable (no permission) | crash | pre-flight: open for reading |
 | Game file not a PS2 image (random bytes) | runs, "Unknown game" in the BIOS browser | none needed |
-| `Renderer = 12` (OpenGL) | crash ("failed to create render device") | Ursprung always writes `Renderer = 17` (Metal) |
+| `Renderer = 12` (OpenGL) | crash ("failed to create render device") | Ursprung always writes `Renderer = -1` (automatic, which is Metal on macOS; phase 8) |
 | `Renderer = 99` | runs | — |
 | `-statefile` missing or not a zip | crash | pre-flight: file exists, opens as zip, version compatible (S2) |
 | Memory card file read-only | crash | pre-flight: card files writable |
@@ -182,7 +182,7 @@ Written before every launch (nonisolated, pure function from settings to ini tex
 - `[Filenames] BIOS` = the dump matching the disc region (S5).
 - `[MemoryCards] Slot1_Enable = true`, `Slot1_Filename = Mcd001.ps2`, `Slot2_Enable = false` (S1).
 - `[EmuCore]` `EnableFastBoot`, `EnablePINE = true`, `PINESlot = <free slot>`, `SaveStateOnShutdown` = the resume preference (Q2), `BackupSavestate = false` (S8).
-- `[EmuCore/GS] Renderer = 17` (Metal; OpenGL crashes, S5).
+- `[EmuCore/GS] Renderer = -1` (automatic, which ARMSX2 resolves to Metal on macOS; OpenGL crashes, S5). Until phase 8 this was `17` (Metal by name), which made ARMSX2 show an "unsafe settings" message at every start.
 - `[InputSources]`, `[Pad1]`, `[Pad2]` and `[Hotkeys]`: ARMSX2's default keyboard map plus `SDL-0` controller bindings in phase 3 (without the wizard there are none, S7); from phase 6 the game's input profile and Ursprung's hotkeys (`ARMSX2Controls`).
 - Keys Ursprung does not manage are kept from the existing file, so changes the user makes in ARMSX2's own settings survive (see Q5). Sections are ordered lists of key/value pairs: a key may repeat (several bindings for one button, S7).
 
@@ -281,6 +281,24 @@ A shell script in the scratchpad drives the downloaded nightly with a prepared d
 - Upstream reports: the macOS 27 `NSAlert` crash to ARMSX2, plus a request to skip the memory-card-busy message box on SIGTERM in batch mode; the Play! `retro_deinit` race to Play!.
 - As built: "Open ARMSX2 Settings" starts ARMSX2 without a game (`ARMSX2Launch` with `game == nil`): `-datapath` and `-logfile` only, no `-batch`/`-nogui`, so ARMSX2 shows its main window (an empty game list) and its settings are in its Settings menu; closing the window quits it. The ini is written first with the same managed keys, but the memory card, state and snapshot folders point at ARMSX2's own (`data/ARMSX2/memcards`, `sstates`, `snaps`), so a game started from ARMSX2's window can't write into a library game's folders, and the BIOS is the newest dump of the metadata region. One such window at a time (a second click brings it to the front); it is unavailable while a PS2 game starts or runs, a PS2 launch quits it first (one SIGTERM, it saves its settings as they change), and quitting Ursprung quits it. Checked live: main window, Graphics and Achievements pages open without a crash (Qt widgets, no `NSAlert`), SIGTERM exits cleanly, nothing written to `~/Library/Application Support/ARMSX2`. The button is in Settings › Cores (row "ARMSX2 Settings"), in a PS2 game's inspector (Emulation section, below "Graphics: Set in ARMSX2" and "Achievements: Sign in to RetroAchievements in ARMSX2") and in Settings › Achievements (a PlayStation 2 section saying ARMSX2 has its own sign-in). There is no per-game achievements section in the inspector, so the note went into those two places. For standalone games the inspector also drops the Shader picker and the Cheats section, and the game's and the system's "Edit Shader…" items are hidden. Docs: `SUPPORTED_SYSTEMS.md` (PS2 row, notes, "Standalone emulators"), `BIOS.md` (PS2 dumps), `SAVES.md` (memory cards, `.p2s` layout, resume), `ARCHITECTURE.md` (backends), CLAUDE.md (convention, known issue). The PS2 accent (0x2B3990) exists since phase 1; the hardware-identity design is not merged, so no new icon. Upstream reports filed 7 October 2026 (crash backtraces from the spike's `.ips` files, Play!'s `retro_deinit` read at master 83700b2c31): [ARMSX2#811](https://github.com/ARMSX2/ARMSX2/issues/811) (message boxes crash on macOS 27), [ARMSX2#812](https://github.com/ARMSX2/ARMSX2/issues/812) (no Memory Card Busy dialog on SIGTERM / in batch mode), [Play-#1628](https://github.com/jpd002/Play-/issues/1628) (`retro_deinit` race).
 
+### Phase 8 — Release check (S) — done 7 October 2026
+
+The manual checks from *Tests*, run against the pinned nightly (46c06fe7ca) in the running app before the branch is merged, and again before the pin moves.
+
+- Boot, memory card, save and load state through PINE, resume: `URSPRUNG_AUTOPLAY` with `URSPRUNG_DEBUG_STATES` (see the `debug-without-ui` skill), then a second launch without it.
+- ARMSX2's window, windowed and full screen: Ursprung's keys for the pad and the hotkeys, ⌘Q, the close button, quitting Ursprung while the game runs.
+- A controller: buttons, Guide, switching it off and on during the game.
+- Fix what the checks turn up; record the results here.
+- As built (results, 7 October 2026, Persona 4 (Europe), EU BIOS, German keyboard layout):
+  - **Boot and memory card:** a new `Mcd001.ps2` (8 MB) is created in `Saves/ps2/<game id>/`; Persona 4's Load Game screen reads it ("No data"). Writing a save from inside the game was not checked (the first save point is about an hour in); the card is in backups either way.
+  - **States:** save to Ursprung's slot 1 (ARMSX2 `.00.p2s`) and load it through PINE, the resume state written on Quit and passed with `-statefile` on the next launch, the game continuing there.
+  - **Keys in ARMSX2's window:** F2 saves to `.01.p2s` (Quick Save) and F4 loads it (ARMSX2's log: "Status in Slot 1 gespeichert", "Status von Slot 1 geladen"); Escape opens ARMSX2's pause menu; `Y` (Cross on the German layout), `X` (Circle) and `K` (left stick down) skip the trailer, open the title menu and Load Game, go back and move the cursor. A key has to be held for a frame or two: a synthetic press (down and up at once, as `osascript … key code` sends it) reaches hotkeys but not the pad, which ARMSX2 polls once per frame. In the pause menu the keyboard drives ARMSX2's menu itself (arrows, Return, Escape), not the pad keys.
+  - **Quitting:** ⌘Q and the close button exit cleanly; the library goes back to Play without an alert, the play time is recorded and the resume state from before the session is deleted (Q2). Quitting Ursprung during the game: ARMSX2 writes the resume state and exits within a second, the play time is recorded. Full screen (the default): the game window takes focus in its own Space; Quit from the library (through `URSPRUNG_DEBUG_PLAY`) leaves it cleanly and writes the resume state.
+  - **Controller** (Xbox Series X, Bluetooth, with the user): A, D-pad and Guide (ARMSX2's pause menu) work; after switching it off and on, ARMSX2 shows "Controller SDL-0 angeschlossen" and keeps it as player 1, the buttons work again without a restart.
+  - **Fix:** ARMSX2 showed "The graphics API is not set to Automatic" on screen at every start, because Ursprung wrote `Renderer = 17` (Metal). Ursprung now writes `-1` (automatic); `GSUtil::GetPreferredRenderer` resolves that to Metal on macOS, so the renderer is the same (log: "renderer=Metal") and the message is gone.
+  - **Pin:** the newest release, ARMSX2 2.8.2 (7 October 2026), has Android builds only, so the pin stays on `nightly-20261006`. The upstream reports (#811, #812, Play-#1628) have no answer yet.
+  - Not checked: DualSense, Switch Pro, 8BitDo (no such controller at hand); a save written by the game itself.
+
 ## Features for standalone games
 
 | Feature | PS2 via ARMSX2 |
@@ -300,7 +318,7 @@ A shell script in the scratchpad drives the downloaded nightly with a prepared d
 
 - Unit: ini generation, launch arguments, BIOS ROMDIR parsing, `.p2s` listing and thumbnails, PINE encoding against a fake server, catalog invariants, `EmulatorManager` install/verify/rollback with fakes.
 - Lifecycle: fake executable in `Tools/ursprung-test-standalone` (TERM handling, exit codes, a log file), copied into the test bundle like `ursprung-test-core`.
-- Manual, per pinned release: Persona 4 boots, saves to its memory card, save/load state via PINE, resume after quit, ⌘Q in the game window, Ursprung quit while running, controller hot-plug.
+- Manual, per pinned release: Persona 4 boots, saves to its memory card, save/load state via PINE, resume after quit, Ursprung's keys and hotkeys in ARMSX2's window, ⌘Q and the close button in the game window, Ursprung quit while running, controller hot-plug. Phase 8 is the record of the first run and how each check was done.
 
 ## Risks
 
