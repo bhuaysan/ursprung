@@ -45,6 +45,8 @@ The three-column structure stays: sidebar, grid, inspector, with a unified toolb
 
 The sidebar stays a native `.sidebar` list with two flat sections; the only custom elements are the system identity dot and the activity footer.
 
+> Hardware-identity pass (October 2026, branch `design/hardware-identity`): system rows show the console's photo instead of the identity dot, scaled so every console covers the same visual area (`SystemIcon`), with the dot as fallback until the photo is downloaded. The rest of this section applies unchanged.
+
 **Structure**
 
 - Section “Library”: All Games, Favorites, Recently Played. Section “Systems”: one row per system that has games, ordered by manufacturer then year (current order). ESSENTIAL
@@ -199,6 +201,17 @@ The 172 pt accent-gradient banner (`GameGridView.swift:98`) becomes an 88 pt lib
 ## G. Inspector specification
 
 The inspector is a narrower, quieter column: masked artwork on top, a compact title block, one action row, then plain text sections without uppercase headings.
+
+> Hardware-identity pass (October 2026, branch `design/hardware-identity`): the inspector reads as the game's box rather than a form. Where it differs from the rules below, this note wins:
+>
+> - Title in `.title2` bold with the expanded width, like the lettering on a cartridge; the subline is the console's photo and the system name. The multi-game inspector uses the same title style.
+> - Details become a fact strip: symbol and phrase (“1–2 Players”, the genre, the release date, developer, publisher) wrapping like the strip on the back of a box, the full name as tooltip and VoiceOver label. The overview follows without a heading.
+> - Activity is written as sentences (“Last played yesterday. 54 min in 35 sessions.”), followed by status and collections as tags: the status tag opens its menu, each collection the game is in is a tag that can remove it, and a dashed tag adds it to more. The Organize section is gone.
+> - Emulation, Discs and Extras use symbol rows instead of the label column: a symbol (tooltip = the setting's name), the value as text or a borderless menu, and a quiet “Same as System” when the game inherits it. Discs keep their numbers (`1.circle`, `2.circle`): they are a sequence.
+> - Manual, Patches and Cheats are one “Extras” section, one row each; until something is added the row is an “Add …” link whose tooltip carries the explanation.
+> - The file is the one bordered element: a plate at the end with the name, size and CRC32 and a Show in Finder (or Locate File…) button, like the label under a cartridge. It is the deliberate exception to principle A3.
+>
+> Order: Activity · Versions · Media · Emulation · Discs · Extras · file plate.
 
 **Frame**
 
