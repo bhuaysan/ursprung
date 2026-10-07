@@ -205,7 +205,7 @@ nonisolated enum SaveStateStore {
 
     /// Moves the state in `slot` (if any) into the history as
     /// `History/<time>-slotN.*`.
-    static func archive(slot: Int, in directory: URL, date: Date = .now) throws {
+    static func archive(slot: Int, in directory: URL, date: Date = .now, prune: Bool = true) throws {
         let name = "slot\(slot)"
         let state = directory.appending(path: "\(name).state")
         guard FileManager.default.fileExists(atPath: state.path(percentEncoded: false)) else { return }
@@ -219,7 +219,7 @@ nonisolated enum SaveStateStore {
             try? FileManager.default.removeItem(at: destination)
             try FileManager.default.moveItem(at: source, to: destination)
         }
-        pruneHistory(in: directory)
+        if prune { pruneHistory(in: directory) }
     }
 
     /// The replaced and deleted states of a game for a core, newest first.
@@ -244,12 +244,13 @@ nonisolated enum SaveStateStore {
     }
 
     /// Puts a state from the history back into `slot`. The state there now
-    /// goes into the history in turn.
+    /// goes into the history in turn. The history is pruned only afterwards:
+    /// `entry` may be its oldest state.
     static func restore(_ entry: SaveStateSlot, toSlot slot: Int, in directory: URL, date: Date = .now) throws {
         // ARMSX2's states go back under their own name, which holds the slot.
         if entry.isARMSX2 { return try ARMSX2States.restore(entry, in: directory, date: date) }
         let data = try Data(contentsOf: entry.stateURL)
-        try archive(slot: slot, in: directory, date: date)
+        try archive(slot: slot, in: directory, date: date, prune: false)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: directory.appending(path: "slot\(slot).state"), options: .atomic)
         for (source, ext) in [(entry.thumbnailURL, "png"), (entry.manifestURL, "json")] {
@@ -258,6 +259,7 @@ nonisolated enum SaveStateStore {
             try? FileManager.default.copyItem(at: source, to: destination)
         }
         delete(entry)
+        pruneHistory(in: directory)
     }
 
     static func pruneHistory(in directory: URL) {

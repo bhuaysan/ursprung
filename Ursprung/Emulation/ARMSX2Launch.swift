@@ -58,8 +58,9 @@ nonisolated struct ARMSX2Launch: Sendable {
         var fullscreen: Bool
         /// The game's controls as ARMSX2 bindings.
         var controls: ARMSX2Controls
-        /// States written by another save state version cannot be loaded.
-        var saveStateVersion: UInt32
+        /// The installed version's save state format; states written by
+        /// another one cannot be loaded, and none when it is unknown.
+        var saveStateVersion: UInt32?
         /// A state to start from, chosen in the Save States browser.
         var stateFile: URL?
     }
@@ -73,6 +74,8 @@ nonisolated struct ARMSX2Launch: Sendable {
     /// The resume state the game continues from.
     let stateFile: URL?
     let pineSocket: URL
+    /// The save state format the states were checked against.
+    let saveStateVersion: UInt32?
 
     /// Checks the request, chooses the BIOS and writes `PCSX2.ini`.
     static func prepare(_ request: Request, environment base: [String: String]) throws -> ARMSX2Launch {
@@ -149,7 +152,16 @@ nonisolated struct ARMSX2Launch: Sendable {
         environment["TMPDIR"] = request.pineFolder.path(percentEncoded: false)
         return ARMSX2Launch(executable: request.app.appending(path: request.executable), arguments: arguments,
                             environment: environment, config: config, logFile: request.logFile, stateFile: stateFile,
-                            pineSocket: pineSocket(slot: pineSlot, in: request.pineFolder))
+                            pineSocket: pineSocket(slot: pineSlot, in: request.pineFolder),
+                            saveStateVersion: request.saveStateVersion)
+    }
+
+    /// A PINE folder of its own for every launch (ARMSX2 puts its socket in
+    /// `TMPDIR`), so a request meant for one session can't reach the
+    /// emulator of the next. Short: a socket path holds only 104 bytes.
+    static func newPINEFolder(in temporary: URL) -> URL {
+        temporary.appending(path: "Ursprung-PINE", directoryHint: .isDirectory)
+            .appending(path: String(UUID().uuidString.prefix(8)), directoryHint: .isDirectory)
     }
 
     /// The default PINE slot unless a socket of an earlier run is still there.

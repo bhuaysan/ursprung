@@ -532,6 +532,27 @@ struct SaveStateHistoryTests {
         #expect(SaveStateStore.history(in: states, gameID: gameID, coreID: "snes9x").isEmpty)
     }
 
+    @Test func theOldestStateOfAFullHistoryComesBackWhole() throws {
+        let states = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: states) }
+        let directory = SaveStateStore.directory(in: states, gameID: gameID, coreID: "snes9x")
+        for index in 0...SaveStateStore.historyLimit {
+            try SaveStateStore.write(Data([UInt8(index)]), manifest: context.manifest(), slot: 0, in: directory,
+                                     date: Date(timeIntervalSince1970: Double(index)))
+            try write([UInt8(index)], to: directory.appending(path: "slot0.png"))
+        }
+        let history = SaveStateStore.history(in: states, gameID: gameID, coreID: "snes9x")
+        #expect(history.count == SaveStateStore.historyLimit)
+        let oldest = try #require(history.last)
+
+        try SaveStateStore.restore(oldest, toSlot: 0, in: directory)
+        let slot = try #require(SaveStateStore.slots(in: states, gameID: gameID, coreID: "snes9x").first)
+        #expect(try Data(contentsOf: slot.stateURL) == Data([0]))
+        #expect(try Data(contentsOf: slot.thumbnailURL) == Data([0]), "Its thumbnail came back too")
+        #expect(FileManager.default.fileExists(atPath: slot.manifestURL.path(percentEncoded: false)))
+        #expect(SaveStateStore.history(in: states, gameID: gameID, coreID: "snes9x").count == SaveStateStore.historyLimit)
+    }
+
     @Test func aStateThatCantBeArchivedIsKept() throws {
         let states = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: states) }

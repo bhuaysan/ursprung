@@ -59,7 +59,8 @@ nonisolated struct StandaloneEmulator: Sendable, Hashable, Identifiable {
     /// The executable inside the installed `.app`, relative to the bundle.
     let executable: String
     /// Save state format version of the pinned release; states with another
-    /// major version cannot be loaded.
+    /// major version cannot be loaded. Installed versions record theirs
+    /// (`EmulatorManager.saveStateVersion(of:)`): check against that one.
     let saveStateVersion: UInt32
 
     var downloadURL: URL {

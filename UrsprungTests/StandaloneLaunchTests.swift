@@ -246,6 +246,16 @@ struct StandaloneLaunchTests {
         #expect(launch.pineSocket.lastPathComponent == "pcsx2.sock.28012")
     }
 
+    @Test func everyLaunchGetsItsOwnPINESocket() {
+        let temporary = URL(filePath: NSTemporaryDirectory())
+        let first = ARMSX2Launch.newPINEFolder(in: temporary), second = ARMSX2Launch.newPINEFolder(in: temporary)
+        #expect(first != second)
+        #expect(first.deletingLastPathComponent() == second.deletingLastPathComponent())
+        // `sun_path` holds 104 bytes, NUL included.
+        let socket = ARMSX2Launch.pineSocket(slot: 28099, in: first).path(percentEncoded: false)
+        #expect(socket.utf8.count < 104)
+    }
+
     @Test func resumesOnlyFromLoadableStates() throws {
         var fixture = try Fixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }

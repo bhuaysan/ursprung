@@ -34,12 +34,13 @@ struct EmulatorManagerTests {
         return archive
     }
 
-    private func emulator(commit: String, archive: URL, sha256: String? = nil) throws -> StandaloneEmulator {
+    private func emulator(commit: String, archive: URL, sha256: String? = nil,
+                          saveStateVersion: UInt32 = 0) throws -> StandaloneEmulator {
         StandaloneEmulator(
             id: "armsx2", name: "ARMSX2", repository: "ARMSX2/ARMSX2",
             release: .init(tag: "nightly-\(commit)", assetName: archive.lastPathComponent,
                            sha256: try sha256 ?? EmulatorManager.sha256(of: archive), commit: commit),
-            teamIdentifier: "TEAM123456", executable: "Contents/MacOS/ARMSX2", saveStateVersion: 0)
+            teamIdentifier: "TEAM123456", executable: "Contents/MacOS/ARMSX2", saveStateVersion: saveStateVersion)
     }
 
     /// Serves every archive in `root` by its file name, like the release assets.
@@ -156,6 +157,32 @@ struct EmulatorManagerTests {
         #expect(manager.versions["armsx2"]?.previous?.commit == "aaaa")
         #expect(visibleItems(in: manager.folder(for: third)) == ["aaaa", "cccc"])
         #expect(await log.urls == [first.downloadURL, second.downloadURL, third.downloadURL])
+    }
+
+    @Test func goingBackChecksStatesAgainstTheOlderFormat() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let old = try emulator(commit: "aaaa", archive: makeArchive(in: root, commit: "aaaa"), saveStateVersion: 0x9A59_0000)
+        let new = try emulator(commit: "bbbb", archive: makeArchive(in: root, commit: "bbbb"), saveStateVersion: 0x9B00_0000)
+        let manager = makeManager(root: root, log: DownloadLog())
+        _ = try await manager.ensureInstalled(old)
+        _ = try await manager.ensureInstalled(new)
+        #expect(manager.saveStateVersion(of: new) == 0x9B00_0000)
+
+        manager.restorePreviousVersion(new)
+        #expect(manager.saveStateVersion(of: new) == 0x9A59_0000)
+        // Ursprung keeps the format across launches.
+        let reloaded = makeManager(root: root, log: DownloadLog())
+        #expect(reloaded.saveStateVersion(of: new) == 0x9A59_0000)
+
+        // Versions recorded without a format: the pin's is known, any other one is not.
+        let directory = root.appending(path: "Emulators", directoryHint: .isDirectory)
+        try EmulatorVersionStore.save(["armsx2": EmulatorVersionEntry(
+            current: EmulatorVersionRecord(tag: "nightly-aaaa", commit: "aaaa", installed: .now),
+            previous: EmulatorVersionRecord(tag: "nightly-bbbb", commit: "bbbb", installed: .now))], in: directory)
+        let legacy = makeManager(root: root, log: DownloadLog())
+        #expect(legacy.saveStateVersion(of: new) == nil)
+        #expect(legacy.saveStateVersion(of: old) == 0x9A59_0000)
     }
 
     @Test func removingDeletesTheVersionsButKeepsTheDataFolder() async throws {

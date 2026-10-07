@@ -295,6 +295,33 @@ struct ARMSX2ControlTests {
         #expect(ARMSX2States.states(in: folder).slots.first?.name == "Keep me")
     }
 
+    @Test func aCancelledSaveSendsNothing() async throws {
+        let root = try makeTemporaryDirectory()
+        let socketFolder = try makeSocketFolder()
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: socketFolder)
+        }
+        let folder = root.appending(path: "armsx2", directoryHint: .isDirectory)
+        try Self.writeState("SLES-55474 (117D1977).01.p2s", in: folder, modified: .now.addingTimeInterval(-600))
+        let quickSave = try #require(ARMSX2States.states(in: folder).slots.first)
+        try SaveStateStore.rename(quickSave, to: "Keep me",
+                                  origin: ARMSX2States.context(for: quickSave, gameFileName: "p4.iso", gameFileSize: 1))
+        let server = try FakePINEServer(socket: socketFolder.appending(path: "pcsx2.sock"), handler: persona4)
+        defer { server.stop() }
+
+        // The session ended before the request went out.
+        let client = PINEClient(socket: server.socket)
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await ARMSX2States.save(slot: 0, through: client, in: folder)
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(!server.requests.contains { $0.opcode == PINEClient.Opcode.saveState.rawValue })
+        #expect(ARMSX2States.history(in: folder).isEmpty)
+        #expect(ARMSX2States.states(in: folder).slots.first?.name == "Keep me")
+    }
+
     @Test func loadsOnlyCompatibleStatesOfTheRunningDisc() async throws {
         let root = try makeTemporaryDirectory()
         let socketFolder = try makeSocketFolder()

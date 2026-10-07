@@ -287,9 +287,9 @@ Ursprung manages (folders, BIOS, renderer, PINE, resume, `ARMSX2Controls`'
 bindings and hotkeys) into the file so ARMSX2's other settings survive.
 `ExternalSession` owns the process: one SIGTERM to quit (ARMSX2 then writes its
 resume state), SIGKILL after 10 s. `PINEClient` talks to ARMSX2's PINE socket
-in a folder of Ursprung's own (`TMPDIR` of the child) for status, the first
-frame and save/load state. `EmulationSession` has a `.external` phase instead
-of the player window. "Open ARMSX2 Settings" starts ARMSX2 with its own window
+in a folder of its own per launch (`TMPDIR` of the child) for status, the
+first frame and save/load state; stopping waits for a save under way.
+`EmulationSession` has a `.external` phase instead of the player window. "Open ARMSX2 Settings" starts ARMSX2 with its own window
 on the same data folder; a game launch quits it first.
 
 `BIOSManager` verifies BIOS files by MD5 and, on import, renames files to the

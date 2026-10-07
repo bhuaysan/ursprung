@@ -84,7 +84,9 @@ Ursprung's Quick Save is ARMSX2's slot 1 (`.01.p2s`) so that the Quick Save
 key in ARMSX2's window saves into the same state; Ursprung's slot 1 is file
 `.00.p2s`. Saving and loading from the library go through ARMSX2's PINE
 socket. A `.p2s` carries ARMSX2's save state version; states from a version
-the installed ARMSX2 can't read are not offered for loading. States ARMSX2
+the installed ARMSX2 can't read are not offered for loading. Every installed
+ARMSX2 version records its own format in `Emulators/versions.json`, so after
+going back to an older version states are checked against that one. States ARMSX2
 saves through its own keys don't go into the history.
 
 ### Automatic state

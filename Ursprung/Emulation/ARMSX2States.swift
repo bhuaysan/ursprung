@@ -127,6 +127,13 @@ nonisolated enum ARMSX2States {
 
     /// Moves a state and its manifest into the history.
     static func archive(_ state: SaveStateSlot, date: Date = .now) throws {
+        _ = try moveToHistory(state, date: date)
+        SaveStateStore.pruneHistory(in: state.stateURL.deletingLastPathComponent())
+    }
+
+    /// Moves a state and its manifest into the history without pruning it,
+    /// and returns where they went.
+    private static func moveToHistory(_ state: SaveStateSlot, date: Date) throws -> (state: URL, manifest: URL?) {
         let folder = state.stateURL.deletingLastPathComponent()
         let history = SaveStateStore.historyDirectory(folder)
         try FileManager.default.createDirectory(at: history, withIntermediateDirectories: true)
@@ -135,27 +142,38 @@ nonisolated enum ARMSX2States {
         let destination = history.appending(path: prefix + state.stateURL.lastPathComponent)
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.moveItem(at: state.stateURL, to: destination)
-        if FileManager.default.fileExists(atPath: state.manifestURL.path(percentEncoded: false)) {
-            let manifest = history.appending(path: prefix + state.manifestURL.lastPathComponent)
-            try? FileManager.default.removeItem(at: manifest)
-            try? FileManager.default.moveItem(at: state.manifestURL, to: manifest)
-        }
-        SaveStateStore.pruneHistory(in: folder)
+        guard FileManager.default.fileExists(atPath: state.manifestURL.path(percentEncoded: false)) else { return (destination, nil) }
+        let manifest = history.appending(path: prefix + state.manifestURL.lastPathComponent)
+        try? FileManager.default.removeItem(at: manifest)
+        guard (try? FileManager.default.moveItem(at: state.manifestURL, to: manifest)) != nil else { return (destination, nil) }
+        return (destination, manifest)
     }
 
     /// Puts a state from the history back under its own name in `folder`.
-    /// The state there now goes into the history in turn.
+    /// The state there now goes into the history in turn. The history is
+    /// pruned only afterwards: `entry` may be its oldest state. If the entry
+    /// can't be moved back, the state that was there returns.
     static func restore(_ entry: SaveStateSlot, in folder: URL, date: Date = .now) throws {
         let name = entry.stateURL.lastPathComponent
         guard let dash = name.firstIndex(of: "-") else { return }
         let destination = folder.appending(path: String(name[name.index(after: dash)...]))
-        if let current = kind(ofFileName: destination.lastPathComponent).flatMap({ stateSlot(at: destination, kind: $0) }) {
-            try archive(current, date: date)
-        }
-        try FileManager.default.moveItem(at: entry.stateURL, to: destination)
         let manifest = manifestURL(for: destination)
+        var replaced: (state: URL, manifest: URL?)?
+        if let current = kind(ofFileName: destination.lastPathComponent).flatMap({ stateSlot(at: destination, kind: $0) }) {
+            replaced = try moveToHistory(current, date: date)
+        }
+        do {
+            try FileManager.default.moveItem(at: entry.stateURL, to: destination)
+        } catch {
+            if let replaced {
+                try? FileManager.default.moveItem(at: replaced.state, to: destination)
+                if let moved = replaced.manifest { try? FileManager.default.moveItem(at: moved, to: manifest) }
+            }
+            throw error
+        }
         try? FileManager.default.removeItem(at: manifest)
         try? FileManager.default.moveItem(at: entry.manifestURL, to: manifest)
+        SaveStateStore.pruneHistory(in: folder)
     }
 
     // MARK: Contents
@@ -180,8 +198,11 @@ nonisolated enum ARMSX2States {
         version >> 16 == current >> 16 && version <= current
     }
 
-    static func isLoadable(_ url: URL, by current: UInt32) -> Bool {
-        saveStateVersion(of: url).map { isCompatible($0, with: current) } ?? false
+    /// Whether the emulator with save state format `current` loads the
+    /// state; never when that format is unknown.
+    static func isLoadable(_ url: URL, by current: UInt32?) -> Bool {
+        guard let current, let version = saveStateVersion(of: url) else { return false }
+        return isCompatible(version, with: current)
     }
 
     /// What a manifest records for a state ARMSX2 wrote, when the user names it.
@@ -209,14 +230,17 @@ nonisolated enum ARMSX2States {
     /// Saves the running game into `slot` and waits until ARMSX2 has written
     /// the state: PINE answers as soon as the save is queued. The state it
     /// replaces goes into the history first, like a libretro core's slot, and
-    /// comes back if the save fails.
+    /// comes back if the save fails. Cancelled before the request, nothing
+    /// is saved; cancelled afterwards, it stops waiting.
     @concurrent
     static func save(slot: Int, through client: PINEClient, in folder: URL,
                      timeout: Duration = .seconds(10)) async throws -> URL {
         let url = folder.appending(path: try await slotFileName(slot: slot, through: client))
+        try Task.checkCancellation()
         let previous = modificationDate(url)
         let archived = try archiveCopy(of: url, date: .now)
         do {
+            try Task.checkCancellation()
             do {
                 try await client.saveState(slot: UInt8(armsx2Slot(slot)))
             } catch {
@@ -227,13 +251,18 @@ nonisolated enum ARMSX2States {
             let deadline = clock.now + timeout
             while clock.now < deadline {
                 try await Task.sleep(for: .milliseconds(100))
-                if modificationDate(url) > previous {
-                    SaveStateStore.pruneHistory(in: folder)
-                    return url
-                }
+                if modificationDate(url) > previous { break }
             }
-            throw ARMSX2ControlError.notSaved
+            guard modificationDate(url) > previous else { throw ARMSX2ControlError.notSaved }
+            SaveStateStore.pruneHistory(in: folder)
+            return url
         } catch {
+            // Written after all, just before ARMSX2 quit or the wait ended:
+            // the copy in the history is the replaced state.
+            if modificationDate(url) > previous {
+                SaveStateStore.pruneHistory(in: folder)
+                return url
+            }
             if let archived { unarchive(archived, to: url) }
             throw error
         }
@@ -244,13 +273,14 @@ nonisolated enum ARMSX2States {
     /// state it cannot read, which crashes it, so the version is checked first.
     @concurrent
     static func load(slot: Int, in folder: URL, expected: URL? = nil, through client: PINEClient,
-                     saveStateVersion: UInt32) async throws {
+                     saveStateVersion: UInt32?) async throws {
         let url = folder.appending(path: try await slotFileName(slot: slot, through: client))
         if let expected, expected.standardizedFileURL.path(percentEncoded: false) != url.standardizedFileURL.path(percentEncoded: false) {
             throw ARMSX2ControlError.otherDisc
         }
         guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { throw ARMSX2ControlError.emptySlot }
         guard isLoadable(url, by: saveStateVersion) else { throw StandaloneLaunchError.stateNotLoadable }
+        try Task.checkCancellation()
         do {
             try await client.loadState(slot: UInt8(armsx2Slot(slot)))
         } catch {

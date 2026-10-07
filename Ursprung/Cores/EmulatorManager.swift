@@ -89,6 +89,16 @@ final class EmulatorManager {
         installedApp(for: emulator) != nil
     }
 
+    /// The save state format of the active version, which may be an older
+    /// one the user went back to. Nil when it is unknown: then no state is
+    /// loadable, as an incompatible one would crash the emulator.
+    func saveStateVersion(of emulator: StandaloneEmulator) -> UInt32? {
+        guard let current = versions[emulator.id]?.current else { return nil }
+        if let version = current.saveStateVersion { return version }
+        // Recorded before versions kept their format: only the pin's is known.
+        return current.commit == emulator.release.commit ? emulator.saveStateVersion : nil
+    }
+
     /// The installed version differs from the release this Ursprung was tested with.
     func isUpdateAvailable(_ emulator: StandaloneEmulator) -> Bool {
         isInstalled(emulator) && versions[emulator.id]?.current?.commit != emulator.release.commit
@@ -143,7 +153,8 @@ final class EmulatorManager {
             try await Self.install(archive: archive, of: emulator,
                                    into: appURL(for: emulator, commit: pin).deletingLastPathComponent(),
                                    verifySignature: verifySignature)
-            activate(EmulatorVersionRecord(tag: emulator.release.tag, commit: pin, installed: .now), of: emulator)
+            activate(EmulatorVersionRecord(tag: emulator.release.tag, commit: pin, installed: .now,
+                                           saveStateVersion: emulator.saveStateVersion), of: emulator)
         }
         installations[emulator.id] = task
         try await task.value
@@ -342,6 +353,9 @@ nonisolated struct EmulatorVersionRecord: Codable, Equatable, Sendable {
     /// Source commit; also the version's folder name.
     var commit: String
     var installed: Date
+    /// The save state format of this version (`StandaloneEmulator.saveStateVersion`
+    /// of its pin), so going back checks states against the right one.
+    var saveStateVersion: UInt32?
 }
 
 /// An emulator's active version and the one before it.

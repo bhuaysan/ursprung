@@ -134,6 +134,41 @@ struct PS2SavesTests {
         #expect(SaveStateStore.history(in: root, gameID: gameID, coreID: "armsx2").count == 1)
     }
 
+    @Test func theOldestStateOfAFullHistoryComesBackIntoAnOccupiedSlot() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appending(path: "armsx2")
+        let name = "SLES-55474 (117D1977).01.p2s"
+        let start = Date.now.addingTimeInterval(-3600)
+        for index in 0..<SaveStateStore.historyLimit {
+            try writeState(name, in: folder, modified: start.addingTimeInterval(Double(index)))
+            let state = try #require(ARMSX2States.states(in: folder).slots.first)
+            if index == 0 {
+                try SaveStateStore.rename(state, to: "Oldest",
+                                          origin: ARMSX2States.context(for: state, gameFileName: "g.iso", gameFileSize: 1))
+            }
+            try SaveStateStore.discard(try #require(ARMSX2States.states(in: folder).slots.first),
+                                       date: start.addingTimeInterval(Double(index) + 0.5))
+        }
+        try writeState(name, in: folder)
+        let oldest = try #require(SaveStateStore.history(inCoreDirectory: folder).last)
+        #expect(oldest.name == "Oldest")
+
+        try SaveStateStore.restore(oldest, toSlot: oldest.slot, in: folder)
+        let restored = try #require(ARMSX2States.states(in: folder).slots.first)
+        #expect(restored.name == "Oldest")
+        let history = SaveStateStore.history(inCoreDirectory: folder)
+        #expect(history.count == SaveStateStore.historyLimit)
+        #expect(history.first.map { abs($0.date.timeIntervalSinceNow) < 60 } == true, "The state it replaced")
+
+        // An entry that can't be moved back leaves the slot as it was.
+        let gone = try #require(history.last)
+        try FileManager.default.removeItem(at: gone.stateURL)
+        #expect(throws: (any Error).self) { try SaveStateStore.restore(gone, toSlot: gone.slot, in: folder) }
+        #expect(ARMSX2States.states(in: folder).slots.first?.name == "Oldest")
+        #expect(SaveStateStore.history(inCoreDirectory: folder).count == SaveStateStore.historyLimit - 1)
+    }
+
     @Test func historyKeepsTheNewestStates() throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -171,6 +206,11 @@ struct PS2SavesTests {
 
         request.stateFile = try writeState("SLES-55474 (117D1977).03.p2s", in: states, version: version + 1)
         #expect(throws: StandaloneLaunchError.self) { try ARMSX2Launch.prepare(request, environment: [:]) }
+
+        // Without a known format of the installed version, no state is loadable.
+        request.stateFile = nil
+        request.saveStateVersion = nil
+        #expect(try ARMSX2Launch.prepare(request, environment: [:]).stateFile == nil)
     }
 
     // MARK: Memory cards

@@ -149,9 +149,12 @@ final class EmulationSession {
     private(set) var externalControl: ExternalControl?
     /// A save or load through PINE is under way.
     private(set) var isExternalStateBusy = false
+    /// The save or load under way; a stop waits for it.
+    private var externalStateTask: Task<Void, Never>?
     private var pine: PINEClient?
     private var pineTask: Task<Void, Never>?
-    private var externalSaveStateVersion: UInt32 = 0
+    /// The save state format of the emulator version that runs.
+    private var externalSaveStateVersion: UInt32?
     /// The game has shown its first frame (PINE's frame counter).
     private var externalHasStarted = false
     /// A standalone emulator opened with its own window, for its settings.
@@ -525,7 +528,7 @@ final class EmulationSession {
             self.external = external
             externalStateFolder = stateFolder
             externalLog = launch.logFile
-            externalSaveStateVersion = emulator.saveStateVersion
+            externalSaveStateVersion = launch.saveStateVersion
             self.stateFolder = emulator.id
             startedAt = .now
             phase = .external
@@ -579,7 +582,7 @@ final class EmulationSession {
             app: app, executable: emulator.executable,
             dataFolder: dataFolder,
             logFile: emulators.logFolder(for: emulator).appending(path: "last-run.log"),
-            pineFolder: URL(filePath: NSTemporaryDirectory()).appending(path: "Ursprung-PINE", directoryHint: .isDirectory),
+            pineFolder: ARMSX2Launch.newPINEFolder(in: URL(filePath: NSTemporaryDirectory())),
             game: game?.fileURL,
             biosFolder: AppPaths.system.appending(path: system.biosFolder?.path ?? "", directoryHint: .isDirectory),
             dumps: system.biosFolder.map(bios.dumps(in:)) ?? [],
@@ -597,7 +600,7 @@ final class EmulationSession {
                 profile: InputProfile.resolved(gameProfile: game?.inputProfileData, systemID: system.id),
                 hotkeys: .current, rumble: Preferences.rumble, deadZone: Preferences.stickDeadZone,
                 keyNames: ARMSX2Keys.currentLayout()),
-            saveStateVersion: emulator.saveStateVersion,
+            saveStateVersion: emulators.saveStateVersion(of: emulator),
             stateFile: state)
     }
 
@@ -638,7 +641,9 @@ final class EmulationSession {
         let process = try ExternalSession(executable: launch.executable, arguments: launch.arguments,
                                           environment: launch.environment,
                                           output: emulators.logFolder(for: emulator).appending(path: "last-run-output.log"))
+        let pine = PINEClient(socket: launch.pineSocket)
         process.onExit = { [weak self, weak process] _ in
+            Self.removePINEFolder(of: pine)
             guard let self, self.standaloneSettings === process else { return }
             self.standaloneSettings = nil
             self.standaloneSettingsID = nil
@@ -662,6 +667,10 @@ final class EmulationSession {
             self.standaloneSettings = nil
             standaloneSettingsID = nil
         }
+    }
+
+    private static func removePINEFolder(of client: PINEClient) {
+        try? FileManager.default.removeItem(at: client.socket.deletingLastPathComponent())
     }
 
     @concurrent
@@ -714,10 +723,14 @@ final class EmulationSession {
         }
         pineTask?.cancel()
         pineTask = nil
+        externalStateTask?.cancel()
+        externalStateTask = nil
+        if let pine { Self.removePINEFolder(of: pine) }
         pine = nil
         externalControl = nil
         isExternalStateBusy = false
         externalHasStarted = false
+        externalSaveStateVersion = nil
         external = nil
         externalStateFolder = nil
         externalLog = nil
@@ -752,6 +765,8 @@ final class EmulationSession {
         if let shutdown { return await shutdown.value }
         if let external {
             let task = Task {
+                // A save being written finishes first, in this emulator.
+                await externalStateTask?.value
                 let exit = await external.stop()
                 finishExternal(cleanExit: exit.isClean, context: context)
                 shutdown = nil
@@ -1281,14 +1296,23 @@ final class EmulationSession {
         }
         guard !isExternalStateBusy else { return }
         isExternalStateBusy = true
-        Task {
+        let session = external
+        externalStateTask = Task {
+            var failure: (any Error)?
             do {
                 _ = try await ARMSX2States.save(slot: slot, through: pine, in: folder)
-                showToast(String(localized: "State saved"), kind: .saved)
             } catch {
-                showToast(error.localizedDescription, kind: .warning, duration: 5)
+                failure = error
+            }
+            // The session ended meanwhile: the next one has its own state.
+            guard self.external === session else { return }
+            if let failure {
+                showToast(failure.localizedDescription, kind: .warning, duration: 5)
+            } else {
+                showToast(String(localized: "State saved"), kind: .saved)
             }
             isExternalStateBusy = false
+            externalStateTask = nil
             reloadSlots()
         }
     }
@@ -1302,15 +1326,23 @@ final class EmulationSession {
         guard !isExternalStateBusy else { return }
         isExternalStateBusy = true
         let version = externalSaveStateVersion
-        Task {
+        let session = external
+        externalStateTask = Task {
+            var failure: (any Error)?
             do {
                 try await ARMSX2States.load(slot: slot, in: folder, expected: expected, through: pine, saveStateVersion: version)
+            } catch {
+                failure = error
+            }
+            guard self.external === session else { return }
+            if let failure {
+                showToast(failure.localizedDescription, kind: .warning, duration: 5)
+            } else {
                 showToast(String(localized: "State loaded"), kind: .loaded)
                 external?.activate()
-            } catch {
-                showToast(error.localizedDescription, kind: .warning, duration: 5)
             }
             isExternalStateBusy = false
+            externalStateTask = nil
         }
     }
 
