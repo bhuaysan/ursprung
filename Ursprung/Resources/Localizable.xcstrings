@@ -10934,6 +10934,76 @@
           }
         }
       }
+    },
+    "The save state can't be loaded. It is damaged, or it was saved by a version of ARMSX2 that this one can't read.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand kann nicht geladen werden. Er ist beschädigt oder wurde mit einer ARMSX2-Version gesichert, die diese nicht lesen kann."
+          }
+        }
+      }
+    },
+    "Save and load in %@ while the game runs.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichere und lade in %@, während das Spiel läuft."
+          }
+        }
+      }
+    },
+    "Save states you make in %@ appear here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielstände, die du in %@ sicherst, erscheinen hier."
+          }
+        }
+      }
+    },
+    "Choose a PlayStation 2 memory card (.ps2) for “%@”. The current card is kept as a copy.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle eine PlayStation-2-Memory-Card (.ps2) für „%@“. Die aktuelle Memory Card bleibt als Kopie erhalten."
+          }
+        }
+      }
+    },
+    "The memory card couldn't be imported": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Memory Card konnte nicht importiert werden"
+          }
+        }
+      }
+    },
+    "The file is not a PlayStation 2 memory card.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei ist keine PlayStation-2-Memory-Card."
+          }
+        }
+      }
+    },
+    "Import Memory Card…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memory Card importieren …"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

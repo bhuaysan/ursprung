@@ -34,14 +34,16 @@ struct SaveStatesBrowser: View {
                 if isRunning {
                     StatusLabel("Running", systemImage: "play.circle", kind: .neutral)
                         .font(.callout)
-                        .help("Open the pause menu to save or load while the game runs.")
+                        .help(standalone.map { Text("Save and load in \($0.name) while the game runs.") }
+                            ?? Text("Open the pause menu to save or load while the game runs."))
                 }
             }
             .padding(20)
 
             if cores.isEmpty {
                 ContentUnavailableView("No Save States", systemImage: "square.stack.3d.up",
-                                       description: Text("Save states you make in the pause menu appear here."))
+                                       description: standalone.map { Text("Save states you make in \($0.name) appear here.") }
+                                           ?? Text("Save states you make in the pause menu appear here."))
                     .frame(maxHeight: .infinity)
             } else {
                 ScrollView {
@@ -74,7 +76,9 @@ struct SaveStatesBrowser: View {
                presenting: stateToRename) { state in
             TextField("Name", text: $newName)
             Button("Save") {
-                try? SaveStateStore.rename(state, to: newName)
+                let origin = state.isARMSX2
+                    ? ARMSX2States.context(for: state, gameFileName: game.fileName, gameFileSize: game.fileSize) : nil
+                try? SaveStateStore.rename(state, to: newName, origin: origin)
                 reload()
             }
             Button("Cancel", role: .cancel) {}
@@ -148,6 +152,11 @@ struct SaveStatesBrowser: View {
 
     private var isRunning: Bool {
         session.isActive && session.gameID == game.persistentModelID
+    }
+
+    /// The emulator a game of a standalone system runs in, which makes its states.
+    private var standalone: StandaloneEmulator? {
+        game.effectiveCore?.standalone
     }
 
     private func coreName(_ coreID: String?) -> String {

@@ -62,8 +62,11 @@ nonisolated struct SaveStateSlot: Identifiable, Hashable, Sendable {
     var name: String? { manifest?.name }
     var isAutosave: Bool { slot == SaveStateStore.autosaveSlot }
     var isHistory: Bool { replaced != nil }
+    /// Written by ARMSX2 (`ARMSX2States`) rather than through a libretro core.
+    var isARMSX2: Bool { stateURL.pathExtension.lowercased() == ARMSX2States.fileExtension }
     /// Only states with a manifest can be named; others are of unknown origin.
-    var canRename: Bool { manifest != nil && !isLegacy }
+    /// ARMSX2's states get their manifest when they are named.
+    var canRename: Bool { (manifest != nil || isARMSX2) && !isLegacy }
 
     /// “Slot 3”, “Quick Save” or “Automatic State”, for lists.
     var slotTitle: String {
@@ -96,6 +99,10 @@ nonisolated struct SaveStateSlot: Identifiable, Hashable, Sendable {
 /// Earlier versions kept states directly in `<states>/<game id>/` without
 /// recording the core. Those stay where they are and show up for a slot that
 /// the current core has not used, marked as of unknown origin.
+///
+/// ARMSX2 writes its own states into its folder (`<states>/<game id>/armsx2/`)
+/// under its own names; `ARMSX2States` reads them, and the functions here that
+/// take a `SaveStateSlot` handle both kinds.
 nonisolated enum SaveStateStore {
     static let slotRange = 0...9
 
@@ -174,12 +181,14 @@ nonisolated enum SaveStateStore {
     /// A slot's state that can't go into the history stays.
     static func discard(_ state: SaveStateSlot, date: Date = .now) throws {
         guard !state.isHistory, !state.isLegacy, !state.isAutosave else { return delete(state) }
+        if state.isARMSX2 { return try ARMSX2States.archive(state, date: date) }
         try archive(slot: state.slot, in: state.stateURL.deletingLastPathComponent(), date: date)
     }
 
-    /// Names a state, or removes its name with nil or an empty name.
-    static func rename(_ state: SaveStateSlot, to name: String?) throws {
-        guard var manifest = state.manifest else { return }
+    /// Names a state, or removes its name with nil or an empty name. A state
+    /// without a manifest gets one from `origin` (ARMSX2's states).
+    static func rename(_ state: SaveStateSlot, to name: String?, origin: SaveStateContext? = nil) throws {
+        guard var manifest = state.manifest ?? origin?.manifest(created: state.date) else { return }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         manifest.name = trimmed?.isEmpty == false ? trimmed : nil
         try encoder.encode(manifest).write(to: state.manifestURL, options: .atomic)
@@ -221,7 +230,7 @@ nonisolated enum SaveStateStore {
     static func history(inCoreDirectory directory: URL) -> [SaveStateSlot] {
         let history = historyDirectory(directory)
         let files = (try? FileManager.default.contentsOfDirectory(at: history, includingPropertiesForKeys: nil)) ?? []
-        return files.filter { $0.pathExtension == "state" }.compactMap { url -> SaveStateSlot? in
+        let states = files.filter { $0.pathExtension == "state" }.compactMap { url -> SaveStateSlot? in
             let base = url.deletingPathExtension().lastPathComponent
             guard let dash = base.lastIndex(of: "-"),
                   let replaced = historyDate(String(base[..<dash])),
@@ -231,12 +240,14 @@ nonisolated enum SaveStateStore {
             found.replaced = replaced
             return found
         }
-        .sorted { $0.replaced! > $1.replaced! }
+        return (states + ARMSX2States.history(in: directory)).sorted { $0.replaced! > $1.replaced! }
     }
 
     /// Puts a state from the history back into `slot`. The state there now
     /// goes into the history in turn.
     static func restore(_ entry: SaveStateSlot, toSlot slot: Int, in directory: URL, date: Date = .now) throws {
+        // ARMSX2's states go back under their own name, which holds the slot.
+        if entry.isARMSX2 { return try ARMSX2States.restore(entry, in: directory, date: date) }
         let data = try Data(contentsOf: entry.stateURL)
         try archive(slot: slot, in: directory, date: date)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -249,15 +260,15 @@ nonisolated enum SaveStateStore {
         delete(entry)
     }
 
-    private static func pruneHistory(in directory: URL) {
+    static func pruneHistory(in directory: URL) {
         for entry in history(inCoreDirectory: directory).dropFirst(historyLimit) { delete(entry) }
     }
 
-    private static func historyStamp(_ date: Date) -> String {
+    static func historyStamp(_ date: Date) -> String {
         String(Int64((date.timeIntervalSince1970 * 1000).rounded()))
     }
 
-    private static func historyDate(_ stamp: String) -> Date? {
+    static func historyDate(_ stamp: String) -> Date? {
         Int64(stamp).map { Date(timeIntervalSince1970: Double($0) / 1000) }
     }
 
@@ -287,8 +298,9 @@ nonisolated enum SaveStateStore {
                 found.manifest = readManifest(found.manifestURL)
                 return found
             }
-            let core = CoreStates(coreID: coreID, autosave: autosave(in: states, gameID: gameID, coreID: coreID),
-                                  slots: slots, history: history(inCoreDirectory: entry))
+            let armsx2 = ARMSX2States.states(in: entry)
+            let core = CoreStates(coreID: coreID, autosave: autosave(in: states, gameID: gameID, coreID: coreID) ?? armsx2.autosave,
+                                  slots: slots + armsx2.slots, history: history(inCoreDirectory: entry))
             if !core.isEmpty { result.append(core) }
         }
         let legacy = slotRange.compactMap { slot -> SaveStateSlot? in

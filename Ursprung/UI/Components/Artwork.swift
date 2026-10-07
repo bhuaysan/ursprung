@@ -32,7 +32,11 @@ nonisolated final class ArtworkCache: @unchecked Sendable {
 
     func load(_ version: Version, maxPixel: Int) -> CGImage? {
         if let image = cached(version, maxPixel: maxPixel) { return image }
-        guard let source = CGImageSourceCreateWithURL(version.url as CFURL, nil) else { return nil }
+        // ARMSX2's save states carry their thumbnail inside.
+        let source = version.url.pathExtension.lowercased() == ARMSX2States.fileExtension
+            ? ARMSX2States.screenshot(of: version.url).flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
+            : CGImageSourceCreateWithURL(version.url as CFURL, nil)
+        guard let source else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,

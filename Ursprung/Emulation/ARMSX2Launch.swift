@@ -10,6 +10,7 @@ nonisolated enum StandaloneLaunchError: LocalizedError {
     case memoryCardReadOnly(URL)
     case folderNotWritable(URL)
     case settingsNotWritten(reason: String)
+    case stateNotLoadable
 
     var errorDescription: String? {
         switch self {
@@ -21,6 +22,8 @@ nonisolated enum StandaloneLaunchError: LocalizedError {
             String(localized: "Ursprung can't write to “\(url.path(percentEncoded: false))”. Check the folder's permissions, then try again.")
         case .settingsNotWritten(let reason):
             String(localized: "The emulator's settings couldn't be written. \(reason)")
+        case .stateNotLoadable:
+            String(localized: "The save state can't be loaded. It is damaged, or it was saved by a version of ARMSX2 that this one can't read.")
         }
     }
 }
@@ -52,6 +55,8 @@ nonisolated struct ARMSX2Launch: Sendable {
         var fullscreen: Bool
         /// States written by another save state version cannot be loaded.
         var saveStateVersion: UInt32
+        /// A state to start from, chosen in the Save States browser.
+        var stateFile: URL?
     }
 
     let executable: URL
@@ -102,12 +107,21 @@ nonisolated struct ARMSX2Launch: Sendable {
             throw StandaloneLaunchError.settingsNotWritten(reason: error.localizedDescription)
         }
 
-        // A damaged or incompatible state would open a dialog; the game then
-        // starts from the beginning instead.
-        let stateFile = request.resume
-            ? ARMSX2States.resumeState(in: request.saveStateFolder)
-                .flatMap { ARMSX2States.isLoadable($0, by: request.saveStateVersion) ? $0 : nil }
-            : nil
+        // A damaged or incompatible state would open a dialog. A chosen state
+        // is refused; without a loadable resume state the game starts from
+        // the beginning.
+        let stateFile: URL?
+        if let chosen = request.stateFile {
+            guard ARMSX2States.isLoadable(chosen, by: request.saveStateVersion) else {
+                throw StandaloneLaunchError.stateNotLoadable
+            }
+            stateFile = chosen
+        } else {
+            stateFile = request.resume
+                ? ARMSX2States.resumeState(in: request.saveStateFolder)
+                    .flatMap { ARMSX2States.isLoadable($0, by: request.saveStateVersion) ? $0 : nil }
+                : nil
+        }
 
         try? fileManager.removeItem(at: request.logFile)
         var arguments = ["-datapath", request.dataFolder.path(percentEncoded: false), "-batch", "-nogui",
@@ -265,45 +279,5 @@ nonisolated extension PS2BIOS {
             }.first
         }
         return newest(dumps.filter { $0.region == region }) ?? newest(dumps)
-    }
-}
-
-/// ARMSX2's save state files in a game's state folder (S8).
-nonisolated enum ARMSX2States {
-    /// `<serial> (<CRC>).resume.p2s`, written by ARMSX2 when Ursprung quits it.
-    static func resumeState(in folder: URL) -> URL? {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false))) ?? []
-        return names.filter { $0.hasSuffix(".resume.p2s") && !$0.hasPrefix(".") }
-            .map { folder.appending(path: $0) }
-            .max { modificationDate($0) < modificationDate($1) }
-    }
-
-    /// The `u32` at the start of the state's `PCSX2 Savestate Version.id`.
-    static func saveStateVersion(of url: URL) -> UInt32? {
-        guard let zip = try? ZipArchive(url: url),
-              let entry = zip.files.first(where: { $0.path == "PCSX2 Savestate Version.id" }),
-              let data = try? zip.data(of: entry), data.count >= 4 else { return nil }
-        return data.uint32(at: 0)
-    }
-
-    /// ARMSX2 loads states of the same major version that are not newer than its own.
-    static func isCompatible(_ version: UInt32, with current: UInt32) -> Bool {
-        version >> 16 == current >> 16 && version <= current
-    }
-
-    static func isLoadable(_ url: URL, by current: UInt32) -> Bool {
-        saveStateVersion(of: url).map { isCompatible($0, with: current) } ?? false
-    }
-
-    /// Removes the resume state unless ARMSX2 wrote it since `date`. Quitting
-    /// in ARMSX2 itself writes none, and the old one would continue from a
-    /// point older than the memory card.
-    static func removeStaleResumeState(in folder: URL, olderThan date: Date) {
-        guard let state = resumeState(in: folder), modificationDate(state) < date else { return }
-        try? FileManager.default.removeItem(at: state)
-    }
-
-    private static func modificationDate(_ url: URL) -> Date {
-        (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
     }
 }

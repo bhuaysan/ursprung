@@ -255,7 +255,8 @@ final class EmulationSession {
         }
 
         if let emulator = definition.standalone {
-            await launch(game, in: emulator, system: system, resume: resume, context: context, generation: generation)
+            await launch(game, in: emulator, system: system, resume: resume, state: state?.stateURL, context: context,
+                         generation: generation)
             return
         }
 
@@ -470,7 +471,7 @@ final class EmulationSession {
     /// Starts `game` in a standalone emulator (docs/STANDALONE_PLAN.md):
     /// installs it if needed, checks what would make it show an error dialog,
     /// writes its settings and launches it in its own window.
-    private func launch(_ game: Game, in emulator: StandaloneEmulator, system: GameSystem, resume: Bool,
+    private func launch(_ game: Game, in emulator: StandaloneEmulator, system: GameSystem, resume: Bool, state: URL?,
                         context: ModelContext, generation: Int) async {
         var settingsTab: SettingsTab? = .cores
         do {
@@ -498,14 +499,14 @@ final class EmulationSession {
                 biosFolder: AppPaths.system.appending(path: system.biosFolder?.path ?? "", directoryHint: .isDirectory),
                 dumps: system.biosFolder.map(bios.dumps(in:)) ?? [],
                 fallbackRegion: fallbackRegion,
-                memoryCardFolder: AppPaths.saves.appending(path: system.id, directoryHint: .isDirectory)
-                    .appending(path: game.id.uuidString, directoryHint: .isDirectory),
+                memoryCardFolder: PS2MemoryCard.folder(in: AppPaths.saves, systemID: system.id, gameID: game.id),
                 saveStateFolder: stateFolder,
                 snapshotFolder: ScreenshotStore.directory(in: AppPaths.extras, gameID: game.id),
                 resume: resume,
                 saveStateOnShutdown: Preferences.autosaveOnQuit,
                 fullscreen: Preferences.standaloneFullscreen,
-                saveStateVersion: emulator.saveStateVersion)
+                saveStateVersion: emulator.saveStateVersion,
+                stateFile: state)
             let launch = try await Self.prepare(request)
             try checkCurrent(generation)
 

@@ -55,6 +55,11 @@ struct GameActions {
         resumesAutomatically ? "Start from Beginning" : "Resume"
     }
 
+    /// PlayStation 2 games, run by ARMSX2, save to a memory card.
+    var importSaveTitle: LocalizedStringKey {
+        game.effectiveCore?.standalone != nil ? "Import Memory Card…" : "Import Battery Save…"
+    }
+
     var hiddenTitle: LocalizedStringKey {
         game.isHidden ? "Show in Library" : "Hide from Library"
     }
@@ -126,7 +131,7 @@ struct GameActionItems: View {
         }
         Button("Save States…", systemImage: "square.stack.3d.up", action: actions.showSaveStates)
         Button("Edit Shader…", systemImage: "camera.filters", action: actions.editShader)
-        Button("Import Battery Save…", systemImage: "square.and.arrow.down", action: actions.importBatterySave)
+        Button(actions.importSaveTitle, systemImage: "square.and.arrow.down", action: actions.importBatterySave)
             .disabled(!actions.canImportBatterySave)
         if let discs = actions.discs {
             Button(discs.title, systemImage: "opticaldisc", action: discs.perform)

@@ -470,6 +470,7 @@ final class LibraryStore {
     /// earlier installation for `game`. The game must not be running, or its
     /// next save would overwrite the import.
     func presentBatterySaveImport(for game: Game) {
+        if game.effectiveCore?.standalone != nil { return presentMemoryCardImport(for: game) }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -489,6 +490,30 @@ final class LibraryStore {
             alert.messageText = String(localized: "The battery save couldn't be imported")
             alert.informativeText = (error as? CocoaError)?.code == .fileReadCorruptFile
                 ? String(localized: "The file is not a battery save.")
+                : error.localizedDescription
+            alert.runModal()
+        }
+    }
+
+    /// PlayStation 2 games save to a memory card instead: an imported card
+    /// replaces the game's card, which is kept as a copy.
+    private func presentMemoryCardImport(for game: Game) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = String(localized: "Import")
+        panel.message = String(localized: "Choose a PlayStation 2 memory card (.ps2) for “\(game.title)”. The current card is kept as a copy.")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            guard PS2MemoryCard.isMemoryCard(url) else { throw CocoaError(.fileReadCorruptFile) }
+            try BatterySave.importSave(url, to: PS2MemoryCard.url(in: saves, systemID: game.systemID, gameID: game.id),
+                                       label: String(localized: "before import \(FileMerge.stamp())"))
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "The memory card couldn't be imported")
+            alert.informativeText = (error as? CocoaError)?.code == .fileReadCorruptFile
+                ? String(localized: "The file is not a PlayStation 2 memory card.")
                 : error.localizedDescription
             alert.runModal()
         }

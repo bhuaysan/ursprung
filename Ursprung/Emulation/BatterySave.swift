@@ -135,3 +135,32 @@ nonisolated enum GameSaveFiles {
         }
     }
 }
+
+/// The memory card of a PlayStation 2 game: ARMSX2 keeps one card per game
+/// in the game's save folder, `<saves>/<system>/<game id>/Mcd001.ps2`.
+/// Moving, merging and backing up that folder works as for battery saves.
+nonisolated enum PS2MemoryCard {
+    /// Sizes of PCSX2 memory cards (8 to 64 MB, 528-byte pages with ECC).
+    static let sizes: Set<Int> = [8_650_752, 17_301_504, 34_603_008, 69_206_016]
+    private static let magic = Data("Sony PS2 Memory Card Format ".utf8)
+
+    static func folder(in saves: URL, systemID: String, gameID: UUID) -> URL {
+        saves.appending(path: systemID, directoryHint: .isDirectory)
+            .appending(path: gameID.uuidString, directoryHint: .isDirectory)
+    }
+
+    static func url(in saves: URL, systemID: String, gameID: UUID) -> URL {
+        folder(in: saves, systemID: systemID, gameID: gameID).appending(path: PCSX2Config.memoryCardFileName)
+    }
+
+    /// A formatted card starts with its format name; a new card is still
+    /// unformatted (all 0xFF) and only recognisable by its size.
+    static func isMemoryCard(_ url: URL) -> Bool {
+        guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              size >= 8_388_608, size <= sizes.max()!,
+              let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        let header = (try? handle.read(upToCount: magic.count)) ?? Data()
+        return header == magic || sizes.contains(size)
+    }
+}

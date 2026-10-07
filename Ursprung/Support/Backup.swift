@@ -189,7 +189,7 @@ nonisolated enum Backup {
         let temporary: URL
 
         var batterySaveCount: Int { count(in: "Saves") { _ in true } }
-        var stateCount: Int { count(in: "States") { $0.hasSuffix(".state") } }
+        var stateCount: Int { count(in: "States") { $0.hasSuffix(".state") || $0.hasSuffix(".p2s") } }
 
         func remove() {
             try? FileManager.default.removeItem(at: temporary)
