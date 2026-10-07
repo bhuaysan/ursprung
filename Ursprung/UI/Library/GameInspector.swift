@@ -421,7 +421,14 @@ struct GameInspector: View {
                 case .edit:
                     let entries = DiscPlaylist.read(game.fileURL)?.entries ?? []
                     ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
-                        InfoRow("Disc \(index + 1)", entry.label ?? (entry.path as NSString).lastPathComponent)
+                        // Discs are a sequence, so they keep their numbers.
+                        SymbolRow("Disc \(index + 1)", symbol: "\(index + 1).circle") {
+                            Text(verbatim: entry.label ?? (entry.path as NSString).lastPathComponent)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(Text("Disc \(index + 1)"))
                     }
                     let numbers = entries.compactMap { VariantInfo.parse(fileName: ($0.path as NSString).lastPathComponent).disc }
                     let declared = entries.compactMap { VariantInfo.parse(fileName: ($0.path as NSString).lastPathComponent).discCount }.max()
@@ -726,67 +733,6 @@ struct InfoSection<Content: View>: View {
     }
 }
 
-/// A text row; rows without a value are left out.
-struct InfoRow: View {
-    let label: LocalizedStringKey
-    let value: String?
-    /// File names and checksums: monospaced, one line, shortened in the middle.
-    var isCode = false
-
-    init(_ label: LocalizedStringKey, _ value: String?, isCode: Bool = false) {
-        self.label = label
-        self.value = value
-        self.isCode = isCode
-    }
-
-    var body: some View {
-        if let value, !value.isEmpty {
-            InfoRowLayout(label) {
-                if isCode {
-                    Text(value)
-                        .monospaced()
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                        .help(value)
-                } else {
-                    Text(value)
-                        .textSelection(.enabled)
-                }
-            }
-            // One element: combining selectable text keeps only the label.
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(label))
-            .accessibilityValue(value)
-        }
-    }
-}
-
-/// Label column and value, for rows whose value is not plain text. The label
-/// is hidden from VoiceOver: a control in the value column carries its own.
-struct InfoRowLayout<Value: View>: View {
-    let label: LocalizedStringKey
-    @ViewBuilder let value: Value
-
-    init(_ label: LocalizedStringKey, @ViewBuilder value: () -> Value) {
-        self.label = label
-        self.value = value()
-    }
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.s) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-                // 96 rather than the spec's 88 pt: “Zuletzt gespielt” needs it.
-                .frame(width: 96, alignment: .leading)
-            value
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .font(.callout)
-    }
-}
-
 /// A setting or extra as symbol and value, with an optional quiet note after
 /// it; the title is the symbol's tooltip.
 struct SymbolRow<Value: View>: View {
@@ -830,6 +776,9 @@ struct InlineMenu: ViewModifier {
             .buttonStyle(.borderless)
             .labelsHidden()
             .fixedSize()
+            // The borderless pop-up insets its title; this lines it up with
+            // plain text in the rows above and below.
+            .padding(.leading, -3)
     }
 }
 
