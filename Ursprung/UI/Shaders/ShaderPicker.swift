@@ -9,6 +9,8 @@ struct ShaderPicker: View {
     /// Nil is the inherited choice, offered only with `inheritTitle`.
     @Binding var selection: ShaderSelection?
     var inheritTitle: String?
+    /// Shown in place of the chosen item's title, e.g. without "Same as System".
+    var currentValue: String?
 
     @Environment(ShaderLibrary.self) private var shaders
     @State private var isBrowsing = false
@@ -20,26 +22,39 @@ struct ShaderPicker: View {
     }
 
     var body: some View {
-        Picker(title, selection: Binding(get: { selection.map(Item.choice) ?? .inherit }, set: { choose($0) })) {
-            if let inheritTitle {
-                Text(inheritTitle).tag(Item.inherit)
-                Divider()
+        Group {
+            if let currentValue {
+                Picker(selection: itemSelection) { items } label: { Text(title) } currentValueLabel: { Text(currentValue) }
+            } else {
+                Picker(title, selection: itemSelection) { items }
             }
-            ForEach(VideoFilter.allCases) { filter in
-                Text(filter.title).tag(Item.choice(.builtin(filter)))
-            }
-            if !presets.isEmpty {
-                Divider()
-                ForEach(presets, id: \.self) { preset in
-                    Text(title(of: preset)).tag(Item.choice(.preset(preset)))
-                }
-            }
-            Divider()
-            Text("RetroArch Shaders…").tag(Item.browse)
         }
         .sheet(isPresented: $isBrowsing) {
             ShaderBrowser(current: currentPreset) { selection = .preset($0) }
         }
+    }
+
+    private var itemSelection: Binding<Item> {
+        Binding(get: { selection.map(Item.choice) ?? .inherit }, set: { choose($0) })
+    }
+
+    @ViewBuilder
+    private var items: some View {
+        if let inheritTitle {
+            Text(inheritTitle).tag(Item.inherit)
+            Divider()
+        }
+        ForEach(VideoFilter.allCases) { filter in
+            Text(filter.title).tag(Item.choice(.builtin(filter)))
+        }
+        if !presets.isEmpty {
+            Divider()
+            ForEach(presets, id: \.self) { preset in
+                Text(title(of: preset)).tag(Item.choice(.preset(preset)))
+            }
+        }
+        Divider()
+        Text("RetroArch Shaders…").tag(Item.browse)
     }
 
     /// Favourites, and the selected preset when it isn't one.

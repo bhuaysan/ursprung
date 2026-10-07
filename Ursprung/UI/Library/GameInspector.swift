@@ -450,46 +450,45 @@ struct GameInspector: View {
         }
     }
 
+    /// Core, controls and shader as symbol and value, like the fact strip;
+    /// "Same as System" follows a value the game doesn't set itself.
     @ViewBuilder
     private var emulationSection: some View {
         if let system = game.system {
             InfoSection("Emulation") {
                 readiness(system)
-                if system.cores.count > 1 {
-                    InfoRowLayout("Core") {
-                        GameCorePicker(actions: actions)
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                            .controlSize(.small)
-                            // Not fixedSize: the picker's ideal width, set by the
-                            // longest core name, became the column's width.
-                            .frame(maxWidth: 180, alignment: .leading)
+                SettingRow("Core", symbol: "cpu",
+                           note: system.cores.count > 1 && game.coreID == nil ? "Same as System" : nil) {
+                    if system.cores.count > 1 {
+                        GameCorePicker(actions: actions, showsCoreName: true)
+                            .modifier(InlineMenu())
+                    } else {
+                        Text(verbatim: system.defaultCore.name)
                     }
-                } else {
-                    InfoRow("Core", system.defaultCore.name)
                 }
-                InfoRowLayout("Controls") {
+                SettingRow("Controls", symbol: "dpad") {
                     HStack(spacing: AppSpacing.s) {
-                        Text(game.inputProfileData == nil ? "Same as System" : "Custom")
+                        Text(game.inputProfileData == nil ? "System Controls" : "Custom Controls")
                         Button("Edit…") { isEditingControls = true }
                             .buttonStyle(.link)
                     }
                 }
                 if let emulator = game.effectiveCore?.standalone {
                     // Shaders and achievements are the standalone emulator's own.
-                    InfoRow("Graphics", String(localized: "Set in \(emulator.name)"))
-                    InfoRow("Achievements", String(localized: "Sign in to RetroAchievements in \(emulator.name)"))
+                    SettingRow("Graphics", symbol: "tv") {
+                        Text(verbatim: String(localized: "Set in \(emulator.name)"))
+                    }
+                    SettingRow("Achievements", symbol: "trophy") {
+                        Text(verbatim: String(localized: "Sign in to RetroAchievements in \(emulator.name)"))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     StandaloneSettingsButton(emulator: emulator)
                         .buttonStyle(.link)
                         .font(.callout)
+                        // Under the values, past the symbol column.
+                        .padding(.leading, 18 + AppSpacing.s)
                 } else {
-                    InfoRowLayout("Shader") {
-                        GameShaderPicker(gameID: game.id, systemID: system.id)
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                            .controlSize(.small)
-                            .frame(maxWidth: 180, alignment: .leading)
-                    }
+                    GameShaderPicker(gameID: game.id, systemID: system.id)
                 }
             }
             .sheet(isPresented: $isEditingControls) {
@@ -740,6 +739,52 @@ struct InfoRowLayout<Value: View>: View {
     }
 }
 
+/// A setting as symbol and value, with an optional quiet note after it; the
+/// title is for the tooltip and VoiceOver.
+private struct SettingRow<Value: View>: View {
+    let title: LocalizedStringKey
+    let symbol: String
+    var note: LocalizedStringKey?
+    @ViewBuilder let value: Value
+
+    init(_ title: LocalizedStringKey, symbol: String, note: LocalizedStringKey? = nil, @ViewBuilder value: () -> Value) {
+        self.title = title
+        self.symbol = symbol
+        self.note = note
+        self.value = value()
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.s) {
+            Image(systemName: symbol)
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+                .help(Text(title))
+                .accessibilityHidden(true)
+            value
+            if let note {
+                Text(note)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// A menu picker drawn as its value and a small arrow, so it reads as part
+/// of a line of text rather than as a form field.
+private struct InlineMenu: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .pickerStyle(.menu)
+            .buttonStyle(.borderless)
+            .labelsHidden()
+            .fixedSize()
+    }
+}
+
 /// Five stars, filled or outlined; the shape carries the value, not colour.
 struct RatingView: View {
     /// 0…1
@@ -775,8 +820,13 @@ private struct GameShaderPicker: View {
 
     var body: some View {
         let _ = revision
-        ShaderPicker(title: "Shader", selection: Binding(get: { selection }, set: { choose($0) }),
-                     inheritTitle: String(localized: "Same as System (\(ShaderSelection.current(for: systemID).title))"))
+        let inherited = ShaderSelection.current(for: systemID).title
+        SettingRow("Shader", symbol: "tv", note: selection == nil ? "Same as System" : nil) {
+            ShaderPicker(title: "Shader", selection: Binding(get: { selection }, set: { choose($0) }),
+                         inheritTitle: String(localized: "Same as System (\(inherited))"),
+                         currentValue: selection?.title ?? inherited)
+                .modifier(InlineMenu())
+        }
             .onChange(of: gameID, initial: true) { load() }
             .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
                 load()

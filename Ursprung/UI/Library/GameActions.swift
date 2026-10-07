@@ -161,19 +161,27 @@ struct GameActionItems: View {
 /// Per-game core override; the empty tag stands for the system default.
 struct GameCorePicker: View {
     let actions: GameActions
+    /// Shows the name of the core in use, also when it is the system's.
+    var showsCoreName = false
 
     var body: some View {
         if let system = actions.game.system {
-            Picker("Core", selection: Binding(
-                get: { actions.game.coreID ?? "" },
-                set: { actions.setCore($0.isEmpty ? nil : $0) }
-            )) {
-                Text("System Default (\(system.core(withID: Preferences.coreChoice(for: system.id)).name))").tag("")
-                Divider()
-                ForEach(system.cores) { core in
-                    Text(core.name).tag(core.id)
-                }
+            let selection = Binding(get: { actions.game.coreID ?? "" },
+                                    set: { actions.setCore($0.isEmpty ? nil : $0) })
+            if showsCoreName, let core = actions.game.effectiveCore {
+                Picker(selection: selection) { items(system) } label: { Text("Core") } currentValueLabel: { Text(verbatim: core.name) }
+            } else {
+                Picker("Core", selection: selection) { items(system) }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func items(_ system: GameSystem) -> some View {
+        Text("System Default (\(system.core(withID: Preferences.coreChoice(for: system.id)).name))").tag("")
+        Divider()
+        ForEach(system.cores) { core in
+            Text(core.name).tag(core.id)
         }
     }
 }
