@@ -97,7 +97,7 @@ final class HIDGamepad: Identifiable {
 }
 
 /// Discovers HID gamepads and tracks their element values. Callbacks arrive
-/// on the main run loop. The manager lives for the whole app session.
+/// on the main run loop. The app keeps one manager for its whole session.
 @Observable
 final class HIDGamepadManager {
     private(set) var gamepads: [HIDGamepad] = []
@@ -137,6 +137,16 @@ final class HIDGamepadManager {
         }, context)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
         IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+    }
+
+    /// The callbacks hold an unretained pointer to `self`: stop them before it
+    /// goes away (sessions in tests are short-lived).
+    isolated deinit {
+        IOHIDManagerRegisterDeviceMatchingCallback(manager, nil, nil)
+        IOHIDManagerRegisterDeviceRemovalCallback(manager, nil, nil)
+        IOHIDManagerRegisterInputValueCallback(manager, nil, nil)
+        IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
+        IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
     }
 
     /// The pad that is currently waiting for a binding, if any. Its input
