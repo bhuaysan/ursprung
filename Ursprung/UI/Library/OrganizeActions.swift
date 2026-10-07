@@ -31,15 +31,7 @@ struct OrganizeItems: View {
 
     var body: some View {
         Menu("Status", systemImage: "flag") {
-            ForEach(PlayStatus.allCases) { status in
-                Toggle(isOn: Binding(get: { actions.commonStatus == status },
-                                     set: { actions.setStatus($0 ? status : nil) })) {
-                    Label(status.title, systemImage: status.symbol)
-                }
-            }
-            Divider()
-            Button("No Status") { actions.setStatus(nil) }
-                .disabled(actions.games.allSatisfy { $0.playStatus == nil })
+            StatusItems(actions: actions)
         }
         Menu("Collections", systemImage: "rectangle.stack") {
             ForEach(actions.collections, id: \.self) { collection in
@@ -49,6 +41,23 @@ struct OrganizeItems: View {
             if !actions.collections.isEmpty { Divider() }
             Button("New Collection…", action: actions.newCollection)
         }
+    }
+}
+
+/// A checkmark item per status, then No Status.
+struct StatusItems: View {
+    let actions: OrganizeActions
+
+    var body: some View {
+        ForEach(PlayStatus.allCases) { status in
+            Toggle(isOn: Binding(get: { actions.commonStatus == status },
+                                 set: { actions.setStatus($0 ? status : nil) })) {
+                Label(status.title, systemImage: status.symbol)
+            }
+        }
+        Divider()
+        Button("No Status") { actions.setStatus(nil) }
+            .disabled(actions.games.allSatisfy { $0.playStatus == nil })
     }
 }
 

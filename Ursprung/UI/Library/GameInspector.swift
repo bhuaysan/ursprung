@@ -53,7 +53,6 @@ struct GameInspector: View {
                         overviewSection(overview)
                     }
                     activitySection
-                    organizeSection
                     if versions.count > 1 {
                         versionsSection
                     }
@@ -363,25 +362,6 @@ struct GameInspector: View {
         .font(.callout)
     }
 
-    private var organizeSection: some View {
-        InfoSection("Organize") {
-            InfoRowLayout("Status") {
-                Picker("Status", selection: Binding(get: { game.playStatus }, set: { actions.organize.setStatus($0) })) {
-                    Text(verbatim: "–").tag(PlayStatus?.none)
-                    Divider()
-                    ForEach(PlayStatus.allCases) { status in
-                        Label(status.title, systemImage: status.symbol).tag(PlayStatus?.some(status))
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .controlSize(.small)
-                .frame(maxWidth: 180, alignment: .leading)
-            }
-            CollectionToggles(actions: actions.organize)
-        }
-    }
-
     /// The other files of this game: regions, revisions, translations, hacks.
     private var versionsSection: some View {
         InfoSection("Versions") {
@@ -398,7 +378,8 @@ struct GameInspector: View {
         return versions.contains { $0 !== version && $0.crc32?.caseInsensitiveCompare(crc) == .orderedSame }
     }
 
-    /// The player's history with the game, in sentences rather than rows.
+    /// The player's history with the game in sentences, then its status and
+    /// collections as tags.
     private var activitySection: some View {
         InfoSection("Activity") {
             Text(verbatim: playedText)
@@ -413,6 +394,8 @@ struct GameInspector: View {
             }
             Text("In library since \(game.dateAdded.formatted(date: .abbreviated, time: .omitted)).")
                 .foregroundStyle(.secondary)
+            OrganizeTags(actions: actions.organize)
+                .padding(.top, AppSpacing.xs)
         }
         .font(.callout)
     }

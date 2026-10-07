@@ -43,7 +43,6 @@ struct MultiGameInspector: View {
                     .padding(.top, AppSpacing.l)
                     .padding(.horizontal, AppSpacing.l)
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                    organizeSection
                     activitySection
                 }
                 .padding(.top, AppSpacing.xl)
@@ -101,31 +100,13 @@ struct MultiGameInspector: View {
         }
     }
 
-    private var organizeSection: some View {
-        InfoSection("Organize") {
-            InfoRowLayout("Status") {
-                Picker("Status", selection: Binding(get: { actions.organize.commonStatus },
-                                                    set: { actions.organize.setStatus($0) })) {
-                    Text(verbatim: "–").tag(PlayStatus?.none)
-                    Divider()
-                    ForEach(PlayStatus.allCases) { status in
-                        Text(status.title).tag(PlayStatus?.some(status))
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .controlSize(.small)
-                .frame(maxWidth: 180, alignment: .leading)
-            }
-            CollectionToggles(actions: actions.organize)
-        }
-    }
-
     /// What the selection adds up to, in sentences like a single game's activity.
     private var activitySection: some View {
         InfoSection("Activity") {
             Text(verbatim: activityText)
                 .fixedSize(horizontal: false, vertical: true)
+            OrganizeTags(actions: actions.organize)
+                .padding(.top, AppSpacing.xs)
         }
         .font(.callout)
     }
@@ -157,22 +138,105 @@ struct MultiGameInspector: View {
     }
 }
 
-/// A checkbox per collection, plus New Collection…, for the inspectors.
-struct CollectionToggles: View {
+/// Status and collections as tags, like the labels on a shelf: a menu for
+/// the status, a tag per collection the games are in, and a menu that adds
+/// them to more.
+struct OrganizeTags: View {
     let actions: OrganizeActions
 
     var body: some View {
-        InfoRowLayout("Collections") {
-            VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                ForEach(actions.collections, id: \.self) { collection in
-                    Toggle(collection, isOn: Binding(get: { actions.containsAll(collection) },
-                                                     set: { actions.setCollection(collection, $0) }))
-                        .toggleStyle(.checkbox)
-                        .lineLimit(1)
-                }
-                Button("New Collection…", action: actions.newCollection)
-                    .buttonStyle(.link)
+        FlowLayout(horizontalSpacing: AppSpacing.xs, verticalSpacing: AppSpacing.xs) {
+            Menu {
+                StatusItems(actions: actions)
+            } label: {
+                statusLabel
             }
+            .modifier(TagMenu())
+            .accessibilityLabel(Text("Status"))
+            ForEach(memberships, id: \.self) { collection in
+                Menu {
+                    Button("Remove from Collection", systemImage: "minus.circle") {
+                        actions.setCollection(collection, false)
+                    }
+                } label: {
+                    Tag { Label(collection, systemImage: "rectangle.stack") }
+                }
+                .modifier(TagMenu())
+                .help(Text("Collection “\(collection)”"))
+            }
+            Menu {
+                ForEach(others, id: \.self) { collection in
+                    Button(collection) { actions.setCollection(collection, true) }
+                }
+                if !others.isEmpty { Divider() }
+                Button("New Collection…", action: actions.newCollection)
+            } label: {
+                Tag(isQuiet: true) {
+                    if memberships.isEmpty {
+                        Label("Add to Collection", systemImage: "plus")
+                    } else {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .modifier(TagMenu())
+            .help("Add to Collection")
+            .accessibilityLabel(Text("Add to Collection"))
         }
+        .font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var statusLabel: some View {
+        if let status = actions.commonStatus {
+            Tag { Label(status.title, systemImage: status.symbol) }
+        } else if Set(actions.games.map(\.playStatusRaw)).count > 1 {
+            Tag(isQuiet: true) { Label("Mixed Status", systemImage: "flag") }
+        } else {
+            Tag(isQuiet: true) { Label("No Status", systemImage: "flag") }
+        }
+    }
+
+    /// Collections every game is in.
+    private var memberships: [String] {
+        actions.collections.filter(actions.containsAll)
+    }
+
+    /// Collections at least one game is not in yet.
+    private var others: [String] {
+        actions.collections.filter { !actions.containsAll($0) }
+    }
+}
+
+/// A capsule around a label; quiet tags offer something rather than show it.
+private struct Tag<Content: View>: View {
+    var isQuiet = false
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .lineLimit(1)
+            .foregroundStyle(isQuiet ? .secondary : .primary)
+            .padding(.horizontal, AppSpacing.s)
+            .padding(.vertical, 3)
+            .background(isQuiet ? AnyShapeStyle(.clear) : AnyShapeStyle(.fill.tertiary), in: .capsule)
+            .overlay {
+                if isQuiet {
+                    Capsule().strokeBorder(.separator, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                }
+            }
+            .contentShape(.capsule)
+    }
+}
+
+/// A menu drawn as its tag only, without a button frame or arrow.
+private struct TagMenu: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
+            .fixedSize()
     }
 }

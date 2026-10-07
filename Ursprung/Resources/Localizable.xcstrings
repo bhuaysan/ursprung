@@ -11404,6 +11404,46 @@
           }
         }
       }
+    },
+    "Remove from Collection": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus Sammlung entfernen"
+          }
+        }
+      }
+    },
+    "Collection “%@”": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sammlung „%@“"
+          }
+        }
+      }
+    },
+    "Add to Collection": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu Sammlung hinzufügen"
+          }
+        }
+      }
+    },
+    "Mixed Status": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterschiedlicher Status"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
