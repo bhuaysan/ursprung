@@ -40,8 +40,9 @@
   detail, choose your own cover or pick the right match by hand; your edits
   survive every later fetch.
 - **Native and fast.** SwiftUI interface with the macOS 26 design language,
-  Metal presentation, audio-synchronised frame pacing, OpenGL support for 3D
-  cores (N64, PSP, Dreamcast).
+  Metal presentation, audio-synchronised frame pacing, OpenGL and Vulkan
+  (through MoltenVK) for 3D cores: paraLLEl-RDP for N64, Dolphin, Flycast,
+  PlayStation and PSP renderers.
 - **libretro cores on demand.** The right core is downloaded automatically from
   the libretro buildbot the first time you start a game — nothing to configure.
 - **Save states with thumbnails and names**, quick save/load, battery saves,
@@ -121,7 +122,7 @@ brew install xcodegen
 git clone https://github.com/bhuaysan/ursprung.git
 cd ursprung
 cp .env.example .env        # optional: add ScreenScraper developer credentials
-make project                # downloads librashader, generates Ursprung.xcodeproj
+make project                # downloads librashader and MoltenVK, generates Ursprung.xcodeproj
 open Ursprung.xcodeproj     # then press ⌘R
 ```
 
@@ -230,6 +231,10 @@ later version.
 The app embeds [librashader](https://github.com/SnowflakePowered/librashader)
 0.12.0, available under the Mozilla Public License 2.0 or the GPL 3.0; its
 source code is on GitHub (see `ThirdParty/librashader/README.md`).
+It also embeds [MoltenVK](https://github.com/KhronosGroup/MoltenVK) 1.4.2
+© The Khronos Group, under the Apache License 2.0 (see
+`ThirdParty/moltenvk/README.md`); `Ursprung/Bridge/libretro_vulkan.h` is
+© The RetroArch team, MIT licensed.
 
 ## Acknowledgements
 
@@ -237,4 +242,5 @@ source code is on GitHub (see `ThirdParty/librashader/README.md`).
 - [ScreenScraper](https://www.screenscraper.fr) and its community of contributors
 - [RetroAchievements](https://retroachievements.org) and the rcheevos authors
 - [librashader](https://github.com/SnowflakePowered/librashader) and the authors of the RetroArch slang shaders
+- [MoltenVK](https://github.com/KhronosGroup/MoltenVK) and the Khronos Group, and RetroArch's Vulkan driver as the reference for libretro's Vulkan interface
 - [OpenEmu](https://openemu.org), for showing how good an emulator frontend on the Mac can be

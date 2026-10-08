@@ -7,7 +7,10 @@ and [librashader](https://github.com/SnowflakePowered/librashader)
 (MPL-2.0/GPL-3.0) for RetroArch slang shader presets: a prebuilt dylib that
 `Scripts/fetch-librashader.sh` downloads and Xcode embeds in
 `Contents/Frameworks` (see `ThirdParty/librashader/README.md` and
-`docs/SHADER_PLAN.md`).
+`docs/SHADER_PLAN.md`). [MoltenVK](https://github.com/KhronosGroup/MoltenVK)
+(Apache-2.0) gives cores a Vulkan context the same way:
+`Scripts/fetch-moltenvk.sh` downloads it, Xcode links and embeds it (see
+`ThirdParty/moltenvk/README.md` and `docs/VULKAN_PLAN.md`).
 
 ```
 ┌──────────────────────────── SwiftUI (MainActor) ────────────────────────────┐
@@ -101,7 +104,18 @@ Cores deliver frames in `0RGB1555`, `RGB565`, `XRGB8888` or `XRGB2101010`.
 ready buffer. Hardware-rendered cores get an offscreen CGL context (OpenGL 4.1
 core or 2.1 legacy) with an FBO; after each frame the FBO is read back with
 `glReadPixels` (flipped for bottom-left origin) and published like a software
-frame. The Metal shaders (compiled at runtime, so no Metal toolchain download
+frame. Cores that ask for Vulkan get `URVulkanContext`: a MoltenVK instance
+and device, negotiated with the core (`retro_hw_render_context_negotiation_interface_vulkan`
+v1 and v2) and handed over through `retro_hw_render_interface_vulkan`. The core
+renders into its own image and passes it with `set_image`; `video_refresh`
+submits the core's command buffers and semaphores together with a copy of the
+image into a host-visible buffer, waits for the fence and converts the pixels
+to BGRA8 (`URPixelConversion`), so Vulkan frames also go through the CPU
+frame buffer. Cores also get a surface of a `CAMetalLayer` nobody sees:
+Dolphin emulates a swapchain on top of it. `GET_PREFERRED_HW_RENDER` answers
+with the API Swift chose (`CoreDefinition.renderer`, the user's choice in
+Settings › Cores); the option defaults that go with it come from
+`CoreDefinition.optionDefaults(for:)`. The Metal shaders (compiled at runtime, so no Metal toolchain download
 is needed) implement sharp bilinear, nearest, bilinear and scanline filtering,
 aspect-correct fitting, integer scaling and core-requested rotation, plus CRT
 (beam-width scanlines, aperture grille, optional curvature and vignette) and
@@ -215,10 +229,11 @@ user changes per vendor/product ID.
 `URCoreEnvironment` implements the commands real-world cores rely on, among
 them: pixel formats, system/save directories, core options v0 (variables), v1,
 v1 intl, v2 and v2 intl, variable updates, `SET_VARIABLE`, log/perf/rumble
-interfaces, `SET_HW_RENDER` / `GET_PREFERRED_HW_RENDER`, geometry and A/V info
+interfaces, `SET_HW_RENDER` / `GET_PREFERRED_HW_RENDER` (OpenGL and Vulkan, with
+the Vulkan negotiation and render interfaces), geometry and A/V info
 changes, disk control (v0 and ext), messages, rotation, input bitmasks,
 language, JIT capability, keyboard callbacks, memory maps, cheats
-(`retro_cheat_set`, optional symbols) and shutdown. Unsupported interfaces (Vulkan, VFS,
+(`retro_cheat_set`, optional symbols) and shutdown. Unsupported interfaces (VFS,
 camera, sensors, MIDI, microphone) return `false`, which cores handle
 gracefully.
 

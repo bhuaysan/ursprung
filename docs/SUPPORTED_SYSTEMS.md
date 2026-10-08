@@ -32,7 +32,7 @@ arcade sets are passed to the core as they are.
 | **Game Gear** (Sega) | `gg`, `gamegear`, `segagamegear` | .gg, .zip | Genesis Plus GX, Gearsystem | – |
 | **Saturn** (Sega) | `saturn`, `segasaturn`, `ss` | .cue, .chd, .iso, .m3u | Beetle Saturn, Yabause | `sega_101.bin` (required), `mpr-17933.bin` (required) |
 | **Dreamcast** (Sega) | `dc`, `dreamcast`, `segadreamcast` | .cdi, .gdi, .cue, .chd, .iso, .m3u | Flycast | `dc/dc_boot.bin`, `dc/dc_flash.bin` |
-| **PlayStation** (Sony) | `psx`, `ps1`, `playstation`, `sonyplaystation` | .cue, .chd, .iso, .m3u, .pbp | PCSX ReARMed, SwanStation, Beetle PSX | `scph5500.bin`, `scph5501.bin`, `scph5502.bin`, `scph1001.bin` |
+| **PlayStation** (Sony) | `psx`, `ps1`, `playstation`, `sonyplaystation` | .cue, .chd, .iso, .m3u, .pbp | PCSX ReARMed, SwanStation, Beetle PSX, Beetle PSX HW | `scph5500.bin`, `scph5501.bin`, `scph5502.bin`, `scph1001.bin` |
 | **PlayStation 2** (Sony) | `ps2`, `playstation2`, `sonyplaystation2` | .iso, .chd, .cso, .zso, .bin, .mdf | ARMSX2 (standalone) | any PS2 BIOS dump in `pcsx2/bios/` (required) |
 | **PlayStation Portable** (Sony) | `psp`, `playstationportable` | .cso, .iso, .pbp, .chd | PPSSPP | – |
 | **PC Engine / TurboGrafx-16** (NEC) | `pce`, `pcengine`, `tg16`, `turbografx` | .pce, .zip | Beetle PCE Fast | – |
@@ -56,13 +56,19 @@ arcade sets are passed to the core as they are.
 
 ## Notes per system
 
-- **Nintendo 64** — defaults to the angrylion software renderer, which is
-  accurate and fast enough on Apple Silicon. GLideN64 (OpenGL, upscaling) can be
-  selected in the core options, but its frame buffer emulation currently
-  renders black on Apple's OpenGL implementation, so disable
-  *Frame buffer emulation* when you use it.
+- **Nintendo 64** — Mupen64Plus-Next renders with paraLLEl-RDP and
+  paraLLEl-RSP through Vulkan: as accurate as the angrylion software renderer,
+  but on the GPU, with optional upscaling (*paraLLEl-RDP Upscaling* in the core
+  options). With OpenGL chosen in Settings → Cores, and in ParaLLEl N64 (whose
+  macOS build has no paraLLEl-RDP), the N64 cores use angrylion. GLideN64
+  (OpenGL) can be selected in the core options, but its frame buffer emulation
+  renders black on Apple's OpenGL implementation, so disable *Frame buffer
+  emulation* when you use it.
 - **PlayStation** — PCSX ReARMed includes an HLE BIOS, so a real BIOS is
-  optional (but improves compatibility). SwanStation and Beetle PSX require one.
+  optional (but improves compatibility). SwanStation, Beetle PSX and Beetle
+  PSX HW require one. Beetle PSX HW is Beetle PSX with a GPU renderer
+  (upscaling and PGXP in its core options). SwanStation and Beetle PSX HW
+  render with Vulkan by default; OpenGL can be chosen in Settings → Cores.
   Multi-disc games work best as an `.m3u` playlist listing the `.cue`/`.chd`
   files; swap discs from the game menu.
 - **PlayStation 2** — runs in [ARMSX2](https://github.com/ARMSX2/ARMSX2), a
@@ -72,17 +78,21 @@ arcade sets are passed to the core as they are.
   gets its own memory card. Graphics options (upscaling, filtering) and
   RetroAchievements are set in ARMSX2's own settings: Settings → Cores →
   ARMSX2 Settings → Open, or the game's info panel.
-- **PSP** — PPSSPP renders with OpenGL. Its font and shader assets are
-  downloaded into the system folder automatically.
+- **PSP** — PPSSPP renders with OpenGL (Vulkan can be chosen in Settings →
+  Cores). Its font and shader assets are downloaded into the system folder
+  automatically.
 - **Nintendo DS** — the mouse acts as the stylus on the touch screen. melonDS DS
   has a built-in BIOS; real BIOS/firmware files are optional.
-- **Dreamcast** — Flycast renders with OpenGL and includes an HLE BIOS.
+- **Dreamcast** — Flycast renders with Vulkan and includes an HLE BIOS. Only
+  its Vulkan renderer offers per-pixel alpha sorting (*Alpha Sorting* in the
+  core options) on the Mac.
 - **Arcade** — FinalBurn Neo is the default. ROM sets must match the core's
   version (FBNeo: the current nightly set; MAME 2003-Plus: its 0.78-based set).
   Put `neogeo.zip` next to your Neo Geo games, or import it in Settings → BIOS
   (it is stored as `System/fbneo/neogeo.zip`).
-- **GameCube / Wii** — experimental. Dolphin's libretro core is heavy and
-  depends on OpenGL; expect issues.
+- **GameCube / Wii** — experimental. Dolphin renders with Vulkan; its OpenGL
+  backend needs more than Apple's OpenGL 4.1 offers. The core is heavy: expect
+  issues.
 
 ## Standalone emulators
 
@@ -106,8 +116,6 @@ ARMSX2's window).
 
 ## Not supported (yet)
 
-- Vulkan-only renderers (ParaLLEl-RDP, ParaLLEl-GS, Beetle PSX HW's Vulkan
-  renderer).
 - Nintendo 3DS, Xbox — their libretro cores are not in a usable state on macOS
   arm64 at the moment. (PlayStation 2 runs in ARMSX2, see above.)
 - Home computers beyond MSX (Amiga, C64, DOS, …) — the cores exist, but need

@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Vulkan for libretro cores through MoltenVK (embedded): Mupen64Plus-Next
+  renders N64 games with paraLLEl-RDP (accurate, on the GPU, optional
+  upscaling), and Dolphin, Flycast and SwanStation use their Vulkan renderers.
+  Settings → Cores chooses the graphics API per core.
+- Beetle PSX HW as a third PlayStation core (GPU renderer with upscaling).
+- Save states record the renderer and note when one was made with another.
 - Sidebar: each system is marked with a dot in its colour.
 - System banner above each system's games with the official logo and a console
   photo, and official logos on placeholder covers (downloaded from ScreenScraper

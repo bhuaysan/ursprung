@@ -1,6 +1,6 @@
 # Ursprung — Vulkan Hardware Rendering through MoltenVK: Plan
 
-7 October 2026 · based on commit 2b278e1 (main). Status: planned, questions resolved (7 October 2026), nothing implemented. Comes after `docs/STANDALONE_PLAN.md` (Q6).
+7 October 2026 · based on commit 2b278e1 (main). Status: questions resolved (7 October 2026); spike and phases 1–4 done on branch `feature/vulkan` (8 October 2026); phase 5 not needed for now (S3); phase 6 blocked on test content. Comes after `docs/STANDALONE_PLAN.md` (Q6).
 
 Ursprung gives libretro cores an OpenGL 4.1 context (`URGLContext`) and nothing else. `SET_HW_RENDER` refuses Vulkan, and `GET_PREFERRED_HW_RENDER` answers OpenGL core. This plan adds a Vulkan context through MoltenVK, so cores can use their Vulkan renderers. The result still goes through Ursprung's Metal presentation, shaders, screenshots and save states.
 
@@ -125,6 +125,31 @@ Add a minimal Vulkan context to `ursprung-smoke` only (readback, one sync index,
 - **S6** Save states with paraLLEl-RDP and Dolphin Vulkan: save, load, size, and loading a state across renderers.
 - **S7** MoltenVK configuration: does any core need `MVK_CONFIG_*` settings (e.g. `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS`, `MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS`) for correctness or speed?
 
+#### Spike results (8 October 2026)
+
+The spike ran on the real bridge instead of a throwaway context: phases 1 and 2 were built first, and `ursprung-smoke` gained what the questions needed (`URSMOKE_RENDERER`, `URSMOKE_LIST_OPTIONS`, `URSMOKE_REPEAT`, `URSMOKE_SAVE_STATE`/`URSMOKE_LOAD_STATE`, the time per frame spent in the core, and `URSPRUNG_VULKAN_LOG=1` for the context's log). Apple M4, MoltenVK 1.4.2, buildbot cores of 8 October (PPSSPP of 29 September), the user's games. Besides the four cores of the plan, Beetle PSX HW, PPSSPP and Azahar were checked.
+
+- **S1** Negotiation: Dolphin uses v2 (`create_instance` with `VK_EXT_layer_settings`, through which it configures MoltenVK itself, then `create_device2`); Mupen64Plus-Next (Granite), Flycast, SwanStation, Beetle PSX HW, PPSSPP and Azahar use v1 `create_device`. MoltenVK grants everything they ask for: paraLLEl-RDP enables 18 device extensions (8/16-bit storage, float16/int8, subgroup size control, timeline semaphores, synchronization2, …), Dolphin `VK_EXT_memory_budget` and `VK_KHR_sampler_mirror_clamp_to_edge`, Azahar `VK_EXT_shader_stencil_export` and `VK_EXT_external_memory_host`. One finding the plan had not foreseen: **Dolphin presents nothing without a `VkSurfaceKHR`**. It emulates a swapchain on top of the surface it gets in `create_device2` (RetroArch always passes one), so `URVulkanContext` creates a surface of a `CAMetalLayer` that is never shown, with `VK_KHR_surface` and `VK_EXT_metal_surface` on the instance and `VK_KHR_swapchain` on core-made devices, as RetroArch does. The only MoltenVK warning: paraLLEl-RDP enables blending on an `R8G8B8A8_UINT` attachment, which Metal ignores; the picture is correct.
+- **S2** Speed (`ursprung-smoke`; uncapped frames per second and milliseconds per frame in the core, including the readback; Dolphin and PPSSPP boot in wall-clock time, so they ran paced and only the time in the core compares):
+
+  | Game | OpenGL / software | Vulkan |
+  |---|---|---|
+  | Ocarina of Time, angrylion vs paraLLEl-RDP + RSP, 1× | 286 fps, 3.5 ms (3600 frames: 4.0 ms) | 160 fps, 6.2 ms (3600 frames: 8.3 ms) |
+  | same, CPU time over 30 s paced | 117 % of a core (angrylion is threaded) | 39 % |
+  | Ocarina of Time, paraLLEl-RDP 2× / 4× | – | 109 fps / 50 fps |
+  | MGS: The Twin Snakes, paced, native / EFB 3× | 12.1 ms, warns about `ARB_buffer_storage` | 11.4 ms / 11.1 ms, no warning |
+  | Sonic Adventure, 640×480 / 1920×1440 | 530 fps / 160 fps | 433 fps / 225 fps |
+  | SOTN, SwanStation, 1× / 4× | 1106 fps / 333 fps | 1282 fps / 571 fps |
+  | SOTN, Beetle PSX HW, 1× / 4× | 488 fps / – | 392 fps / 327 fps |
+  | Valkyrie Profile, PPSSPP, paced | 2.3 ms | 3.0 ms (Debug conversion; about even without it) |
+
+  paraLLEl-RDP is slower than angrylion in wall time on an M4 but needs a third of the CPU, and both are far above 60 fps at 1×; 4× upscaling is below full speed in the core itself.
+- **S3** Readback: submitting the frame and waiting for the fence costs 0.8–1 ms at native resolution (this includes the core's own GPU work for that frame), 2–5 ms at 3–5 MP. Converting to BGRA8 costs 0.02–0.07 ms at native, 0.2–1 ms at 1–2.5 MP, 1.9 ms for Dolphin's 10-bit frames at 1920×1584 (with `-O2`; `URPixelConversion.c` is now optimised in Debug builds too, which were 5–10× slower). Phase 5 is not needed for the acceptance games; it would matter only at high upscaling, where the cores are the bottleneck first.
+- **S4** Formats: `R8G8B8A8_UNORM` (Mupen64Plus-Next, Flycast, SwanStation, Azahar), `A2B10G10R10_UNORM_PACK32` (Dolphin), `B8G8R8A8_UNORM` (PPSSPP), `A1R5G5B5_UNORM_PACK16` (Beetle PSX HW, which the first version could not show), all in `SHADER_READ_ONLY_OPTIMAL`, all top-left origin, none sRGB.
+- **S5** Teardown: twelve load/run/unload rounds in one process (`URSMOKE_REPEAT=12`) pass for all seven cores, with frames in every round; no crash.
+- **S6** States: Ocarina of Time 16.8 MB with either renderer, and a paraLLEl-RDP state loads into angrylion and back (title and name entry screens). Dolphin 92 MB; a Vulkan state loads into OpenGL and Vulkan. The "made with another renderer" note stays a note (the state loads, with a hint if the game misbehaves).
+- **S7** MoltenVK needs no configuration for correctness or speed. `URVulkanContext` only lowers `MVK_CONFIG_LOG_LEVEL` to warnings (MoltenVK logs every instance and device otherwise); an `MVK_CONFIG_*` set in the environment still wins.
+
 ### Phase 1 — Dependency (S)
 
 - `Scripts/fetch-moltenvk.sh`: downloads the pinned `MoltenVK-macos.tar` (v1.4.2, 56 MB) from GitHub releases, checks its SHA-256, extracts `libMoltenVK.dylib`, thins it to arm64 (`lipo -thin`, roughly halves the universal 11 MB), sets the install name to `@rpath/libMoltenVK.dylib`. Called from `make project`; CI caches it. Same pattern as `fetch-librashader.sh`.
@@ -132,6 +157,7 @@ Add a minimal Vulkan context to `ursprung-smoke` only (readback, one sync index,
 - `project.yml`: link and embed for Ursprung, `ursprung-smoke` and the tests; header search paths.
 - CLAUDE.md ("Hard rules": agreed dependencies; "Known issues": remove "Vulkan cores/renderers unsupported" when phase 4 lands), About/acknowledgements, `docs/ARCHITECTURE.md`.
 - Acceptance: `make build`, `make test`, CI and `make dist` (signature, notarization check) pass with the dylib embedded.
+- As built: `Scripts/fetch-moltenvk.sh` also copies the release's C headers (not the 20 MB of C++ bindings) to `ThirdParty/moltenvk/include`; `lib/` and `include/` are git-ignored, CI caches both. The release already has the `@rpath` install name. `make smoke` takes `RENDERER=vulkan`. The app links QuartzCore for the surface's layer. `make dist` is not run yet: it needs the Developer ID certificate (see `docs/RELEASE.md`).
 
 ### Phase 2 — Bridge (L)
 
@@ -139,6 +165,7 @@ Add a minimal Vulkan context to `ursprung-smoke` only (readback, one sync index,
 - `ursprung-smoke` gains `--renderer vulkan|opengl` (sets the preference and the option defaults), so every core can be checked headlessly.
 - `Tools/ursprung-test-core` gets a Vulkan mode: it requests Vulkan, clears its image to a frame-dependent colour each frame and supports serialize. `EmulationRunnerTests` check the colour reaches `_back`, sync indices advance, and load/unload repeats without leaks or crashes. Tests skip when no Vulkan device exists (CI runner without a GPU).
 - Acceptance: Ocarina of Time with paraLLEl-RDP and the Dolphin intro render through `make smoke` and the app; quitting a game twelve times in a row crashes nothing.
+- As built: `URVulkanContext` (Objective-C) follows the design above with these differences: one command buffer, fence and readback buffer instead of one per sync index, because every frame is waited for (`wait_sync_index` returns at once; the core still sees two sync indices, `get_sync_index_mask` = `0b11`); cores' `vkGetInstanceProcAddr` routes `vkCreateDevice` through Ursprung, so cores that make the device themselves (v1) get `VK_KHR_portability_subset` and `VK_KHR_swapchain` too; the surface from S1. Work the core hands over without showing a frame (run-ahead or hidden frames, `video_refresh(NULL)`) is still submitted once after `retro_run`, so semaphores are waited for and command buffers run. `SET_HW_RENDER` refuses Vulkan when MoltenVK offers no device (probed once), so the core falls back; if the context then fails after `retro_load_game`, loading fails with a message instead (without writing the battery save). `retro_reset` forgets the core's image first. Teardown: wait idle, `context_destroy`, `retro_unload_game`, `retro_deinit`, then `destroy_device`, device, surface, instance, as in RetroArch. The pixel formats are converted in `URPixelConversion.c` (plain C, unit-tested): BGRA8, RGBA8, A2B10G10R10, A2R10G10B10, RGBA16F, RGB565, A1R5G5B5, R5G5B5A1. Run-ahead stays off for hardware-rendered games, as with OpenGL. `ursprung-smoke` takes `URSMOKE_RENDERER=vulkan` instead of `--renderer`; option defaults are passed with `URSMOKE_OPTIONS` (they live in the Swift catalog). The test core's Vulkan modes (submitting itself with a semaphore, or handing over command buffers) use negotiation v2 with `create_device2`; the tests (`EmulationRunnerTests` › "Vulkan rendering") check pixels, both sync indices, hidden frames, states, run-ahead and 13 load/unload rounds with `destroy_device` counted, and skip without a Vulkan device.
 
 ### Phase 3 — Model and settings (M)
 
@@ -147,6 +174,7 @@ Add a minimal Vulkan context to `ursprung-smoke` only (readback, one sync index,
 - Fallback: if Vulkan was preferred but the core ended up on GL or software, toast once per session ("Vulkan isn't available, using OpenGL").
 - `SaveStateContext` records the renderer; the save state browser and loader warn across renderers.
 - Tests: resolution order, option defaults per renderer, state warnings.
+- As built: `HardwareRenderer` (`.opengl`, `.vulkan`), `CoreDefinition.renderer` and `vulkanOptionDefaults` (nil: the core has no Vulkan renderer; merged over `optionDefaults` when Vulkan is chosen), `RendererChoice` (automatic, vulkan, opengl) stored as `rendererChoice.<core>` and backed up. There is no separate per-game renderer: a game's own core options (merged last) already override the renderer's defaults, e.g. a game set to angrylion. Settings › Cores has a "Graphics API" section listing the Vulkan-capable cores ("Automatic (Vulkan)", Vulkan, OpenGL), disabled with a note on a Mac without Vulkan; the player's core options say how the game renders. The toast appears once per app session when Vulkan was wanted but this Mac has none. Manifests record `renderer` (`software`, `opengl`, `vulkan`); states without it raise no issue. Tests: `GraphicsAPITests`, `StateRendererTests`.
 
 ### Phase 4 — Systems (M)
 
@@ -159,10 +187,14 @@ Add a minimal Vulkan context to `ursprung-smoke` only (readback, one sync index,
 - Acceptance (manual, in the app):
   - Ocarina of Time: full speed with paraLLEl-RDP at 1× and 2×; save and load a state; screenshot; a librashader preset; resume after quit.
   - MGS: The Twin Snakes: no `ARB_buffer_storage` warning; full speed from the intro into the first playable scene; save and load a state; disc 2 swap via the `.m3u`.
+- As built: Mupen64Plus-Next defaults to Vulkan with paraLLEl-RDP and paraLLEl-RSP; **ParaLLEl N64 has no paraLLEl-RDP in its macOS build** (its `gfxplugin` option offers gliden64, glide64, gln64, rice, angrylion), so it keeps angrylion and has no Vulkan choice. Dolphin, Flycast, SwanStation (faster in S2 at 1× and 4×) and Beetle PSX HW (new, third PlayStation core after Beetle PSX, needs a BIOS like it) default to Vulkan. Flycast is 0.4 ms per frame slower at native resolution but faster upscaled and the only renderer with per-pixel alpha sorting on the Mac, so it defaults to Vulkan too. PPSSPP can choose Vulkan but stays on OpenGL (no gain). Dolphin keeps `experimental` until the manual checks below are done.
+- Checked in the app (Debug build, 8 October 2026, `URSPRUNG_AUTOPLAY`, the user's library restored afterwards): Ocarina of Time 60 fps with Vulkan (paraLLEl-RDP 1×), state saved and loaded (manifest `"renderer": "vulkan"`), screenshot, resume after quit, the crt-geom preset at 6 ms GPU time; MGS: The Twin Snakes 59.9 fps into the intro cutscene with no warning, state saved and loaded. Not checked yet (need hands on a controller): paraLLEl-RDP 2× in the app, the first playable scene of MGS, the disc 2 swap; then Dolphin can drop `experimental`.
 
 ### Phase 5 — Zero-copy presentation (M)
 
 Only if S3 shows readback as a bottleneck at the upscaling factors users pick.
+
+Status (8 October 2026): not needed for now. At native and 2× the readback costs about a millisecond; where it grows (3× and more), the cores are below full speed on their own first. Revisit when a core is fast enough at high upscaling to be held back by the copy.
 
 - Copy the core's image into a frontend-owned `VkImage` created from an `MTLTexture` (`VK_EXT_metal_objects` import), or export the `MTLTexture` of a frontend image (`vkExportMetalObjectsEXT`). Signal an `MTLSharedEvent` exported from the copy's semaphore; `MetalRenderer` waits on it before sampling.
 - `MetalRenderer` gets a texture input next to the CPU buffer upload. Shaders take that texture as input without change.
@@ -173,6 +205,7 @@ Only if S3 shows readback as a bottleneck at the upscaling factors users pick.
 
 - Spike with Azahar (`azahar_libretro`, Software/Vulkan only on macOS): boots a game, speed, two screens layout options, touch input, save states. If it fails, stop here.
 - If it works: `3ds` system in `SystemCatalog` (ScreenScraper 17, `.3ds`/`.cci`/`.cxi`/`.3dsx`, aliases `3ds`, `n3ds`, `nintendo3ds`), screen layout and stylus mapping like melonDS DS, BIOS/keys notes in `docs/BIOS.md`.
+- Spike (8 October 2026): blocked on test content. `azahar_libretro` (2126.1.2, 31 MB) is on the buildbot for macOS arm64 and works with Ursprung's Vulkan context (negotiation v1, both screens stacked in one 400×480 `R8G8B8A8` frame, 3.5 MB states, twelve load/unload rounds). The only game at hand, the open-source homebrew Super Haxagon 3.9.1 (`.3dsx`), stops after its first second with a kernel error with both the Vulkan and the software renderer, so it says nothing about Azahar's rendering. The phase needs a decrypted dump of a real game (the user has none) before the system is added.
 
 ## Tests
 
