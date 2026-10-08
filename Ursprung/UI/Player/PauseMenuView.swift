@@ -940,7 +940,14 @@ private struct CoreOptionsPage: View {
             .toggleStyle(.switch)
             .controlSize(.small)
             .help("Changes apply to this game only. Off: they apply to every game of this core.")
-            .padding(.bottom, AppSpacing.m)
+            .padding(.bottom, session.renderer == nil ? AppSpacing.m : AppSpacing.xs)
+            if session.renderer != nil {
+                // Cores with a Vulkan renderer: how the game renders, and where to change it.
+                Text("Renders with \(StateRenderer(session.graphicsAPI).displayName). Choose the graphics API in Settings → Cores; it applies when the game starts again.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, AppSpacing.m)
+            }
             FittingScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(options, id: \.key) { option in

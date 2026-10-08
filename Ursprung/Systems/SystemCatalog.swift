@@ -12,10 +12,15 @@ nonisolated enum Cores {
     static let snes9x = CoreDefinition(id: "snes9x", name: "Snes9x")
     static let bsnes = CoreDefinition(id: "bsnes", name: "bsnes")
     static let mesen2 = CoreDefinition(id: "mesen2", name: "Mesen 2")
-    // GLideN64's frame buffer emulation renders black on Apple's OpenGL, so
-    // the accurate software RDP (angrylion) is the default.
+    // Mupen64Plus-Next renders with paraLLEl-RDP (accurate, on the GPU)
+    // through Vulkan. Without Vulkan, N64 cores use the accurate software RDP
+    // (angrylion): GLideN64's frame buffer emulation renders black on Apple's
+    // OpenGL. The macOS build of ParaLLEl N64 has no paraLLEl-RDP.
     static let mupen64plusNext = CoreDefinition(id: "mupen64plus_next", name: "Mupen64Plus-Next",
-                                                optionDefaults: ["mupen64plus-rdp-plugin": "angrylion"])
+                                                optionDefaults: ["mupen64plus-rdp-plugin": "angrylion"],
+                                                renderer: .vulkan,
+                                                vulkanOptionDefaults: ["mupen64plus-rdp-plugin": "parallel",
+                                                                       "mupen64plus-rsp-plugin": "parallel"])
     static let parallelN64 = CoreDefinition(id: "parallel_n64", name: "ParaLLEl N64",
                                             optionDefaults: ["parallel-n64-gfxplugin": "angrylion"])
     static let gambatte = CoreDefinition(id: "gambatte", name: "Gambatte")
@@ -24,7 +29,8 @@ nonisolated enum Cores {
     static let vbaNext = CoreDefinition(id: "vba_next", name: "VBA Next")
     static let melondsds = CoreDefinition(id: "melondsds", name: "melonDS DS")
     static let desmume = CoreDefinition(id: "desmume", name: "DeSmuME")
-    static let dolphin = CoreDefinition(id: "dolphin", name: "Dolphin",
+    // Dolphin's OpenGL backend needs more than Apple's OpenGL 4.1 offers.
+    static let dolphin = CoreDefinition(id: "dolphin", name: "Dolphin", renderer: .vulkan, vulkanOptionDefaults: [:],
                                         systemAssets: assets.appending(path: "Dolphin.zip"), experimental: true)
     static let beetleVB = CoreDefinition(id: "mednafen_vb", name: "Beetle VB")
     static let genesisPlusGX = CoreDefinition(id: "genesis_plus_gx", name: "Genesis Plus GX")
@@ -33,11 +39,16 @@ nonisolated enum Cores {
     static let gearsystem = CoreDefinition(id: "gearsystem", name: "Gearsystem")
     static let beetleSaturn = CoreDefinition(id: "mednafen_saturn", name: "Beetle Saturn")
     static let yabause = CoreDefinition(id: "yabause", name: "Yabause")
-    static let flycast = CoreDefinition(id: "flycast", name: "Flycast")
+    // Per-pixel alpha sorting exists only in Flycast's Vulkan renderer on macOS.
+    static let flycast = CoreDefinition(id: "flycast", name: "Flycast", renderer: .vulkan, vulkanOptionDefaults: [:])
     static let pcsxRearmed = CoreDefinition(id: "pcsx_rearmed", name: "PCSX ReARMed")
-    static let swanstation = CoreDefinition(id: "swanstation", name: "SwanStation")
+    static let swanstation = CoreDefinition(id: "swanstation", name: "SwanStation", renderer: .vulkan,
+                                            vulkanOptionDefaults: ["swanstation_GPU_Renderer": "Vulkan"])
     static let beetlePSX = CoreDefinition(id: "mednafen_psx", name: "Beetle PSX")
-    static let ppsspp = CoreDefinition(id: "ppsspp", name: "PPSSPP", systemAssets: assets.appending(path: "PPSSPP.zip"))
+    static let beetlePSXHW = CoreDefinition(id: "mednafen_psx_hw", name: "Beetle PSX HW", renderer: .vulkan,
+                                            vulkanOptionDefaults: ["beetle_psx_hw_renderer": "hardware_vk"])
+    static let ppsspp = CoreDefinition(id: "ppsspp", name: "PPSSPP", vulkanOptionDefaults: [:],
+                                       systemAssets: assets.appending(path: "PPSSPP.zip"))
     static let beetlePCEFast = CoreDefinition(id: "mednafen_pce_fast", name: "Beetle PCE Fast")
     static let beetleSuperGrafx = CoreDefinition(id: "mednafen_supergrafx", name: "Beetle SuperGrafx")
     static let stella = CoreDefinition(id: "stella", name: "Stella")
@@ -192,15 +203,15 @@ nonisolated enum SystemCatalog {
         GameSystem(id: "psx", name: "PlayStation", shortName: "PS1", manufacturer: "Sony", year: 1994,
                    kind: .console, screenScraperID: 57, extensions: [],
                    folderAliases: ["psx", "ps1", "playstation", "sonyplaystation", "playstation1"],
-                   cores: [Cores.pcsxRearmed, Cores.swanstation, Cores.beetlePSX],
+                   cores: [Cores.pcsxRearmed, Cores.swanstation, Cores.beetlePSX, Cores.beetlePSXHW],
                    bios: [BIOSFile(fileName: "scph5500.bin", md5: "8dd7d5296a650fac7319bce665a6a53c", required: false, note: "Japan",
-                                   group: "region", requiredBy: [Cores.swanstation.id, Cores.beetlePSX.id]),
+                                   group: "region", requiredBy: [Cores.swanstation.id, Cores.beetlePSX.id, Cores.beetlePSXHW.id]),
                           BIOSFile(fileName: "scph5501.bin", md5: "490f666e1afb15b7362b406ed1cea246", required: false, note: "USA",
-                                   group: "region", requiredBy: [Cores.swanstation.id, Cores.beetlePSX.id]),
+                                   group: "region", requiredBy: [Cores.swanstation.id, Cores.beetlePSX.id, Cores.beetlePSXHW.id]),
                           BIOSFile(fileName: "scph5502.bin", md5: "32736f17079d0b2b7024407c39bd3050", required: false, note: "Europe",
-                                   group: "region", requiredBy: [Cores.swanstation.id, Cores.beetlePSX.id]),
+                                   group: "region", requiredBy: [Cores.swanstation.id, Cores.beetlePSX.id, Cores.beetlePSXHW.id]),
                           BIOSFile(fileName: "scph1001.bin", md5: "924e392ed05558ffdb115408c263dccf", required: false, note: "USA",
-                                   group: "region", requiredBy: [Cores.swanstation.id, Cores.beetlePSX.id])],
+                                   group: "region", requiredBy: [Cores.swanstation.id, Cores.beetlePSX.id, Cores.beetlePSXHW.id])],
                    accent: 0x6B6B6B, boxAspect: 1.0),
         GameSystem(id: "psp", name: "PlayStation Portable", shortName: "PSP", manufacturer: "Sony", year: 2004,
                    kind: .handheld, screenScraperID: 61, extensions: ["cso"],

@@ -12,6 +12,12 @@ nonisolated struct CoreDefinition: Sendable, Hashable, Identifiable {
     let name: String
     /// Frontend defaults for core options (user choices override these).
     var optionDefaults: [String: String] = [:]
+    /// The graphics API Ursprung asks the core for unless the user picks
+    /// another one (Settings › Cores).
+    var renderer: HardwareRenderer = .opengl
+    /// Option defaults for when the core renders with Vulkan, on top of
+    /// `optionDefaults`; nil for cores without a Vulkan renderer.
+    var vulkanOptionDefaults: [String: String]? = nil
     /// Optional asset archive extracted into the system directory
     /// (e.g. PPSSPP fonts & shaders).
     var systemAssets: URL? = nil
@@ -26,6 +32,55 @@ nonisolated struct CoreDefinition: Sendable, Hashable, Identifiable {
     }
 
     var isLibretro: Bool { standalone == nil }
+
+    /// Whether the core can render with Vulkan, so the user can choose.
+    var supportsVulkan: Bool { vulkanOptionDefaults != nil }
+
+    /// The frontend defaults for the core rendering with `renderer`.
+    func optionDefaults(for renderer: HardwareRenderer) -> [String: String] {
+        guard renderer == .vulkan, let vulkanOptionDefaults else { return optionDefaults }
+        return optionDefaults.merging(vulkanOptionDefaults) { $1 }
+    }
+
+    /// The renderer the user's `choice` asks for, whether or not this Mac
+    /// can provide it.
+    func wantedRenderer(for choice: RendererChoice) -> HardwareRenderer {
+        guard supportsVulkan else { return .opengl }
+        return switch choice {
+        case .automatic: renderer
+        case .vulkan: .vulkan
+        case .opengl: .opengl
+        }
+    }
+
+    /// The renderer a game of this core starts with: the wanted one, or
+    /// OpenGL where there is no Vulkan.
+    func renderer(for choice: RendererChoice, vulkanAvailable: Bool) -> HardwareRenderer {
+        let wanted = wantedRenderer(for: choice)
+        return wanted == .vulkan && !vulkanAvailable ? .opengl : wanted
+    }
+}
+
+/// A graphics API Ursprung gives cores that render on the GPU. Vulkan runs
+/// through MoltenVK (docs/VULKAN_PLAN.md).
+nonisolated enum HardwareRenderer: String, Sendable, Hashable, CaseIterable {
+    case opengl
+    case vulkan
+
+    /// Product names, the same in every language.
+    var name: String {
+        switch self {
+        case .opengl: "OpenGL"
+        case .vulkan: "Vulkan"
+        }
+    }
+
+    var graphicsAPI: GraphicsAPI {
+        switch self {
+        case .opengl: .openGL
+        case .vulkan: .vulkan
+        }
+    }
 }
 
 /// How Ursprung runs a core.

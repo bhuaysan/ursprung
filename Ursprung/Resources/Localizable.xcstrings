@@ -11534,6 +11534,96 @@
           }
         }
       }
+    },
+    "Graphics API": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grafik-API"
+          }
+        }
+      }
+    },
+    "Vulkan runs on Metal through MoltenVK. Automatic picks what works best with each core; if a game looks wrong, try the other one. Without Vulkan, the N64 cores use the accurate software renderer. Changes apply when a game starts.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vulkan läuft über MoltenVK auf Metal. „Automatisch“ wählt, was mit dem jeweiligen Core am besten funktioniert; sieht ein Spiel falsch aus, probiere die andere API. Ohne Vulkan nutzen die N64-Cores den genauen Software-Renderer. Änderungen gelten ab dem nächsten Spielstart."
+          }
+        }
+      }
+    },
+    "This Mac offers no Vulkan device, so these cores use OpenGL.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Mac bietet kein Vulkan-Gerät, deshalb nutzen diese Cores OpenGL."
+          }
+        }
+      }
+    },
+    "Automatic (%@)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch (%@)"
+          }
+        }
+      }
+    },
+    "Renders with %@. Choose the graphics API in Settings → Cores; it applies when the game starts again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rendert mit %@. Die Grafik-API wählst du unter Einstellungen → Cores; sie gilt ab dem nächsten Start des Spiels."
+          }
+        }
+      }
+    },
+    "software rendering": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Software-Rendering"
+          }
+        }
+      }
+    },
+    "Vulkan isn’t available on this Mac, so %@ uses OpenGL.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vulkan ist auf diesem Mac nicht verfügbar, deshalb nutzt %@ OpenGL."
+          }
+        }
+      }
+    },
+    "Saved while the game rendered with %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesichert, als das Spiel mit %@ gerendert wurde."
+          }
+        }
+      }
+    },
+    "It was saved while the game rendered with %@. Switch back in Settings → Cores to load it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Er wurde gesichert, als das Spiel mit %@ gerendert wurde. Stelle unter Einstellungen → Cores zurück, um ihn zu laden."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

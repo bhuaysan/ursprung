@@ -17,6 +17,34 @@ nonisolated struct SaveStateManifest: Codable, Sendable, Hashable {
     var created: Date
     /// A name the user gave the state, e.g. “Before the final boss”.
     var name: String?
+    /// How the core rendered (`StateRenderer`); nil in states saved before
+    /// Ursprung recorded it.
+    var renderer: String?
+}
+
+/// How a core rendered when it saved a state. States of some cores depend on
+/// it: one saved with paraLLEl-RDP (Vulkan) may not load into angrylion.
+nonisolated enum StateRenderer: String, Sendable, Hashable {
+    case software
+    case opengl
+    case vulkan
+
+    init(_ api: GraphicsAPI) {
+        self = switch api {
+        case .openGL: .opengl
+        case .vulkan: .vulkan
+        default: .software
+        }
+    }
+
+    /// For messages: “Vulkan”, “OpenGL”, “software rendering”.
+    var displayName: String {
+        switch self {
+        case .software: String(localized: "software rendering")
+        case .opengl: "OpenGL"
+        case .vulkan: "Vulkan"
+        }
+    }
 }
 
 /// What the running game looks like now, to compare a state's manifest with.
@@ -26,10 +54,18 @@ nonisolated struct SaveStateContext: Sendable, Hashable {
     let gameCRC32: String?
     let gameFileName: String
     let gameFileSize: Int64
+    /// Known once the game is loaded; nil where it doesn't matter (ARMSX2).
+    var renderer: StateRenderer? = nil
 
     func manifest(created: Date = .now) -> SaveStateManifest {
         SaveStateManifest(coreID: coreID, coreVersion: coreVersion, gameCRC32: gameCRC32, gameFileName: gameFileName,
-                          gameFileSize: gameFileSize, created: created)
+                          gameFileSize: gameFileSize, created: created, renderer: renderer?.rawValue)
+    }
+
+    func rendering(with renderer: StateRenderer) -> SaveStateContext {
+        var context = self
+        context.renderer = renderer
+        return context
     }
 }
 
@@ -41,6 +77,8 @@ nonisolated enum SaveStateIssue: Sendable, Hashable {
     case coreVersion(String)
     /// Saved from a different file (another revision, a replaced ROM).
     case differentGameFile
+    /// Saved while the core rendered another way (e.g. Vulkan, now OpenGL).
+    case renderer(StateRenderer)
 }
 
 /// A save state on disk: in a slot, the automatic state, or one that a
@@ -87,6 +125,9 @@ nonisolated struct SaveStateSlot: Identifiable, Hashable, Sendable {
             manifest.gameFileSize == context.gameFileSize
         }
         if !sameFile { issues.append(.differentGameFile) }
+        if let saved = manifest.renderer.flatMap(StateRenderer.init(rawValue:)), let current = context.renderer, saved != current {
+            issues.append(.renderer(saved))
+        }
         return issues
     }
 }

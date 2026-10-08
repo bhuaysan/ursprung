@@ -53,10 +53,21 @@ nonisolated enum PrefKey {
     static func inputProfile(_ systemID: String) -> String { "inputProfile.\(systemID)" }
     static func coreChoice(_ systemID: String) -> String { "coreChoice.\(systemID)" }
     static func coreOptions(_ coreID: String) -> String { "coreOptions.\(coreID)" }
+    static func rendererChoice(_ coreID: String) -> String { "rendererChoice.\(coreID)" }
     static func hidGamepadMapping(_ deviceKey: String) -> String { "hidGamepadMapping.\(deviceKey)" }
 }
 
 /// Display filter applied when scaling the emulator image.
+/// The graphics API the user picked for a core in Settings › Cores.
+nonisolated enum RendererChoice: String, CaseIterable, Identifiable, Sendable {
+    /// What the catalog recommends for the core.
+    case automatic
+    case vulkan
+    case opengl
+
+    var id: String { rawValue }
+}
+
 nonisolated enum VideoFilter: String, CaseIterable, Identifiable, Sendable {
     case sharp, nearest, smooth, scanlines, crt, crtCurved, lcd
 
@@ -205,6 +216,18 @@ nonisolated enum Preferences {
         defaults.removeObject(forKey: PrefKey.coreOptions(coreID))
     }
 
+    static func rendererChoice(for coreID: String) -> RendererChoice {
+        RendererChoice(rawValue: defaults.string(forKey: PrefKey.rendererChoice(coreID)) ?? "") ?? .automatic
+    }
+
+    static func setRendererChoice(_ choice: RendererChoice, for coreID: String) {
+        if choice == .automatic {
+            defaults.removeObject(forKey: PrefKey.rendererChoice(coreID))
+        } else {
+            defaults.set(choice.rawValue, forKey: PrefKey.rendererChoice(coreID))
+        }
+    }
+
     // MARK: Backup
 
     /// Preferences a backup carries. Window state such as the last Settings
@@ -220,7 +243,8 @@ nonisolated enum Preferences {
         PrefKey.turboRate, PrefKey.rumble, PrefKey.bezel, PrefKey.achievementsEnabled, PrefKey.achievementsUsername,
         PrefKey.achievementsHardcore, PrefKey.achievementsShowsProgress, PrefKey.shaderFavorites,
     ]
-    private static let backedUpPrefixes = ["coreChoice.", "coreOptions.", "hidGamepadMapping.", "inputProfile.", "videoFilter."]
+    private static let backedUpPrefixes = ["coreChoice.", "coreOptions.", "hidGamepadMapping.", "inputProfile.", "rendererChoice.",
+                                           "videoFilter."]
 
     private static func isBackedUp(_ key: String) -> Bool {
         backedUpKeys.contains(key) || backedUpPrefixes.contains { key.hasPrefix($0) }

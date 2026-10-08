@@ -51,6 +51,22 @@ struct CoresSettingsView: View {
                     .settingsFootnote()
             }
             Section {
+                ForEach(CoreManager.allCores.filter(\.supportsVulkan)) { core in
+                    RendererRow(core: core)
+                }
+            } header: {
+                Text("Graphics API")
+            } footer: {
+                Group {
+                    if LibretroCore.vulkanAvailable {
+                        Text("Vulkan runs on Metal through MoltenVK. Automatic picks what works best with each core; if a game looks wrong, try the other one. Without Vulkan, the N64 cores use the accurate software renderer. Changes apply when a game starts.")
+                    } else {
+                        Text("This Mac offers no Vulkan device, so these cores use OpenGL.")
+                    }
+                }
+                .settingsFootnote()
+            }
+            Section {
                 if let failure, !failure.core.isLibretro { failureRow(failure) }
                 ForEach(CoreManager.standaloneEmulators) { emulator in
                     if let standalone = emulator.standalone {
@@ -253,6 +269,29 @@ private struct StandaloneEmulatorRow: View {
         let record = emulators.versions[emulator.id]?.current
         let bytes = size.flatMap { $0 > 0 ? $0.formatted(.byteCount(style: .file)) : nil }
         return [record?.tag, record?.commit, bytes].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+/// The graphics API a core is asked for: the catalog's choice, or the user's.
+private struct RendererRow: View {
+    let core: CoreDefinition
+    @State private var choice: RendererChoice
+
+    init(core: CoreDefinition) {
+        self.core = core
+        _choice = State(initialValue: Preferences.rendererChoice(for: core.id))
+    }
+
+    var body: some View {
+        Picker(selection: $choice) {
+            Text("Automatic (\(core.renderer.name))").tag(RendererChoice.automatic)
+            Text(verbatim: HardwareRenderer.vulkan.name).tag(RendererChoice.vulkan)
+            Text(verbatim: HardwareRenderer.opengl.name).tag(RendererChoice.opengl)
+        } label: {
+            Text(core.name)
+        }
+        .disabled(!LibretroCore.vulkanAvailable)
+        .onChange(of: choice) { Preferences.setRendererChoice(choice, for: core.id) }
     }
 }
 

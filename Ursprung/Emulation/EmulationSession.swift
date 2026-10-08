@@ -114,6 +114,13 @@ final class EmulationSession {
     private(set) var discLabels: [String?] = []
     /// Whether core option changes apply to the running game only.
     private(set) var usesGameCoreOptions = false
+    /// The graphics API Ursprung asked the running core for, when the core
+    /// can choose (Settings › Cores); its option defaults follow it.
+    private(set) var renderer: HardwareRenderer?
+    /// How the running game actually renders.
+    private(set) var graphicsAPI: GraphicsAPI = .none
+    /// The “no Vulkan on this Mac” notice shows once per app session.
+    private static var didReportMissingVulkan = false
     private(set) var diskCount = 0
     private(set) var currentDisk = 0
     private(set) var measuredFPS: Double = 0
@@ -338,7 +345,12 @@ final class EmulationSession {
             }
             let gameOptions = game.coreOptions(for: definition.id)
             usesGameCoreOptions = gameOptions != nil
-            core.optionOverrides = definition.optionDefaults
+            // The renderer's option defaults (e.g. paraLLEl-RDP for Vulkan)
+            // come first: the user's own choices, for the core or the game, win.
+            let rendererChoice = Preferences.rendererChoice(for: definition.id)
+            let renderer = definition.renderer(for: rendererChoice, vulkanAvailable: LibretroCore.vulkanAvailable)
+            core.preferredGraphicsAPI = renderer.graphicsAPI
+            core.optionOverrides = definition.optionDefaults(for: renderer)
                 .merging(Preferences.coreOptions(for: definition.id)) { $1 }
                 .merging(gameOptions ?? [:]) { $1 }
             core.languageCode = Locale.current.language.languageCode?.identifier ?? "en"
@@ -391,7 +403,14 @@ final class EmulationSession {
             }
 
             self.core = core
-            self.stateContext = stateContext
+            self.renderer = definition.supportsVulkan ? renderer : nil
+            graphicsAPI = core.graphicsAPI
+            self.stateContext = stateContext.rendering(with: StateRenderer(core.graphicsAPI))
+            if definition.wantedRenderer(for: rendererChoice) != renderer, !Self.didReportMissingVulkan {
+                Self.didReportMissingVulkan = true
+                showToast(String(localized: "Vulkan isn’t available on this Mac, so \(definition.name) uses OpenGL."),
+                          kind: .warning, duration: 5)
+            }
             cores.recordVersion(core.libraryVersion, for: definition)
             self.stateFolder = stateFolder
             patchName = patch?.deletingPathExtension().lastPathComponent
@@ -811,6 +830,8 @@ final class EmulationSession {
         if achievementGame != nil || achievements.client.isGameLoaded { achievements.client.unloadGame() }
         runner = nil
         core = nil
+        renderer = nil
+        graphicsAPI = .none
         stateContext = nil
         stateFolder = nil
         autosave = nil
@@ -1079,6 +1100,7 @@ final class EmulationSession {
         let directory = URL(filePath: path, directoryHint: .isDirectory)
         if let image = core.copyFrameImage() { Self.writePNG(image, to: directory.appending(path: "frame.png")) }
         let state = "phase=\(phase) paused=\(isPaused) fps=\(measuredFPS) core=\(coreName) size=\(core.baseWidth)x\(core.baseHeight) aspect=\(core.aspectRatio) hw=\(core.usesHardwareRendering)"
+            + " graphics=\(StateRenderer(graphicsAPI).rawValue)"
             + " controllers=\(input.controllerNames)"
             + " rewind=\(runner.map { "\($0.rewindAvailability.rawValue)/\(String(format: "%.1f", $0.rewindSeconds))s" } ?? "-") rewinding=\(isRewinding)"
             + " ff=\(isFastForwarding) runAhead=\(Preferences.runAheadFrames) cheats=\(supportsCheats) patch=\(patchName ?? "-")"
@@ -1099,6 +1121,7 @@ final class EmulationSession {
     nonisolated static func writeAutosave(of core: LibretroCore, context: SaveStateContext, in directory: URL) {
         guard core.supportsSaveStates, let data = core.serializeState() else { return }
         do {
+            let context = context.rendering(with: StateRenderer(core.graphicsAPI))
             try SaveStateStore.writeAutosave(data, manifest: context.manifest(), in: directory)
             if let image = core.copyFrameImage() { writePNG(image, to: directory.appending(path: "autosave.png")) }
         } catch {
@@ -1386,6 +1409,7 @@ final class EmulationSession {
         case .unknownOrigin: String(localized: "Saved by an earlier version of Ursprung, possibly with another core.")
         case .coreVersion(let version): String(localized: "Saved with core version \(version).")
         case .differentGameFile: String(localized: "Saved from a different version of the game file.")
+        case .renderer(let renderer): String(localized: "Saved while the game rendered with \(renderer.displayName).")
         }
     }
 
@@ -1398,6 +1422,7 @@ final class EmulationSession {
         case .unknownOrigin: String(localized: "It was probably made with another core.")
         case .coreVersion(let version): String(localized: "It was saved with core version \(version); the installed version can't read it.")
         case .differentGameFile: String(localized: "It was saved from a different version of the game file.")
+        case .renderer(let renderer): String(localized: "It was saved while the game rendered with \(renderer.displayName). Switch back in Settings → Cores to load it.")
         }
     }
 
@@ -1487,7 +1512,8 @@ final class EmulationSession {
     /// The values every game of the core uses: frontend defaults and the user's choices.
     private func applyCoreLevelOptions() {
         guard let core, let coreID else { return }
-        let defaults = SystemCatalog.all.flatMap(\.cores).first { $0.id == coreID }?.optionDefaults ?? [:]
+        let definition = SystemCatalog.all.flatMap(\.cores).first { $0.id == coreID }
+        let defaults = definition?.optionDefaults(for: renderer ?? .opengl) ?? [:]
         let values = defaults.merging(Preferences.coreOptions(for: coreID)) { $1 }
         for option in core.options {
             core.setValue(values[option.key] ?? option.defaultValue, forOption: option.key)
