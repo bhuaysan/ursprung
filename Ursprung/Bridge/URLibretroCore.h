@@ -39,6 +39,14 @@ typedef NS_ENUM(NSInteger, URAnalogStick) {
     URAnalogStickRight = 1,
 } NS_SWIFT_NAME(AnalogStick);
 
+/// A graphics API a core renders with.
+typedef NS_ENUM(NSInteger, URGraphicsAPI) {
+    /// Software rendering: the core hands over pixels.
+    URGraphicsAPINone = 0,
+    URGraphicsAPIOpenGL = 1,
+    URGraphicsAPIVulkan = 2,
+} NS_SWIFT_NAME(GraphicsAPI);
+
 #define UR_MAX_PORTS 4
 static const NSInteger URMaxPorts = UR_MAX_PORTS;
 
@@ -79,6 +87,11 @@ NS_SWIFT_SENDABLE
 @property (nonatomic, copy) NSDictionary<NSString *, NSString *> *optionOverrides;
 /// Two-letter language code reported to the core (e.g. "de").
 @property (nonatomic, copy) NSString *languageCode;
+/// The API the core is asked to render with (GET_PREFERRED_HW_RENDER):
+/// OpenGL (default) or Vulkan. Vulkan is asked for only where available.
+@property (nonatomic) URGraphicsAPI preferredGraphicsAPI;
+/// Whether this Mac offers Vulkan (through MoltenVK).
+@property (class, nonatomic, readonly) BOOL vulkanAvailable;
 
 // Lifecycle — call on the emulation thread.
 - (BOOL)loadGameAtPath:(NSString *)path error:(NSError **)error;
@@ -114,6 +127,8 @@ NS_SWIFT_SENDABLE
 /// Rotation requested by the core, in multiples of 90° counter-clockwise.
 @property (nonatomic, readonly) NSInteger rotation;
 @property (nonatomic, readonly) BOOL usesHardwareRendering;
+/// The API the loaded game renders with.
+@property (nonatomic, readonly) URGraphicsAPI graphicsAPI;
 @property (nonatomic, readonly) BOOL shutdownRequested;
 @property (nonatomic, readonly) URAudioRing *audioRing NS_RETURNS_INNER_POINTER;
 /// Set by the core when the A/V timing changed; cleared by the reader.

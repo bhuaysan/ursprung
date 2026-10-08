@@ -37,8 +37,12 @@ targets:
       - path: Ursprung
         excludes:
           - "**/.DS_Store"
+          - Bridge/URPixelConversion.c
       - path: Ursprung/Support/Secrets.generated.swift
         optional: true
+      # Converts every frame of Vulkan cores: optimised in Debug builds too.
+      - path: Ursprung/Bridge/URPixelConversion.c
+        compilerFlags: ["-O2"]
       # RetroAchievements runtime (MIT), see ThirdParty/rcheevos/README.md.
       - path: ThirdParty/rcheevos/src
         compilerFlags: ["-w"]
@@ -59,8 +63,9 @@ targets:
         GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "GL_SILENCE_DEPRECATION=1", "RC_DISABLE_LUA=1",
                                        "RC_CLIENT_SUPPORTS_HASH=1", "RC_HASH_NO_ENCRYPTED=1"]
         HEADER_SEARCH_PATHS: ["$(SRCROOT)/ThirdParty/rcheevos/include", "$(SRCROOT)/ThirdParty/rcheevos/src",
-                             "$(SRCROOT)/ThirdParty/librashader/include", "$(SRCROOT)/Ursprung/Bridge"]
-        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/ThirdParty/librashader/lib"]
+                             "$(SRCROOT)/ThirdParty/librashader/include", "$(SRCROOT)/ThirdParty/moltenvk/include",
+                             "$(SRCROOT)/Ursprung/Bridge"]
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/ThirdParty/librashader/lib", "$(SRCROOT)/ThirdParty/moltenvk/lib"]
         OTHER_LDFLAGS: ["$(inherited)", "-lz", "-lcompression"]
         LOCALIZATION_PREFERS_STRING_CATALOGS: YES
         SWIFT_EMIT_LOC_STRINGS: YES
@@ -70,9 +75,15 @@ targets:
       - framework: ThirdParty/librashader/lib/librashader.dylib
         embed: true
         codeSign: true
+      # Vulkan for libretro cores (Apache-2.0), fetched by Scripts/fetch-moltenvk.sh;
+      # see ThirdParty/moltenvk/README.md.
+      - framework: ThirdParty/moltenvk/lib/libMoltenVK.dylib
+        embed: true
+        codeSign: true
       - sdk: OpenGL.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework
+      - sdk: QuartzCore.framework
       - sdk: AVFoundation.framework
       - sdk: GameController.framework
       - sdk: IOKit.framework
@@ -117,7 +128,7 @@ targets:
       base:
         PRODUCT_NAME: ursprung-test-core
         EXECUTABLE_PREFIX: ""
-        HEADER_SEARCH_PATHS: ["$(SRCROOT)/Ursprung/Bridge"]
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/Ursprung/Bridge", "$(SRCROOT)/ThirdParty/moltenvk/include"]
         SKIP_INSTALL: YES
 
   ursprung-smoke:
@@ -127,22 +138,29 @@ targets:
       - path: Tools/ursprung-smoke
       - path: Ursprung/Bridge/URLibretroCore.m
       - path: Ursprung/Bridge/URGLContext.m
+      - path: Ursprung/Bridge/URVulkanContext.m
+      - path: Ursprung/Bridge/URPixelConversion.c
+        compilerFlags: ["-O2"]
       - path: Ursprung/Bridge/URAudioRing.c
       - path: Ursprung/Bridge/URShaderChain.m
       - path: Ursprung/Bridge/URShaderPreset.m
     settings:
       base:
-        HEADER_SEARCH_PATHS: ["$(SRCROOT)/Ursprung/Bridge", "$(SRCROOT)/ThirdParty/librashader/include"]
-        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/ThirdParty/librashader/lib"]
-        LD_RUNPATH_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/ThirdParty/librashader/lib"]
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/Ursprung/Bridge", "$(SRCROOT)/ThirdParty/librashader/include",
+                             "$(SRCROOT)/ThirdParty/moltenvk/include"]
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/ThirdParty/librashader/lib", "$(SRCROOT)/ThirdParty/moltenvk/lib"]
+        LD_RUNPATH_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/ThirdParty/librashader/lib", "$(SRCROOT)/ThirdParty/moltenvk/lib"]
         GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "GL_SILENCE_DEPRECATION=1"]
         ENABLE_HARDENED_RUNTIME: NO
     dependencies:
       - framework: ThirdParty/librashader/lib/librashader.dylib
         embed: false
+      - framework: ThirdParty/moltenvk/lib/libMoltenVK.dylib
+        embed: false
       - sdk: OpenGL.framework
       - sdk: ImageIO.framework
       - sdk: Metal.framework
+      - sdk: QuartzCore.framework
 
 schemes:
   ursprung-smoke:

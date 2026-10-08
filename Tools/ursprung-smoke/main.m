@@ -7,7 +7,12 @@
 // writes the last frame as PNG. Useful to verify cores on CI / new macOS
 // versions without launching the app. URSMOKE_SHADER=<preset.slangp> renders
 // the last frame through a RetroArch preset first, at URSMOKE_SHADER_HEIGHT
-// (default 4× the frame) and the core's aspect ratio.
+// (default 4× the frame) and the core's aspect ratio. URSMOKE_RENDERER=vulkan
+// asks the core for Vulkan instead of OpenGL; the option defaults that go
+// with it (SystemCatalog) are passed with URSMOKE_OPTIONS. URSMOKE_LIST_OPTIONS=1
+// prints the core's options with their values; URSMOKE_REPEAT=n plays the game
+// n times in one process; URSMOKE_SAVE_STATE / URSMOKE_LOAD_STATE=<file> write
+// the final state and load one after the first frame.
 
 #import <Foundation/Foundation.h>
 #import <ImageIO/ImageIO.h>
@@ -107,53 +112,83 @@ int main(int argc, const char *argv[]) {
             }
             core.optionOverrides = options;
         }
+        const char *renderer = getenv("URSMOKE_RENDERER");
+        if (renderer && strcmp(renderer, "vulkan") == 0) core.preferredGraphicsAPI = URGraphicsAPIVulkan;
         core.systemDirectory = systemDir;
         core.saveDirectory = NSTemporaryDirectory();
-        if (![core loadGameAtPath:romPath error:&error]) {
-            fprintf(stderr, "error: %s\n", error.localizedDescription.UTF8String);
-            return 2;
-        }
-        printf("loaded: %.3f fps, %.1f Hz, %ux%u, aspect %.3f, hw=%d, options=%lu\n", core.framesPerSecond,
-               core.sampleRate, core.baseWidth, core.baseHeight, core.aspectRatio, core.usesHardwareRendering,
-               (unsigned long)core.options.count);
-
-        // URSMOKE_REALTIME=1 paces frames at the core's rate (needed for cores
-        // that boot asynchronously in wall-clock time, e.g. PPSSPP).
-        BOOL realtime = getenv("URSMOKE_REALTIME") != NULL;
-        NSDate *start = [NSDate date];
-        size_t audioFrames = 0;
-        for (NSInteger i = 0; i < frames; i++) {
-            // Press START periodically so title screens advance.
-            [core setButtonMask:((i / 30) % 2 == 1) ? (1u << URRetroButtonStart) : 0 forPort:0];
-            [core runFrame];
-            if (realtime) [NSThread sleepForTimeInterval:1.0 / core.framesPerSecond];
-            audioFrames += URAudioRingAvailable(core.audioRing);
-            URAudioRingClear(core.audioRing);
-        }
-        NSTimeInterval elapsed = -start.timeIntervalSinceNow;
-        printf("ran %ld frames in %.2fs (%.0f fps uncapped), %zu audio frames, %llu video frames\n", (long)frames,
-               elapsed, frames / elapsed, audioFrames, core.frameSerial);
-
-        NSData *state = [core serializeState];
-        printf("save state: %lu bytes, restore=%d\n", (unsigned long)state.length,
-               state ? [core unserializeState:state] : 0);
-
-        if (output) {
-            const char *shader = getenv("URSMOKE_SHADER");
-            CGImageRef image = shader ? CopyShadedFrame(core, @(shader)) : [core copyFrameImage];
-            if (image) {
-                CGImageDestinationRef dest = CGImageDestinationCreateWithURL(
-                    (__bridge CFURLRef)[NSURL fileURLWithPath:output], (__bridge CFStringRef)UTTypePNG.identifier, 1, NULL);
-                CGImageDestinationAddImage(dest, image, NULL);
-                CGImageDestinationFinalize(dest);
-                CFRelease(dest);
-                printf("frame: %zux%zu -> %s\n", CGImageGetWidth(image), CGImageGetHeight(image), output.UTF8String);
-                CGImageRelease(image);
-            } else {
-                printf("frame: none\n");
+        // URSMOKE_REPEAT=n loads, runs and unloads the game n times in one
+        // process, to check that the core (and its GPU context) tears down cleanly.
+        const char *repeatValue = getenv("URSMOKE_REPEAT");
+        NSInteger rounds = repeatValue ? MAX(atol(repeatValue), 1) : 1;
+        for (NSInteger round = 0; round < rounds; round++) {
+            if (rounds > 1) printf("round %ld of %ld\n", (long)round + 1, (long)rounds);
+            if (![core loadGameAtPath:romPath error:&error]) {
+                fprintf(stderr, "error: %s\n", error.localizedDescription.UTF8String);
+                return 2;
             }
+            static const char *apis[] = {"none", "opengl", "vulkan"};
+            printf("loaded: %.3f fps, %.1f Hz, %ux%u, aspect %.3f, hw=%s, options=%lu\n", core.framesPerSecond,
+                   core.sampleRate, core.baseWidth, core.baseHeight, core.aspectRatio, apis[core.graphicsAPI],
+                   (unsigned long)core.options.count);
+
+            if (getenv("URSMOKE_LIST_OPTIONS")) {
+                for (URCoreOption *option in core.options) {
+                    printf("option %s = %s [%s]\n", option.key.UTF8String, [core valueForOption:option.key].UTF8String,
+                           [option.values componentsJoinedByString:@"|"].UTF8String);
+                }
+            }
+
+            // URSMOKE_REALTIME=1 paces frames at the core's rate (needed for cores
+            // that boot asynchronously in wall-clock time, e.g. PPSSPP).
+            BOOL realtime = getenv("URSMOKE_REALTIME") != NULL;
+            NSDate *start = [NSDate date];
+            NSTimeInterval busy = 0;
+            size_t audioFrames = 0;
+            // URSMOKE_LOAD_STATE=<file> loads a state after the first frame,
+            // URSMOKE_SAVE_STATE=<file> writes one after the last.
+            const char *loadState = getenv("URSMOKE_LOAD_STATE");
+            for (NSInteger i = 0; i < frames; i++) {
+                if (i == 1 && loadState) {
+                    NSData *saved = [NSData dataWithContentsOfFile:@(loadState)];
+                    printf("load state: %lu bytes, result=%d\n", (unsigned long)saved.length,
+                           saved ? [core unserializeState:saved] : 0);
+                }
+                // Press START periodically so title screens advance.
+                [core setButtonMask:((i / 30) % 2 == 1) ? (1u << URRetroButtonStart) : 0 forPort:0];
+                NSDate *frameStart = [NSDate date];
+                [core runFrame];
+                busy -= frameStart.timeIntervalSinceNow;
+                if (realtime) [NSThread sleepForTimeInterval:1.0 / core.framesPerSecond];
+                audioFrames += URAudioRingAvailable(core.audioRing);
+                URAudioRingClear(core.audioRing);
+            }
+            NSTimeInterval elapsed = -start.timeIntervalSinceNow;
+            printf("ran %ld frames in %.2fs (%.0f fps uncapped, %.2f ms per frame in the core), %zu audio frames, %llu video frames\n",
+                   (long)frames, elapsed, frames / elapsed, busy * 1000 / frames, audioFrames, core.frameSerial);
+
+            NSData *state = [core serializeState];
+            printf("save state: %lu bytes, restore=%d\n", (unsigned long)state.length,
+                   state ? [core unserializeState:state] : 0);
+            const char *saveState = getenv("URSMOKE_SAVE_STATE");
+            if (saveState && state) [state writeToFile:@(saveState) atomically:YES];
+
+            if (output) {
+                const char *shader = getenv("URSMOKE_SHADER");
+                CGImageRef image = shader ? CopyShadedFrame(core, @(shader)) : [core copyFrameImage];
+                if (image) {
+                    CGImageDestinationRef dest = CGImageDestinationCreateWithURL(
+                        (__bridge CFURLRef)[NSURL fileURLWithPath:output], (__bridge CFStringRef)UTTypePNG.identifier, 1, NULL);
+                    CGImageDestinationAddImage(dest, image, NULL);
+                    CGImageDestinationFinalize(dest);
+                    CFRelease(dest);
+                    printf("frame: %zux%zu -> %s\n", CGImageGetWidth(image), CGImageGetHeight(image), output.UTF8String);
+                    CGImageRelease(image);
+                } else {
+                    printf("frame: none\n");
+                }
+            }
+            [core unloadGame];
         }
-        [core unloadGame];
         return core.frameSerial > 0 ? 0 : 3;
     }
 }

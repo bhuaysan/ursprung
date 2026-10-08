@@ -3,7 +3,9 @@
 #import "URLibretroCore+Internal.h"
 
 #import "URGLContext.h"
+#import "URVulkanContext.h"
 #import "libretro.h"
+#import "libretro_vulkan.h"
 
 #include <dlfcn.h>
 #include <mach/mach_time.h>
@@ -136,6 +138,10 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     // Hardware rendering
     struct retro_hw_render_callback _hwRender;
     URGLContext *_gl;
+    /// The core asked for Vulkan; the context is created after load_game.
+    BOOL _wantsVulkan;
+    const struct retro_hw_render_context_negotiation_interface_vulkan *_vulkanNegotiation;
+    URVulkanContext *_vulkan;
 
     // Options
     NSMutableDictionary<NSString *, NSData *> *_optionValues;
@@ -330,6 +336,9 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 
     for (unsigned key = 0; key < RETROK_LAST; key++) atomic_store(&gKeys[key], false);
     atomic_store(&gTurboReleased, false);
+    memset(&_hwRender, 0, sizeof(_hwRender));
+    _wantsVulkan = NO;
+    _vulkanNegotiation = NULL;
 
     _sym.set_environment(URCoreEnvironment);
     _sym.init();
@@ -373,6 +382,21 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
         [_gl makeCurrent];
         [_gl resizeFramebufferWidth:_avInfo.geometry.max_width height:_avInfo.geometry.max_height];
         if (_hwRender.context_reset) _hwRender.context_reset();
+    } else if (_wantsVulkan) {
+        NSError *vulkanError = nil;
+        _vulkan = [[URVulkanContext alloc] initWithNegotiation:_vulkanNegotiation error:&vulkanError];
+        if (!_vulkan) {
+            if (error) *error = [NSError errorWithDomain:URCoreErrorDomain code:6 userInfo:@{
+                NSLocalizedDescriptionKey: [NSString stringWithFormat:@"The core needs Vulkan, which could not be started: %@",
+                                            vulkanError.localizedDescription]
+            }];
+            // Not -unloadGame: save RAM is not loaded yet and must not be written.
+            _sym.unload_game();
+            _gameLoaded = NO;
+            [self teardownAfterFailedLoad];
+            return NO;
+        }
+        if (_hwRender.context_reset) _hwRender.context_reset();
     }
 
     [self loadSaveRAM];
@@ -384,6 +408,8 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     _initialized = NO;
     _gameData = nil;
     _gl = nil;
+    [_vulkan destroy];
+    _vulkan = nil;
     gActiveCore = nil;
 }
 
@@ -401,11 +427,17 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
         _frameTimeCallback.callback(_frameTimeCallback.reference);
     }
     if (_gl) [_gl makeCurrent];
+    [_vulkan beginFrame];
     _sym.run();
+    // Work the core handed over without presenting a frame still runs once.
+    [_vulkan submitFrameWidth:0 height:0 destination:NULL];
 }
 
 - (void)reset {
-    if (_gameLoaded) _sym.reset();
+    if (!_gameLoaded) return;
+    // Vulkan cores may recreate the image they handed over.
+    [_vulkan forgetImage];
+    _sym.reset();
 }
 
 - (void)unloadGame {
@@ -414,6 +446,9 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     if (_gl) {
         [_gl makeCurrent];
         if (_hwRender.context_destroy) _hwRender.context_destroy();
+    } else if (_vulkan) {
+        [_vulkan waitIdle];
+        if (_hwRender.context_destroy) _hwRender.context_destroy();
     }
     _sym.unload_game();
     _sym.deinit();
@@ -421,6 +456,9 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     _initialized = NO;
     _gl = nil;
     [URGLContext clearCurrent];
+    // Same order as RetroArch: the device goes after retro_deinit.
+    [_vulkan destroy];
+    _vulkan = nil;
     _gameData = nil;
     if (gActiveCore == self) gActiveCore = nil;
 }
@@ -600,7 +638,14 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 - (double)sampleRate { return _avInfo.timing.sample_rate; }
 - (unsigned)baseWidth { return _avInfo.geometry.base_width; }
 - (unsigned)baseHeight { return _avInfo.geometry.base_height; }
-- (BOOL)usesHardwareRendering { return _gl != nil; }
+- (BOOL)usesHardwareRendering { return _gl != nil || _vulkan != nil; }
+
+- (URGraphicsAPI)graphicsAPI {
+    if (_vulkan) return URGraphicsAPIVulkan;
+    return _gl ? URGraphicsAPIOpenGL : URGraphicsAPINone;
+}
+
++ (BOOL)vulkanAvailable { return URVulkanContext.isAvailable; }
 
 - (float)aspectRatio {
     float aspect = _avInfo.geometry.aspect_ratio;
@@ -1198,18 +1243,30 @@ bool URCoreEnvironment(unsigned cmd, void *data) {
         }
 
         case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER:
-            *(unsigned *)data = RETRO_HW_CONTEXT_OPENGL_CORE;
+            *(unsigned *)data = core.preferredGraphicsAPI == URGraphicsAPIVulkan && URVulkanContext.isAvailable
+                ? RETRO_HW_CONTEXT_VULKAN : RETRO_HW_CONTEXT_OPENGL_CORE;
             return true;
 
         case RETRO_ENVIRONMENT_SET_HW_RENDER: {
             struct retro_hw_render_callback *hw = data;
+            if (hw->context_type == RETRO_HW_CONTEXT_VULKAN) {
+                // The context is created once the game is loaded; refusing
+                // here lets the core fall back to OpenGL or software.
+                if (!URVulkanContext.isAvailable) return false;
+                hw->get_current_framebuffer = NULL;
+                hw->get_proc_address = NULL;
+                core->_hwRender = *hw;
+                core->_gl = nil;
+                core->_wantsVulkan = YES;
+                return true;
+            }
             BOOL coreProfile;
             if (hw->context_type == RETRO_HW_CONTEXT_OPENGL_CORE) {
                 coreProfile = YES;
             } else if (hw->context_type == RETRO_HW_CONTEXT_OPENGL) {
                 coreProfile = NO;
             } else {
-                return false; // Vulkan / GLES are not available.
+                return false; // GLES / Direct3D are not available.
             }
             NSError *error = nil;
             URGLContext *gl = [[URGLContext alloc] initWithCoreProfile:coreProfile depth:hw->depth stencil:hw->stencil error:&error];
@@ -1222,12 +1279,31 @@ bool URCoreEnvironment(unsigned cmd, void *data) {
             hw->get_proc_address = URCoreHWGetProcAddress;
             core->_hwRender = *hw;
             core->_gl = gl;
+            core->_wantsVulkan = NO;
             return true;
         }
 
-        case RETRO_ENVIRONMENT_GET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_SUPPORT:
-        case RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE:
+        case RETRO_ENVIRONMENT_GET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_SUPPORT: {
+            struct retro_hw_render_context_negotiation_interface *iface = data;
+            if (!iface) return false;
+            iface->interface_version = iface->interface_type == RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN
+                ? RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN_VERSION : 0;
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE: {
+            const struct retro_hw_render_context_negotiation_interface *iface = data;
+            if (!iface || iface->interface_type != RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN) return false;
+            core->_vulkanNegotiation = data;
+            return true;
+        }
+
         case RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE:
+            if (!core->_vulkan || !data) return false;
+            *(const struct retro_hw_render_interface **)data =
+                (const struct retro_hw_render_interface *)core->_vulkan.renderInterface;
+            return true;
+
         case RETRO_ENVIRONMENT_SET_HW_SHARED_CONTEXT:
             return false;
 
@@ -1294,12 +1370,20 @@ static inline uint32_t URConvert2101010(uint32_t p) {
 void URCoreVideoRefresh(const void *data, unsigned width, unsigned height, size_t pitch) {
     URLibretroCore *core = gActiveCore;
     if (!core || !data || width == 0 || height == 0) return; // NULL = duplicate frame
-    if (!atomic_load(&core->_videoEnabled)) return;
+    if (!atomic_load(&core->_videoEnabled)) {
+        // A frame nobody sees, but the core's GPU work must still run.
+        if (data == RETRO_HW_FRAME_BUFFER_VALID) [core->_vulkan submitFrameWidth:0 height:0 destination:NULL];
+        return;
+    }
 
     URFrameBuffer *back = &core->_back;
     URFrameBufferEnsure(back, width, height);
 
     if (data == RETRO_HW_FRAME_BUFFER_VALID) {
+        if (core->_vulkan) {
+            if ([core->_vulkan submitFrameWidth:width height:height destination:back->data]) [core publishBackBuffer];
+            return;
+        }
         if (!core->_gl) return;
         [core->_gl readPixelsWidth:width height:height
                   bottomLeftOrigin:core->_hwRender.bottom_left_origin

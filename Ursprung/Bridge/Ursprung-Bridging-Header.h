@@ -7,6 +7,7 @@
 #import "URAudioRing.h"
 #import "URAchievements.h"
 #import "URRewindBuffer.h"
+#import "URPixelConversion.h"
 #import "URShaderPreset.h"
 #import "URShaderChain.h"
 

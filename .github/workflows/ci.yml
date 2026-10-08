@@ -25,6 +25,15 @@ jobs:
           path: ThirdParty/librashader/lib
           key: librashader-${{ hashFiles('Scripts/fetch-librashader.sh') }}
 
+      # Scripts/fetch-moltenvk.sh skips the download when the pinned version is there.
+      - name: Cache MoltenVK
+        uses: actions/cache@v6
+        with:
+          path: |
+            ThirdParty/moltenvk/lib
+            ThirdParty/moltenvk/include
+          key: moltenvk-${{ hashFiles('Scripts/fetch-moltenvk.sh') }}
+
       # Secrets are optional: without them the app builds, scraping is disabled.
       - name: Build and test
         env:

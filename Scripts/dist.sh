@@ -52,6 +52,7 @@ fi
 echo "› Building Release, signed by $SIGN_IDENTITY"
 ./Scripts/generate-secrets.sh .env Ursprung/Support/Secrets.generated.swift
 ./Scripts/fetch-librashader.sh
+./Scripts/fetch-moltenvk.sh
 xcodegen generate --quiet
 xcodebuild -project Ursprung.xcodeproj -scheme Ursprung -configuration Release \
     -derivedDataPath "$DERIVED_DATA" -destination 'platform=macOS,arch=arm64' \

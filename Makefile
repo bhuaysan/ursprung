@@ -5,7 +5,7 @@ SCHEME = Ursprung
 XCODEBUILD_BASE = xcodebuild -project Ursprung.xcodeproj -derivedDataPath $(DERIVED_DATA) -destination 'platform=macOS,arch=arm64'
 XCODEBUILD = $(XCODEBUILD_BASE) -scheme $(SCHEME)
 
-.PHONY: all project secrets librashader build release dist test run smoke icon clean
+.PHONY: all project secrets librashader moltenvk build release dist test run smoke icon clean
 
 all: build
 
@@ -15,7 +15,10 @@ secrets:
 librashader:
 	@./Scripts/fetch-librashader.sh
 
-project: secrets librashader
+moltenvk:
+	@./Scripts/fetch-moltenvk.sh
+
+project: secrets librashader moltenvk
 	@xcodegen generate --quiet
 	@echo "Generated Ursprung.xcodeproj — open it with: open Ursprung.xcodeproj"
 
@@ -36,10 +39,10 @@ test: project
 run: build
 	open "$(DERIVED_DATA)/Build/Products/Debug/Ursprung.app"
 
-# Headless core test: make smoke CORE=path/to/core.dylib ROM=path/to/game [FRAMES=600]
+# Headless core test: make smoke CORE=path/to/core.dylib ROM=path/to/game [FRAMES=600] [RENDERER=vulkan|opengl]
 smoke: project
 	$(XCODEBUILD_BASE) -scheme ursprung-smoke -configuration Debug build -quiet
-	"$(DERIVED_DATA)/Build/Products/Debug/ursprung-smoke" "$(CORE)" "$(ROM)" $(or $(FRAMES),600) smoke.png
+	URSMOKE_RENDERER=$(RENDERER) "$(DERIVED_DATA)/Build/Products/Debug/ursprung-smoke" "$(CORE)" "$(ROM)" $(or $(FRAMES),600) smoke.png
 
 icon:
 	swift Scripts/generate-icon.swift

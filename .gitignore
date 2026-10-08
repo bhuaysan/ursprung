@@ -54,3 +54,7 @@ ThirdParty/librashader/lib/
 
 # Tool output
 smoke.png
+
+# Fetched by Scripts/fetch-moltenvk.sh
+ThirdParty/moltenvk/lib/
+ThirdParty/moltenvk/include/
