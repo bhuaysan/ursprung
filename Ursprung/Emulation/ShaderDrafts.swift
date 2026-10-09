@@ -198,13 +198,21 @@ nonisolated enum ShaderDrafts {
         let userPath = user.standardizedFileURL.pathComponents
 
         // Where each own file the preset uses ends up: user files back in
-        // place, the others below `ownFolder` in their layout.
+        // place, the others below `ownFolder` in their layout. The files it
+        // reads that aren't the draft's own are taken: writing over one would
+        // change a pass that wasn't edited.
         var destinations: [String: URL] = [:]
         var placed: [String: [String]] = [:]
+        var taken: Set<String> = []
+        for texture in preset.textures where texture.path.hasPrefix("/") {
+            taken.insert(fileSystemKey(URL(filePath: texture.path)))
+        }
         for pass in preset.passes where pass.shader.hasPrefix("/") {
-            let shader = URL(filePath: pass.shader)
-            guard isOwn(shader, id: info.id, in: root) else { continue }
-            for file in SlangSource.closure(of: shader) where isOwn(file, id: info.id, in: root) {
+            for file in SlangSource.closure(of: URL(filePath: pass.shader)) {
+                guard isOwn(file, id: info.id, in: root) else {
+                    taken.insert(fileSystemKey(file))
+                    continue
+                }
                 let relative = Array(file.standardizedFileURL.pathComponents
                     .dropFirst(files.standardizedFileURL.pathComponents.count))
                 let key = relative.joined(separator: "/")
@@ -234,13 +242,16 @@ nonisolated enum ShaderDrafts {
                 return inside.dropFirst(dropsFirst ? 1 : 0).reduce(ownFolder) { $0.appending(path: $1) }
             }
         }
-        func isDistinct(_ urls: some Collection<URL>) -> Bool {
-            Set(urls.map { $0.standardizedFileURL.path(percentEncoded: false) }).count == urls.count
+        // Files going back in place may be taken: those are the ones edited.
+        let backInPlace = destinations.values.map(fileSystemKey)
+        func collides(_ below: [String: URL]) -> Bool {
+            let keys = backInPlace + below.values.map(fileSystemKey)
+            return Set(keys).count != keys.count || below.values.contains { taken.contains(fileSystemKey($0)) }
         }
         var below = place(dropsFirst: true)
-        if !isDistinct(Array(destinations.values) + below.values) { below = place(dropsFirst: false) }
+        if collides(below) { below = place(dropsFirst: false) }
+        guard !collides(below) else { throw CocoaError(.fileWriteFileExists) }
         destinations.merge(below) { first, _ in first }
-        guard isDistinct(destinations.values) else { throw CocoaError(.fileWriteFileExists) }
 
         for (path, destination) in destinations {
             let source = files.appending(path: path, directoryHint: .notDirectory)
@@ -260,6 +271,12 @@ nonisolated enum ShaderDrafts {
         }
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         try saved.text(relativeTo: directory).write(to: target, atomically: true, encoding: .utf8)
+    }
+
+    /// `url`'s path as the usual (case-insensitive) volumes compare it:
+    /// `a.slang` and `A.slang` are one file there, whatever their Unicode form.
+    private static func fileSystemKey(_ url: URL) -> String {
+        url.standardizedFileURL.path(percentEncoded: false).decomposedStringWithCanonicalMapping.lowercased()
     }
 
     // MARK: Export

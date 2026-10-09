@@ -10545,12 +10545,12 @@
         }
       }
     },
-    "It refers to files that aren't shaders or images, which weren't copied: %@": {
+    "Some files it refers to weren't copied, as they aren't shaders or images in its folder: %@": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Es verweist auf Dateien, die weder Shader noch Bilder sind; sie wurden nicht kopiert: %@"
+            "value": "Einige Dateien, auf die es verweist, wurden nicht kopiert, da sie keine Shader oder Bilder in seinem Ordner sind: %@"
           }
         }
       }
@@ -11821,6 +11821,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Beende %@, um diesen Spielstand wiederherzustellen."
+          }
+        }
+      }
+    },
+    "Links to files outside the folder weren't copied: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verknüpfungen zu Dateien außerhalb des Ordners wurden nicht kopiert: %@"
+          }
+        }
+      }
+    },
+    "Its shaders are spread over your whole home folder or disk. Import the folder that holds them instead.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seine Shader sind über deinen ganzen Benutzerordner oder ein ganzes Volume verteilt. Importiere stattdessen den Ordner, der sie enthält."
           }
         }
       }

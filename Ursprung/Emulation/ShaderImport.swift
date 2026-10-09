@@ -3,8 +3,14 @@
 import Foundation
 
 /// Copies presets into the user's shader folder. A folder is copied as it
-/// is; a single preset takes along every file it reads, in the same layout,
-/// so its relative paths keep working.
+/// is, except for links that lead out of it; a single preset takes along the
+/// files it reads, in the same layout, so its relative paths keep working.
+///
+/// A preset can name any file (`../../.ssh/id_rsa`, `../Photos/me.png`), so
+/// it only takes along what lies in its package: the deepest folder that
+/// holds the preset, the presets it references and their shader passes.
+/// Includes and textures outside it are neither read nor copied, links are
+/// followed before that check, and only regular files are copied.
 nonisolated enum ShaderImport {
     struct Result: Sendable {
         var presets: [ShaderPresetRef] = []
@@ -42,15 +48,27 @@ nonisolated enum ShaderImport {
                         continue
                     }
                     let destination = uniqueURL(for: name, in: user)
-                    try fileManager.copyItem(at: url, to: destination)
-                    result.presets += presets.compactMap { ref(of: destination.appending(path: $0), in: user) }
+                    let skipped = try copyFolder(url, to: destination)
+                    result.presets += presets.compactMap { path in
+                        let preset = destination.appending(path: path)
+                        guard fileManager.fileExists(atPath: preset.path(percentEncoded: false)) else { return nil }
+                        return ref(of: preset, in: user)
+                    }
+                    if !skipped.isEmpty {
+                        let files = skipped.joined(separator: ", ")
+                        result.failures.append(Failure(name: name, reason: String(localized: "Links to files outside the folder weren't copied: \(files)")))
+                    }
                 } else if url.pathExtension.lowercased() == "slangp" {
-                    let (preset, missing, skipped) = try copyPreset(url, into: user)
+                    guard let package = package(of: url) else {
+                        result.failures.append(Failure(name: name, reason: String(localized: "Its shaders are spread over your whole home folder or disk. Import the folder that holds them instead.")))
+                        continue
+                    }
+                    let (preset, missing, skipped) = try copyPreset(url, from: package, into: user)
                     if let preset { result.presets.append(preset) }
                     result.missing += missing
                     if !skipped.isEmpty {
                         let files = skipped.map(\.lastPathComponent).joined(separator: ", ")
-                        result.failures.append(Failure(name: name, reason: String(localized: "It refers to files that aren't shaders or images, which weren't copied: \(files)")))
+                        result.failures.append(Failure(name: name, reason: String(localized: "Some files it refers to weren't copied, as they aren't shaders or images in its folder: \(files)")))
                     }
                 } else {
                     result.failures.append(Failure(name: name, reason: String(localized: "Only shader presets (.slangp) and folders can be imported.")))
@@ -68,13 +86,36 @@ nonisolated enum ShaderImport {
         "slangp", "params", "slang", "inc", "h", "hpp", "hlsl", "glsl", "png", "jpg", "jpeg", "bmp", "tga", "gif",
     ]
 
-    /// Copies the preset with the files it reads into a new folder named
-    /// after it. A preset can name any file (`../../.ssh/id_rsa`): files
-    /// that aren't shaders or images stay behind and are returned as skipped.
-    private static func copyPreset(_ preset: URL, into user: URL) throws -> (ShaderPresetRef?, [String], skipped: [URL]) {
-        let (dependencies, missing) = SlangPresetFile.dependencies(of: preset)
-        let (files, skipped) = dependencies.reduce(into: ([URL](), [URL]())) { split, file in
-            if file == preset.standardizedFileURL || shaderFileExtensions.contains(file.pathExtension.lowercased()) {
+    /// The preset's package (see above): the deepest folder holding the
+    /// preset, the presets it references and their passes, as the real
+    /// folder links lead to. Nil when that is the home folder or above, or a
+    /// whole volume: then it would let the preset take along almost anything.
+    static func package(of preset: URL, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL? {
+        let files = SlangPresetFile.presetsAndPasses(of: preset)
+        let folder = URL(filePath: NSString.path(withComponents: commonDirectory(of: files)), directoryHint: .isDirectory)
+            .resolvingSymlinksInPath()
+        let home = home.resolvingSymlinksInPath()
+        let isVolume = (try? folder.resourceValues(forKeys: [.isVolumeKey]).isVolume) ?? true
+        guard !isVolume, !home.pathComponents.starts(with: folder.pathComponents) else { return nil }
+        return folder
+    }
+
+    /// Whether `file` is a regular file in `package` once links are followed.
+    private static func isRegularFile(_ file: URL, in package: URL) -> Bool {
+        let real = file.resolvingSymlinksInPath()
+        guard (try? real.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return false }
+        return real.pathComponents.starts(with: package.pathComponents)
+    }
+
+    /// Copies the preset with the files it reads from its `package` into a
+    /// new folder named after it. Files outside the package, and files that
+    /// aren't shaders or images, stay behind and are returned as skipped.
+    private static func copyPreset(_ preset: URL, from package: URL, into user: URL)
+        throws -> (ShaderPresetRef?, [String], skipped: [URL]) {
+        let preset = preset.standardizedFileURL
+        let (dependencies, missing, outside) = SlangPresetFile.dependencies(of: preset) { isRegularFile($0, in: package) }
+        let (files, skipped) = dependencies.reduce(into: ([URL](), outside)) { split, file in
+            if file == preset || shaderFileExtensions.contains(file.pathExtension.lowercased()) {
                 split.0.append(file)
             } else {
                 split.1.append(file)
@@ -89,10 +130,44 @@ nonisolated enum ShaderImport {
             var target = destination
             for component in relative { target = target.appending(path: component) }
             try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try fileManager.copyItem(at: file, to: target)
-            if file == preset.standardizedFileURL { copiedPreset = target }
+            // The file itself, not a link to it.
+            try fileManager.copyItem(at: file.resolvingSymlinksInPath(), to: target)
+            if file == preset { copiedPreset = target }
         }
         return (copiedPreset.flatMap { ref(of: $0, in: user) }, missing, skipped)
+    }
+
+    /// Copies `folder` to `destination` like `copyItem`, except that a link
+    /// is replaced by a copy of the file it leads to when that is a regular
+    /// file inside `folder`; other links stay behind. Returns their paths
+    /// relative to `folder`.
+    private static func copyFolder(_ folder: URL, to destination: URL) throws -> [String] {
+        let fileManager = FileManager.default
+        let source = folder.resolvingSymlinksInPath()
+        // Relative paths, without following links to folders.
+        guard let enumerator = fileManager.enumerator(atPath: source.path(percentEncoded: false)) else {
+            throw CocoaError(.fileReadUnknown, userInfo: [NSURLErrorKey: folder])
+        }
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let keys: Set<URLResourceKey> = [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey]
+        var skipped: [String] = []
+        for case let relative as String in enumerator {
+            let item = source.appending(path: relative)
+            let target = destination.appending(path: relative)
+            let values = try item.resourceValues(forKeys: keys)
+            if values.isSymbolicLink == true {
+                if isRegularFile(item, in: source) {
+                    try fileManager.copyItem(at: item.resolvingSymlinksInPath(), to: target)
+                } else {
+                    skipped.append(relative)
+                }
+            } else if values.isDirectory == true {
+                try fileManager.createDirectory(at: target, withIntermediateDirectories: true)
+            } else if values.isRegularFile == true {
+                try fileManager.copyItem(at: item, to: target)
+            }
+        }
+        return skipped
     }
 
     /// Path components of the deepest folder that holds all `files`.

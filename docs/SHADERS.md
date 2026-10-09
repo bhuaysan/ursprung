@@ -18,8 +18,12 @@ own licences; Ursprung does not ship them.
 
 Presets of your own (for example from a forum or from RetroArch) can be
 imported in the shader browser with **Import…**, or dropped onto it. A single
-preset brings every file it reads along, so its relative paths keep working.
-They end up in **My Shaders**.
+preset brings the shaders and images it reads along, so its relative paths
+keep working, but only from the folder that holds it and its shaders; files
+elsewhere stay behind and are named. When a preset's shaders are spread over
+your whole home folder, import the folder that holds them instead. Links in
+an imported folder that lead out of it are not copied. Imports end up in
+**My Shaders**.
 
 Only slang presets work. RetroArch's older `.glslp` and `.cgp` presets are
 not supported.

@@ -159,3 +159,13 @@ Die folgende Altcode-Bewertung stammt aus dem Vergleich der Implementierungen; e
 | I1 | `cb6cb1a` | **Parallelitätsproblem pro Renderer behoben.** |
 | I2 | `2b278e1` | **Implementiert, echte Tastatur-/VoiceOver-Bedienung nicht ausreichend verifiziert.** |
 | R2 | bewusst unverändert | Wie vereinbart unverändert und weiterhin offen. |
+
+## Behebung (09.10.2026)
+
+| ID | Status | Umsetzung | Test |
+|---|---|---|---|
+| B1 | behoben | Feste Paketgrenze für einzelne Presets: der tiefste Ordner, der das Preset, seine `#reference`-Presets und deren Shader-Passes enthält (`ShaderImport.package(of:)`). Ist das der Benutzerordner, ein Ordner darüber oder ein ganzes Volume, wird der Import mit Hinweis abgelehnt. Die Grenze steht fest, bevor Includes und Texturen gelesen werden: Dateien außerhalb werden weder gelesen noch verfolgt (`SlangPresetFile.dependencies(of:within:)`); zum Bestimmen der Grenze werden nur `.slangp`-Dateien gelesen. Links werden vor der Prüfung aufgelöst, kopiert werden nur reguläre Dateien (der Inhalt, nicht der Link), also auch kein Ordner `folder.png`. Ordnerimporte kopieren Datei für Datei: Links auf reguläre Dateien im Ordner werden zu Kopien, Links aus dem Ordner hinaus bleiben zurück und werden gemeldet. | `importStaysInsideThePresetsPackage` (Foto, Ordner `folder.png`, Link aus dem Paket, Include außerhalb), `aPackageMayNotBeTheHomeFolderOrAVolume`, `importedFoldersKeepNoLinksOutOfThem`, angepasst `importLeavesFilesBehindThatArentShadersOrImages` |
+| B2 | behoben | Alle Dateien, die das gespeicherte Preset liest und die keine eigenen Kopien des Drafts sind (unveränderte Passes samt Includes, Texturen), gelten als belegt; eine eigene Kopie darf dort nicht landen und weicht ins Layout mit erstem Ordner (`library/…`) aus, sonst bricht das Speichern ab. Pfade werden wie auf APFS verglichen: ohne Groß-/Kleinschreibung und Unicode-Form. Rückschreiben an den Ursprung beim Speichern an Ort und Stelle bleibt erlaubt. | `savingKeepsOffFilesOtherPassesUse`, `savingTellsApartNamesThatDifferInCaseOnly` (beide scheitern mit dem alten Code) |
+| B3–B8 | offen | – | – |
+
+Validierung: `xcodebuild … test` mit 447 Tests grün, 2 übersprungen (Shader-Pack).

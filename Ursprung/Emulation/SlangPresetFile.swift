@@ -96,32 +96,55 @@ nonisolated struct SlangPresetFile: Sendable {
     /// shaders with their `#include` files, and textures. `missing` lists
     /// relative paths that don't exist.
     static func dependencies(of url: URL) -> (files: [URL], missing: [String]) {
-        var collector = DependencyCollector()
+        let dependencies = dependencies(of: url, within: { _ in true })
+        return (dependencies.files, dependencies.missing)
+    }
+
+    /// `dependencies(of:)`, but files `allows` refuses are neither read nor
+    /// followed; they are returned as `outside`.
+    static func dependencies(of url: URL, within allows: @escaping (URL) -> Bool)
+        -> (files: [URL], missing: [String], outside: [URL]) {
+        var collector = DependencyCollector(allows: allows)
         collector.visitPreset(url.standardizedFileURL, depth: 0)
-        return (collector.files, collector.missing)
+        return (collector.files, collector.missing, collector.outside)
+    }
+
+    /// The presets (following `#reference`) and shader passes the preset at
+    /// `url` is made of, without reading the shaders. Only presets
+    /// (`.slangp`) are read.
+    static func presetsAndPasses(of url: URL) -> [URL] {
+        var collector = DependencyCollector(allows: { $0.pathExtension.lowercased() == "slangp" }, readsShaders: false)
+        collector.visitPreset(url.standardizedFileURL, depth: 0)
+        return collector.files
     }
 }
 
 nonisolated private struct DependencyCollector {
+    let allows: (URL) -> Bool
+    /// Whether shaders are read for their includes, and textures collected.
+    var readsShaders = true
     var files: [URL] = []
     var missing: [String] = []
+    var outside: [URL] = []
     private var visited: Set<String> = []
 
     mutating func visitPreset(_ url: URL, depth: Int) {
-        guard depth < 16, add(url), let preset = try? SlangPresetFile(contentsOf: url) else { return }
+        guard depth < 16, add(url), allowed(url), let preset = try? SlangPresetFile(contentsOf: url) else { return }
         for reference in preset.references {
             if let file = existing(reference, from: url) { visitPreset(file, depth: depth + 1) }
         }
         for shader in preset.shaderPaths {
-            if let file = existing(shader, from: url) { visitShader(file, depth: 0) }
+            guard let file = existing(shader, from: url) else { continue }
+            if readsShaders { visitShader(file, depth: 0) } else { add(file) }
         }
+        guard readsShaders else { return }
         for texture in preset.texturePaths {
-            if let file = existing(texture, from: url) { add(file) }
+            if let file = existing(texture, from: url), add(file) { _ = allowed(file) }
         }
     }
 
     private mutating func visitShader(_ url: URL, depth: Int) {
-        guard depth < 32, add(url), let data = try? Data(contentsOf: url) else { return }
+        guard depth < 32, add(url), allowed(url), let data = try? Data(contentsOf: url) else { return }
         for line in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard trimmed.hasPrefix("#include") else { continue }
@@ -139,6 +162,15 @@ nonisolated private struct DependencyCollector {
             return nil
         }
         return url
+    }
+
+    /// Whether `allows` lets the file be read; if not, it moves from `files`
+    /// to `outside`.
+    private mutating func allowed(_ url: URL) -> Bool {
+        guard !allows(url) else { return true }
+        files.removeAll { $0 == url }
+        outside.append(url)
+        return false
     }
 
     @discardableResult

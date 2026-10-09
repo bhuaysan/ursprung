@@ -416,6 +416,49 @@ struct ShaderDraftTests {
         #expect(try ShaderPreset.parametersOfPreset(atPath: target.path).first?.initial == 0.7)
     }
 
+    /// An own copy never lands on a file another pass reads unchanged
+    /// (B2 of the 2026-10-07 re-review).
+    @Test func savingKeepsOffFilesOtherPassesUse() throws {
+        let (root, pack, user, drafts) = try makeShaders()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(dimShader + "\n// user\n", to: user.appending(path: "Mixed/crt/shaders/dim.slang"))
+        var (info, preset) = try ShaderDrafts.create(from: pack.appending(path: "crt/dim.slangp"), name: "dim",
+                                                     origin: nil, target: nil, in: drafts)
+        let copy = try ShaderDrafts.ownCopy(of: URL(filePath: preset.passes[0].shader), info: &info, in: drafts,
+                                            library: pack, user: user)
+        try (dimShader + "\n// edited\n").write(to: copy, atomically: true, encoding: .utf8)
+        preset.passes[0].shader = copy.path
+        preset.passes.append(SlangPreset.Pass(shader: user.appending(path: "Mixed/crt/shaders/dim.slang").path))
+        let target = user.appending(path: "Mixed.slangp")
+
+        try ShaderDrafts.save(preset, info: info, to: target, inPlace: false, in: drafts, user: user)
+        let saved = try SlangPreset.load(from: target)
+        #expect(saved.passes.count == 2 && saved.passes[0].shader != saved.passes[1].shader)
+        #expect(try String(contentsOf: URL(filePath: saved.passes[0].shader), encoding: .utf8).hasSuffix("// edited\n"))
+        #expect(try String(contentsOf: user.appending(path: "Mixed/crt/shaders/dim.slang"), encoding: .utf8)
+            .hasSuffix("// user\n"), "The unchanged pass's file stays")
+    }
+
+    /// `a.slang` and `A.slang` are one file on the usual volumes.
+    @Test func savingTellsApartNamesThatDifferInCaseOnly() throws {
+        let (root, pack, user, drafts) = try makeShaders()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(dimShader, to: pack.appending(path: "case/a.slang"))
+        try write(dimShader, to: user.appending(path: "case/A.slang"))
+        var (info, preset) = try ShaderDrafts.create(from: nil, name: "Case", origin: nil, target: nil, in: drafts)
+        for (shader, marker) in [(pack.appending(path: "case/a.slang"), "// pack"), (user.appending(path: "case/A.slang"), "// user")] {
+            let copy = try ShaderDrafts.ownCopy(of: shader, info: &info, in: drafts, library: pack, user: user)
+            try (dimShader + "\n\(marker)\n").write(to: copy, atomically: true, encoding: .utf8)
+            preset.passes.append(SlangPreset.Pass(shader: copy.path))
+        }
+        let target = user.appending(path: "Case.slangp")
+
+        try ShaderDrafts.save(preset, info: info, to: target, inPlace: false, in: drafts, user: user)
+        let saved = try SlangPreset.load(from: target)
+        #expect(try String(contentsOf: URL(filePath: saved.passes[0].shader), encoding: .utf8).hasSuffix("// pack\n"))
+        #expect(try String(contentsOf: URL(filePath: saved.passes[1].shader), encoding: .utf8).hasSuffix("// user\n"))
+    }
+
     @Test func keepsIncludesBetweenFoldersOfShadersFromElsewhere() throws {
         let (root, pack, user, drafts) = try makeShaders()
         defer { try? FileManager.default.removeItem(at: root) }

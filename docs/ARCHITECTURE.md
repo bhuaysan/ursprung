@@ -167,7 +167,9 @@ per preset.
 demand into `Shaders/slang-shaders/` (unpacked next to it and swapped in only
 when complete; updates are checked via Last-Modified like cores) and imports
 the user's own presets into `Shaders/User/` (`ShaderImport` copies the files a
-preset reads along), which backups carry. Its index lists every `.slangp`
+preset reads along, from its package only: the deepest folder holding it, its
+referenced presets and their passes, links followed, regular files only),
+which backups carry. Its index lists every `.slangp`
 with category, pass count (`SlangPresetFile`, Ursprung's own reader) and
 parameter count (librashader, parse only); `Shaders/index.json` caches it by
 file date. The filter menus (`ShaderPicker`) show the built-in filters,

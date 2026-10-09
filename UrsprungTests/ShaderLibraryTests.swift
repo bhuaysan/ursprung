@@ -245,6 +245,85 @@ struct ShaderLibraryTests {
         #expect(!copied.contains { $0.hasSuffix("id_rsa") || $0.hasSuffix("notes.txt") })
     }
 
+    /// A preset takes along only what lies in its package: the folder of the
+    /// preset, the presets it references and their passes (B1 of the
+    /// 2026-10-07 re-review).
+    @Test func importStaysInsideThePresetsPackage() async throws {
+        let root = try makeTemporaryDirectory().standardizedFileURL
+        defer { try? FileManager.default.removeItem(at: root) }
+        let library = makeLibrary(root: root)
+        let downloads = root.appending(path: "Downloads", directoryHint: .isDirectory)
+        try write("png", to: root.appending(path: "Private/photo.png"))
+        try write("text", to: root.appending(path: "Private/folder.png/notes.txt"))
+        try write("// outside\n", to: root.appending(path: "Private/shared.inc"))
+        try write("png", to: root.appending(path: "Private/linked.png"))
+        try write("png", to: downloads.appending(path: "Pack/textures/mask.png"))
+        try FileManager.default.createSymbolicLink(at: downloads.appending(path: "Pack/textures/link.png"),
+                                                   withDestinationURL: root.appending(path: "Private/linked.png"))
+        try write(dimShader.replacing("#version 450", with: "#version 450\n#include \"../../../Private/shared.inc\""),
+                  to: downloads.appending(path: "Pack/shaders/dim.slang"))
+        try write("""
+            shaders = 1
+            shader0 = shaders/dim.slang
+            textures = "MASK;PHOTO;FOLDER;LINK"
+            MASK = textures/mask.png
+            PHOTO = ../../Private/photo.png
+            FOLDER = ../../Private/folder.png
+            LINK = textures/link.png
+            """, to: downloads.appending(path: "Pack/greedy.slangp"))
+
+        let result = await library.importItems([downloads.appending(path: "Pack/greedy.slangp")])
+        #expect(result.presets.map(\.path) == ["greedy/greedy.slangp"])
+        let reason = try #require(result.failures.first?.reason)
+        for name in ["photo.png", "folder.png", "link.png", "shared.inc"] {
+            #expect(reason.contains(name), "\(name) is reported")
+        }
+        let copied = FileManager.default.enumerator(atPath: library.userDirectory.path(percentEncoded: false))?
+            .compactMap { $0 as? String } ?? []
+        #expect(Set(copied) == ["greedy", "greedy/greedy.slangp", "greedy/shaders", "greedy/shaders/dim.slang",
+                                "greedy/textures", "greedy/textures/mask.png"])
+    }
+
+    @Test func aPackageMayNotBeTheHomeFolderOrAVolume() throws {
+        let home = try makeTemporaryDirectory().standardizedFileURL
+        defer { try? FileManager.default.removeItem(at: home) }
+        try write(dimShader, to: home.appending(path: "Pack/shaders/dim.slang"))
+        try write("shaders = 1\nshader0 = shaders/dim.slang\n", to: home.appending(path: "Pack/dim.slangp"))
+        // Its pass belongs to a pack elsewhere in the home folder.
+        try write("shaders = 1\nshader0 = ../Pack/shaders/dim.slang\n", to: home.appending(path: "Downloads/wide.slangp"))
+
+        #expect(ShaderImport.package(of: home.appending(path: "Pack/dim.slangp"), home: home)
+            == home.appending(path: "Pack", directoryHint: .isDirectory).resolvingSymlinksInPath())
+        #expect(ShaderImport.package(of: home.appending(path: "Downloads/wide.slangp"), home: home) == nil)
+    }
+
+    /// A folder is copied as it is, but links that lead out of it are not.
+    @Test func importedFoldersKeepNoLinksOutOfThem() async throws {
+        let root = try makeTemporaryDirectory().standardizedFileURL
+        defer { try? FileManager.default.removeItem(at: root) }
+        let library = makeLibrary(root: root)
+        let pack = root.appending(path: "Downloads/Pack", directoryHint: .isDirectory)
+        try writeFixtures(in: pack)
+        try write("text", to: root.appending(path: "Private/notes.txt"))
+        try FileManager.default.createSymbolicLink(at: pack.appending(path: "linked.slang"),
+                                                   withDestinationURL: root.appending(path: "Private/notes.txt"))
+        try FileManager.default.createSymbolicLink(at: pack.appending(path: "private"),
+                                                   withDestinationURL: root.appending(path: "Private"))
+        try FileManager.default.createSymbolicLink(at: pack.appending(path: "same.slangp"),
+                                                   withDestinationURL: pack.appending(path: "dim.slangp"))
+
+        let result = await library.importItems([pack])
+        #expect(Set(result.presets.map(\.path)) == ["Pack/dim.slangp", "Pack/dim-strong.slangp", "Pack/same.slangp"])
+        #expect(result.failures.map(\.name) == ["Pack"])
+        #expect(result.failures.first?.reason.contains("linked.slang") == true)
+        let copy = library.userDirectory.appending(path: "Pack", directoryHint: .isDirectory)
+        let fileManager = FileManager.default
+        #expect(!fileManager.fileExists(atPath: copy.appending(path: "linked.slang").path(percentEncoded: false)))
+        #expect(!fileManager.fileExists(atPath: copy.appending(path: "private").path(percentEncoded: false)))
+        let same = try copy.appending(path: "same.slangp").resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey])
+        #expect(same.isSymbolicLink == false && same.isRegularFile == true, "A link inside the folder becomes a copy")
+    }
+
     @Test func favoritesPersist() throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
