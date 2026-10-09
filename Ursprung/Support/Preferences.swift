@@ -46,6 +46,13 @@ nonisolated enum PrefKey {
     static let standaloneFullscreen = "standaloneFullscreen"
     /// Favourite RetroArch presets, as `ShaderSelection` raw values.
     static let shaderFavorites = "shaderFavorites"
+    /// Path of the folder structure Ursprung created (`FolderStructure`).
+    static let folderStructure = "folderStructure"
+    /// Systems whose folder the structure has had, so a folder the user
+    /// deleted is not created again; only new systems get one.
+    static let folderStructureSystems = "folderStructureSystems"
+    /// Whether the first launch has offered the folder structure.
+    static let folderStructureOffered = "folderStructureOffered"
     static func systemVideoFilter(_ systemID: String) -> String { "videoFilter.\(systemID)" }
     /// A game's own filter or preset; wins over its system's.
     static func gameVideoFilter(_ gameID: UUID) -> String { "\(gameVideoFilterPrefix)\(gameID.uuidString)" }
@@ -158,6 +165,21 @@ nonisolated enum Preferences {
     static var libraryFolders: [URL] {
         get { (defaults.stringArray(forKey: PrefKey.libraryFolders) ?? []).map { URL(filePath: $0, directoryHint: .isDirectory) } }
         set { defaults.set(newValue.map { $0.path(percentEncoded: false) }, forKey: PrefKey.libraryFolders) }
+    }
+
+    static var folderStructure: URL? {
+        get { defaults.string(forKey: PrefKey.folderStructure).map { URL(filePath: $0, directoryHint: .isDirectory) } }
+        set { defaults.set(newValue?.path(percentEncoded: false), forKey: PrefKey.folderStructure) }
+    }
+
+    static var folderStructureSystems: Set<String> {
+        get { Set(defaults.stringArray(forKey: PrefKey.folderStructureSystems) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: PrefKey.folderStructureSystems) }
+    }
+
+    static var folderStructureOffered: Bool {
+        get { defaults.bool(forKey: PrefKey.folderStructureOffered) }
+        set { defaults.set(newValue, forKey: PrefKey.folderStructureOffered) }
     }
 
     static var scraperLanguage: String { defaults.string(forKey: PrefKey.scraperLanguage) ?? "en" }

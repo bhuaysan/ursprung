@@ -371,6 +371,23 @@ nonisolated enum SystemCatalog {
         return index
     }()
 
+    /// The folder each system gets in the folder structure (`FolderStructure`).
+    /// Every name leads back to its system through the alias table (checked
+    /// by a test) and is the same in every language.
+    static let folderNames: [String: String] = [
+        "nes": "NES", "fds": "Famicom Disk System", "snes": "Super Nintendo", "n64": "Nintendo 64",
+        "gamecube": "GameCube", "wii": "Wii", "gb": "Game Boy", "gbc": "Game Boy Color", "gba": "Game Boy Advance",
+        "nds": "Nintendo DS", "virtualboy": "Virtual Boy", "pokemini": "Pokémon mini",
+        "sg1000": "SG-1000", "mastersystem": "Master System", "megadrive": "Mega Drive", "segacd": "Mega-CD",
+        "sega32x": "32X", "gamegear": "Game Gear", "saturn": "Saturn", "dreamcast": "Dreamcast",
+        "psx": "PlayStation", "psp": "PlayStation Portable", "ps2": "PlayStation 2",
+        "pce": "PC Engine", "pcecd": "PC Engine CD", "supergrafx": "SuperGrafx",
+        "atari2600": "Atari 2600", "atari5200": "Atari 5200", "atari7800": "Atari 7800", "lynx": "Atari Lynx",
+        "jaguar": "Atari Jaguar", "ngp": "Neo Geo Pocket", "ngpc": "Neo Geo Pocket Color",
+        "wonderswan": "WonderSwan", "wonderswancolor": "WonderSwan Color", "colecovision": "ColecoVision",
+        "intellivision": "Intellivision", "vectrex": "Vectrex", "3do": "3DO", "msx": "MSX", "arcade": "Arcade",
+    ]
+
     /// Maps a folder name to a system via the alias table.
     static func system(forFolderName name: String) -> GameSystem? {
         let normalized = normalize(name)

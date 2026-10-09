@@ -11624,6 +11624,156 @@
           }
         }
       }
+    },
+    "Read Me.txt": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lies mich.txt"
+          }
+        }
+      }
+    },
+    "Ursprung — game folders\n\nROMs\nPut each game into the folder of its system, for example Super Nintendo games into “ROMs/Super Nintendo”. Ursprung adds them to the library as soon as they arrive. Sub folders are fine, for example one per disc game. Cartridge games may be zipped; arcade games stay zipped as they are.\n\nBIOS\nPut BIOS files here under any name. Ursprung recognizes them and copies them to where the emulators expect them. Settings › BIOS shows which ones are still missing.\n\nFolders you don't need can be deleted. Only use games and BIOS files from hardware you own.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprung – Spieleordner\n\nROMs\nLege jedes Spiel in den Ordner seines Systems, zum Beispiel Super-Nintendo-Spiele in „ROMs/Super Nintendo“. Ursprung nimmt sie in die Bibliothek auf, sobald sie da sind. Unterordner sind kein Problem, zum Beispiel einer pro Disc-Spiel. Modulspiele dürfen gezippt sein; Arcade-Spiele bleiben gezippt, wie sie sind.\n\nBIOS\nLege BIOS-Dateien unter beliebigem Namen hier ab. Ursprung erkennt sie und kopiert sie dorthin, wo die Emulatoren sie erwarten. Unter Einstellungen › BIOS siehst du, welche noch fehlen.\n\nOrdner, die du nicht brauchst, kannst du löschen. Verwende nur Spiele und BIOS-Dateien von Hardware, die du besitzt."
+          }
+        }
+      }
+    },
+    "Set Up Folders for Your Games?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner für deine Spiele anlegen?"
+          }
+        }
+      }
+    },
+    "Ursprung can create a folder for every system it supports. Copy your games into them, and Ursprung finds them by itself.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ursprung kann für jedes unterstützte System einen Ordner anlegen. Kopiere deine Spiele hinein, und Ursprung findet sie von selbst."
+          }
+        }
+      }
+    },
+    "BIOS files under any name. Ursprung recognizes them and imports them by itself.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BIOS-Dateien unter beliebigem Namen. Ursprung erkennt sie und importiert sie von selbst."
+          }
+        }
+      }
+    },
+    "What goes where.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Was wohin gehört."
+          }
+        }
+      }
+    },
+    "One folder for each of the %lld systems, such as %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Ordner für jedes der %lld Systeme, etwa %@."
+          }
+        }
+      }
+    },
+    "Folders that already exist and the files in them stay as they are.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorhandene Ordner und die Dateien darin bleiben unverändert."
+          }
+        }
+      }
+    },
+    "Change Location…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ort ändern …"
+          }
+        }
+      }
+    },
+    "Choose where the “Ursprung” folder is created, for example on an external drive.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle, wo der Ordner „Ursprung“ angelegt wird, zum Beispiel auf einem externen Laufwerk."
+          }
+        }
+      }
+    },
+    "Create Folders": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner anlegen"
+          }
+        }
+      }
+    },
+    "The folders couldn't be created. %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Ordner konnten nicht angelegt werden. %@"
+          }
+        }
+      }
+    },
+    "Set Up Game Folders…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spieleordner anlegen …"
+          }
+        }
+      }
+    },
+    "Copy Your Games into the Folders": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopiere deine Spiele in die Ordner"
+          }
+        }
+      }
+    },
+    "Put each game into the folder of its system in “ROMs”, and BIOS files into “BIOS”. Ursprung adds them as soon as they arrive.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lege jedes Spiel in den Ordner seines Systems in „ROMs“ und BIOS-Dateien in „BIOS“. Ursprung nimmt sie auf, sobald sie da sind."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

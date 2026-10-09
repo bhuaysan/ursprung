@@ -200,6 +200,9 @@ nonisolated struct GameSystem: Sendable, Hashable, Identifiable {
 
     var defaultCore: CoreDefinition { cores[0] }
 
+    /// Its folder in the folder structure, e.g. “Super Nintendo”.
+    var folderName: String { SystemCatalog.folderNames[id] ?? shortName }
+
     /// Whether ROM patches (IPS, UPS, BPS) can be applied to its games.
     var supportsPatches: Bool { SystemCatalog.supportsPatches(self) }
 

@@ -149,7 +149,10 @@ Players can optionally enter their personal ScreenScraper account in
 
 ## Getting started
 
-1. Launch Ursprung and click **Add Folder…** — choose the folder with your games.
+1. On the first launch Ursprung offers to create `~/Ursprung` with `ROMs/` (one
+   folder per system) and `BIOS/`: copy games and BIOS files in, and they show up
+   by themselves. Or click **Add Folder…** and choose the folder with your games
+   (**File → Set Up Game Folders…** offers the structure again later).
 2. Sort games into sub folders named after the system (`SNES`, `PSX`, `Mega Drive`,
    `Arcade`, …). Cartridge games are recognised by file type anyway; for disc
    images (`.cue`, `.chd`, `.iso`) and archives the folder name decides.

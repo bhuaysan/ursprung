@@ -251,6 +251,13 @@ files referenced by `.cue`/`.gdi`/`.m3u`/`.ccd`, and identifies the system:
 2. Otherwise the file extension decides.
 3. Zips without a helpful folder name are identified by their largest entry.
 
+`FolderStructure` creates, on request (first launch, File menu), `Ursprung/`
+with `ROMs/` (a library folder with one sub folder per system, named by
+`SystemCatalog.folderNames`; each name is a folder alias of its system) and a
+watched `BIOS/` folder next to it, which the scanner skips. Systems added in
+later versions get their folder at launch; folders the user deleted stay
+deleted (`Preferences.folderStructureSystems`).
+
 `LibraryStore` merges scan results into SwiftData. Games whose file is gone
 stay as *missing*; `LibraryMatcher` recognises renamed and moved files by
 checksum or size and modification date, so the entry keeps its UUID and with
@@ -310,7 +317,9 @@ on the same data folder; a game launch quits it first.
 `BIOSManager` verifies BIOS files by MD5 and, on import, renames files to the
 name the core expects (e.g. `SCPH1001.BIN` → `scph1001.bin`). PS2 dumps are a
 folder requirement instead (`BIOSFolder`): any file `PS2BIOS` recognises by its
-ROM directory counts.
+ROM directory counts. `BIOSManager.watch` imports the folder structure's `BIOS/`
+folder at launch and on every change; installed files with the same contents
+are not copied again.
 
 ## RetroAchievements
 

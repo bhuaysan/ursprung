@@ -14,6 +14,8 @@ final class LibraryStore {
     typealias Matcher = @Sendable (_ vanished: [GameFingerprint], _ candidates: [ScannedROM]) async -> [String: UUID]
 
     private(set) var folders: [URL]
+    /// The folder structure Ursprung created (`FolderStructure`), if any.
+    private(set) var folderStructure: URL?
     private(set) var isScanning = false
     private(set) var lastScanSummary: String?
     /// Library folders the last scan could not reach, e.g. on an unmounted volume.
@@ -43,6 +45,7 @@ final class LibraryStore {
 
     init(metadata: MetadataService,
          folders: [URL] = Preferences.libraryFolders,
+         folderStructure: URL? = Preferences.folderStructure,
          scanner: @escaping Scanner = { await LibraryStore.scan($0) },
          matcher: @escaping Matcher = { await LibraryStore.match($0, $1) },
          persistFolders: @escaping ([URL]) -> Void = { Preferences.libraryFolders = $0 },
@@ -53,6 +56,7 @@ final class LibraryStore {
          defaults: UserDefaults = .standard) {
         self.metadata = metadata
         self.folders = folders
+        self.folderStructure = folderStructure
         self.scanner = scanner
         self.matcher = matcher
         self.saves = saves
@@ -144,6 +148,48 @@ final class LibraryStore {
         panel.message = String(localized: "Choose folders that contain your games. Sub folders named after a system (e.g. “SNES” or “PSX”) help Ursprung identify disc images.")
         guard panel.runModal() == .OK else { return }
         for url in panel.urls { addFolder(url, context: context) }
+    }
+
+    // MARK: Folder structure
+
+    /// The folder structure's ROMs folder while it is a library folder.
+    var folderStructureROMs: URL? {
+        guard let folderStructure else { return nil }
+        let roms = FolderStructure.roms(in: folderStructure).standardizedFileURL
+        return folders.contains(roms) ? roms : nil
+    }
+
+    /// Creates the folder structure at `root` (what is missing of it) and
+    /// makes its ROMs folder a library folder.
+    func createFolderStructure(at root: URL, context: ModelContext) async throws {
+        let root = root.standardizedFileURL
+        let systems = try await Self.createStructure(at: root)
+        folderStructure = root
+        Preferences.folderStructure = root
+        Preferences.folderStructureSystems = systems
+        if folders.contains(FolderStructure.roms(in: root).standardizedFileURL) {
+            await rescan(context: context)
+        } else {
+            addFolder(FolderStructure.roms(in: root), context: context)
+        }
+    }
+
+    /// Gives systems that are new in this version a folder in the structure.
+    func updateFolderStructure() async {
+        guard let folderStructure else { return }
+        let laidOut = Preferences.folderStructureSystems
+        let systems = await Self.addNewSystems(at: folderStructure, laidOut: laidOut)
+        if systems != laidOut { Preferences.folderStructureSystems = systems }
+    }
+
+    @concurrent
+    private static func createStructure(at root: URL) async throws -> Set<String> {
+        try FolderStructure.create(at: root)
+    }
+
+    @concurrent
+    private static func addNewSystems(at root: URL, laidOut: Set<String>) async -> Set<String> {
+        (try? FolderStructure.addNewSystems(at: root, laidOut: laidOut)) ?? laidOut
     }
 
     // MARK: Scanning
@@ -396,7 +442,7 @@ final class LibraryStore {
 
     @concurrent
     private static func scan(_ folders: [URL]) async -> LibraryScan {
-        LibraryScanner.scan(folders: folders)
+        LibraryScanner.scan(folders: folders, excluding: Preferences.folderStructure.map { [FolderStructure.bios(in: $0)] } ?? [])
     }
 
     @concurrent

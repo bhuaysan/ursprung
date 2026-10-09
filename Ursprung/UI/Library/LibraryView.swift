@@ -15,6 +15,8 @@ nonisolated enum LibraryState: Equatable {
     /// The first scan is running and no game is known yet.
     case scanning
     case noGames
+    /// The library is the empty folder structure: games still need to be copied in.
+    case awaitingGames
     case noResults(query: String)
     case noFilterResults
     case noFavorites
@@ -23,14 +25,14 @@ nonisolated enum LibraryState: Equatable {
     case games
 
     init(hasFolders: Bool, isScanning: Bool, libraryCount: Int, visibleCount: Int, searchText: String,
-         selection: LibrarySelection, isFiltered: Bool = false) {
+         selection: LibrarySelection, isFiltered: Bool = false, usesFolderStructure: Bool = false) {
         if !hasFolders {
             self = .welcome
         } else if visibleCount > 0 {
             self = .games
         } else if libraryCount == 0 {
             // A scan with games already known keeps the grid; progress is in the activity footer.
-            self = isScanning ? .scanning : .noGames
+            self = isScanning ? .scanning : usesFolderStructure ? .awaitingGames : .noGames
         } else if !searchText.isEmpty {
             self = .noResults(query: searchText)
         } else if isFiltered {
@@ -106,6 +108,7 @@ struct LibraryView: View {
     @State private var editingGame: Game?
     @State private var matchingGame: Game?
     @State private var isShowingScanReport = false
+    @State private var isShowingFolderSetup = false
     @State private var collectionPrompt: CollectionPrompt?
     @State private var collectionName = ""
     @State private var collectionPendingDeletion: String?
@@ -239,6 +242,9 @@ struct LibraryView: View {
             .sheet(isPresented: $isShowingScanReport) {
                 ScanReportView()
             }
+            .sheet(isPresented: $isShowingFolderSetup, onDismiss: { Preferences.folderStructureOffered = true }) {
+                FolderStructureSheet()
+            }
             .sheet(item: $discEditor) { request in
                 DiscPlaylistEditor(request: request) { game in
                     if let game { gameSelection.select(game.persistentModelID) }
@@ -349,6 +355,19 @@ struct LibraryView: View {
                 await bios.refresh()
                 if !library.folders.isEmpty { await library.rescan(context: context) }
                 library.startWatching(context: context)
+                if let root = library.folderStructure {
+                    await library.updateFolderStructure()
+                    bios.watch(FolderStructure.bios(in: root))
+                }
+                // The first launch offers folders for games and BIOS files.
+                // Who has a library already is not asked.
+                if !Preferences.folderStructureOffered {
+                    if library.folders.isEmpty, games.isEmpty {
+                        isShowingFolderSetup = true
+                    } else {
+                        Preferences.folderStructureOffered = true
+                    }
+                }
                 // Files opened from the Finder before the library was ready.
                 if let request = externalOpen.requests.first {
                     externalOpen.requests.removeFirst()
@@ -363,6 +382,8 @@ struct LibraryView: View {
                 if let systemID = ProcessInfo.processInfo.environment["URSPRUNG_SYSTEM"] {
                     selection = .system(systemID)
                 }
+                // URSPRUNG_FOLDER_SETUP=1 offers the folder structure as on the first launch.
+                if ProcessInfo.processInfo.environment["URSPRUNG_FOLDER_SETUP"] == "1" { isShowingFolderSetup = true }
                 // URSPRUNG_SELECT=<title substring>[|<title substring>…] selects one or several games.
                 if let query = ProcessInfo.processInfo.environment["URSPRUNG_SELECT"] {
                     let ids = query.split(separator: "|").compactMap { part in
@@ -464,7 +485,8 @@ struct LibraryView: View {
         let visibleGames = shelf.games
         switch LibraryState(hasFolders: !library.folders.isEmpty || !games.isEmpty, isScanning: library.isScanning,
                             libraryCount: games.count, visibleCount: visibleGames.count, searchText: searchText,
-                            selection: selection ?? .all, isFiltered: filter.isActive) {
+                            selection: selection ?? .all, isFiltered: filter.isActive,
+                            usesFolderStructure: library.folderStructureROMs != nil) {
         case .games:
             switch viewMode {
             case .grid:
@@ -488,6 +510,9 @@ struct LibraryView: View {
                 Button("Add Folder…", action: libraryActions.addFolder)
                     .buttonStyle(.glassProminent)
                     .controlSize(.large)
+                Button("Set Up Game Folders…", action: libraryActions.setUpFolders)
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
             }
         case .scanning:
             ContentUnavailableView {
@@ -507,6 +532,19 @@ struct LibraryView: View {
                 Button("Rescan", action: libraryActions.rescan)
                     .buttonStyle(.glassProminent)
                 Button("Library Folders…", action: libraryActions.showLibraryFolders)
+                    .buttonStyle(.glass)
+            }
+        case .awaitingGames:
+            ContentUnavailableView {
+                Label("Copy Your Games into the Folders", systemImage: "folder.badge.plus")
+            } description: {
+                Text("Put each game into the folder of its system in “ROMs”, and BIOS files into “BIOS”. Ursprung adds them as soon as they arrive.")
+            } actions: {
+                Button("Show in Finder") {
+                    if let roms = library.folderStructureROMs { NSWorkspace.shared.open(roms) }
+                }
+                .buttonStyle(.glassProminent)
+                Button("Rescan", action: libraryActions.rescan)
                     .buttonStyle(.glass)
             }
         case .noResults(let query):
@@ -744,7 +782,8 @@ struct LibraryView: View {
                 openSettings()
             },
             newCollection: { promptForCollection(with: []) },
-            addGames: presentAddGamesPanel
+            addGames: presentAddGamesPanel,
+            setUpFolders: { isShowingFolderSetup = true }
         )
     }
 

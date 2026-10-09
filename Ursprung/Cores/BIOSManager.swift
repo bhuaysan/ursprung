@@ -27,6 +27,9 @@ final class BIOSManager {
     private(set) var folderDumps: [String: [PS2BIOS]]
     private(set) var isRefreshing = false
     private let systemDirectory: URL
+    @ObservationIgnored private var watcher: LibraryWatcher?
+    @ObservationIgnored private var watchedFolder: URL?
+    @ObservationIgnored private let importScheduler = RescanScheduler(settle: .seconds(2), minimumInterval: 0)
 
     init(systemDirectory: URL = AppPaths.system, statuses: [String: Status] = [:], folderDumps: [String: [PS2BIOS]] = [:]) {
         self.systemDirectory = systemDirectory
@@ -96,6 +99,34 @@ final class BIOSManager {
         let result = await Self.performImport(urls, into: systemDirectory)
         await refresh()
         return result
+    }
+
+    /// Imports what `folder` holds, now and whenever it changes: the folder
+    /// structure's BIOS folder (`FolderStructure`). Files there stay where
+    /// they are; nil stops watching.
+    func watch(_ folder: URL?) {
+        watchedFolder = folder
+        guard let folder else {
+            watcher?.stop()
+            importScheduler.cancel()
+            return
+        }
+        if watcher == nil {
+            watcher = LibraryWatcher { [weak self] in self?.watchedFolderChanged() }
+        }
+        watcher?.watch([folder])
+        watchedFolderChanged()
+    }
+
+    private func watchedFolderChanged() {
+        // Waits until a copy has settled; a file read halfway is simply
+        // imported again once it is complete.
+        importScheduler.request { [weak self] in
+            guard let self, let folder = watchedFolder,
+                  FileManager.default.fileExists(atPath: folder.path(percentEncoded: false)) else { return true }
+            _ = await importFiles([folder])
+            return true
+        }
     }
 
     // MARK: - Background work
@@ -185,6 +216,10 @@ final class BIOSManager {
         let fm = FileManager.default
         let existing = resolveCaseInsensitive(destination)
         if let existing, isSameFile(source, existing) { return }
+        // The watched BIOS folder is imported on every change; files that
+        // are installed already are not copied again.
+        if let existing, existing.lastPathComponent == destination.lastPathComponent,
+           fm.contentsEqual(atPath: source.path(percentEncoded: false), andPath: existing.path(percentEncoded: false)) { return }
 
         let directory = destination.deletingLastPathComponent()
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)

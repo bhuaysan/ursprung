@@ -20,6 +20,8 @@ struct LibraryActions {
     let newCollection: () -> Void
     /// Chooses single games or folders to add.
     let addGames: () -> Void
+    /// Offers to create the folder structure for games and BIOS files.
+    let setUpFolders: () -> Void
 }
 
 extension FocusedValues {
@@ -48,6 +50,7 @@ struct LibraryActionItems: View {
             }
             Button("Add Games…", systemImage: "doc.badge.plus") { actions?.addGames() }
                 .keyboardShortcut(placement == .menuBar ? KeyboardShortcut("o", modifiers: [.command, .shift]) : nil)
+            Button("Set Up Game Folders…", systemImage: "folder.badge.plus") { actions?.setUpFolders() }
             Button("New Collection…", systemImage: "rectangle.stack.badge.plus") { actions?.newCollection() }
                 .keyboardShortcut(placement == .menuBar ? KeyboardShortcut("n", modifiers: [.command, .option]) : nil)
             Divider()

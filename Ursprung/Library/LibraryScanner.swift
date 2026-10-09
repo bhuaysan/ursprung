@@ -55,16 +55,18 @@ nonisolated enum LibraryScanner {
 
     /// Scans all folders as one library: a file that several (nested) folders
     /// contain is listed once, and a playlist in one folder hides the discs it
-    /// references in another.
-    static func scan(folders: [URL]) -> LibraryScan {
+    /// references in another. Folders in `excluding` are skipped, e.g. the
+    /// folder structure's BIOS folder when its parent is a library folder.
+    static func scan(folders: [URL], excluding: [URL] = []) -> LibraryScan {
         var scan = LibraryScan()
         // Outer folders first: a file found through them sees more parent
         // folders that may name its system.
         let roots = folders.map(\.standardizedFileURL).sorted { $0.pathComponents.count < $1.pathComponents.count }
+        let excluded = Set(excluding.map { $0.standardizedFileURL.path(percentEncoded: false).lowercased() })
         var files: [(url: URL, root: URL)] = []
         var seen = Set<String>()
         for root in roots {
-            for url in enumerateFiles(in: root, unreadable: &scan.unreadable) {
+            for url in enumerateFiles(in: root, excluded: excluded, unreadable: &scan.unreadable) {
                 guard seen.insert(url.path(percentEncoded: false)).inserted else { continue }
                 files.append((url, root))
             }
@@ -117,9 +119,10 @@ nonisolated enum LibraryScanner {
         return scan
     }
 
-    /// The regular files below `root`. Directories and files that cannot be
-    /// read are added to `unreadable` instead of being skipped silently.
-    private static func enumerateFiles(in root: URL, unreadable: inout [URL]) -> [URL] {
+    /// The regular files below `root`, without those in `excluded` (lower-cased
+    /// paths). Directories and files that cannot be read are added to
+    /// `unreadable` instead of being skipped silently.
+    private static func enumerateFiles(in root: URL, excluded: Set<String>, unreadable: inout [URL]) -> [URL] {
         var failures: [URL] = []
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys,
                                                         options: [.skipsHiddenFiles, .skipsPackageDescendants]) { url, _ in
@@ -132,6 +135,10 @@ nonisolated enum LibraryScanner {
         }
         var files: [URL] = []
         for case let url as URL in enumerator {
+            if !excluded.isEmpty, excluded.contains(url.standardizedFileURL.path(percentEncoded: false).lowercased()) {
+                enumerator.skipDescendants()
+                continue
+            }
             do {
                 if try url.resourceValues(forKeys: Set(keys)).isRegularFile == true { files.append(url.standardizedFileURL) }
             } catch {
