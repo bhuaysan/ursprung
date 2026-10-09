@@ -129,6 +129,7 @@ NS_SWIFT_SENDABLE
 @property (nonatomic, readonly) BOOL usesHardwareRendering;
 /// The API the loaded game renders with.
 @property (nonatomic, readonly) URGraphicsAPI graphicsAPI;
+/// The core asked to quit, or its GPU context failed and it must not run on.
 @property (nonatomic, readonly) BOOL shutdownRequested;
 @property (nonatomic, readonly) URAudioRing *audioRing NS_RETURNS_INNER_POINTER;
 /// Set by the core when the A/V timing changed; cleared by the reader.

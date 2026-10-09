@@ -32,13 +32,29 @@ NS_ASSUME_NONNULL_BEGIN
 /// Advances the sync index; call before every retro_run.
 - (void)beginFrame;
 
-/// Submits the work the core handed over for this frame (command buffers,
-/// semaphores) and, with a `destination`, copies `width`×`height` pixels of
-/// the core's image into it as BGRA8 (row pitch = width * 4). Waits for the
-/// GPU. Returns NO when nothing could be copied.
+/// A frame the core presented (RETRO_HW_FRAME_BUFFER_VALID): submits the
+/// work it handed over (command buffers, semaphores) and, with a
+/// `destination`, copies `width`×`height` pixels of its image into it as
+/// BGRA8 (row pitch = width * 4). Waits for the GPU. Returns NO when nothing
+/// could be copied.
 - (BOOL)submitFrameWidth:(unsigned)width
                   height:(unsigned)height
              destination:(nullable uint8_t *)destination;
+
+/// A duplicate frame (video refresh with NULL), or work handed over without
+/// any video refresh: runs the core's command buffers and signals its
+/// semaphore, but waits for none of the image's semaphores and leaves the
+/// image alone. Waits for the GPU.
+- (void)submitDuplicateFrame;
+
+/// Whether the context gave up for good: a frame did not finish on the GPU in
+/// time, the device was lost or memory ran out. The core's resources may
+/// still be in use, so the game must not run on.
+@property (nonatomic, readonly, getter=hasFailed) BOOL failed;
+
+/// Makes the next wait for a frame return `result` (e.g. VK_TIMEOUT,
+/// VK_ERROR_DEVICE_LOST) instead of waiting. For tests.
+- (void)simulateNextFenceWaitResult:(VkResult)result;
 
 /// Forgets the core's image, e.g. before retro_reset may destroy it.
 - (void)forgetImage;

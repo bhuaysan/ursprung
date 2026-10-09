@@ -2,6 +2,7 @@
 // Exposes the Objective-C libretro host, the shader presets and zlib to Swift.
 
 #import "URLibretroCore.h"
+#import "URLibretroCore+Testing.h"
 #import "UREmulationRunner.h"
 #import "UREmulationRunner+Testing.h"
 #import "URAudioRing.h"

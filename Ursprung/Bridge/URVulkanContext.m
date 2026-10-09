@@ -24,8 +24,11 @@ static NSString *const URVulkanErrorDomain = @"Ursprung.Vulkan";
 
 /// Sync indices the core sees; frames are waited for, so two are plenty.
 static const uint32_t URVulkanSyncIndexCount = 2;
-/// How long a frame may take on the GPU before Ursprung gives up on it.
-static const uint64_t URVulkanFenceTimeout = 5ull * 1000 * 1000 * 1000;
+/// How long a frame may take on the GPU before Ursprung gives up on the
+/// context (and the game stops).
+static const uint64_t URVulkanFenceTimeout = 10ull * 1000 * 1000 * 1000;
+/// Room for the core's command buffers; set_command_buffers grows it.
+static const uint32_t URVulkanInitialCommandBufferCapacity = 4;
 
 static os_log_t URVulkanLogHandle(void) {
     static os_log_t log;
@@ -257,6 +260,7 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
     VkImage _image;
     VkImageLayout _imageLayout;
     VkFormat _imageFormat;
+    URComponentMapping _imageMapping;
     uint32_t _imageMipLevel;
     uint32_t _imageArrayLayer;
     uint32_t _sourceQueueFamily;
@@ -264,10 +268,18 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
     VkPipelineStageFlags *_waitStages;
     uint32_t _waitSemaphoreCount;
     uint32_t _waitSemaphoreCapacity;
+    // The core's command buffers, with room for the readback's after them.
     VkCommandBuffer *_coreCommandBuffers;
     uint32_t _coreCommandBufferCount;
     uint32_t _coreCommandBufferCapacity;
     VkSemaphore _signalSemaphore;
+
+    // See -failed. After a timeout the last frame may still run on the GPU:
+    // nothing it uses may be reused or destroyed until its fence signals.
+    BOOL _failed;
+    BOOL _fenceUnfinished;
+    BOOL _abandoned;
+    VkResult _simulatedWaitResult;
 
     // Readback
     VkCommandPool _commandPool;
@@ -482,6 +494,11 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
         VkFenceCreateInfo fence = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         result = vkCreateFence(_device, &fence, NULL, &_fence);
     }
+    if (result == VK_SUCCESS) {
+        _coreCommandBuffers = calloc(URVulkanInitialCommandBufferCapacity, sizeof(VkCommandBuffer));
+        _coreCommandBufferCapacity = _coreCommandBuffers ? URVulkanInitialCommandBufferCapacity : 0;
+        if (!_coreCommandBuffers) result = VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     if (result != VK_SUCCESS) {
         if (error) *error = URVulkanError(@"Could not prepare the Vulkan frame readback.", result);
         return NO;
@@ -516,6 +533,15 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
 
 #pragma mark - Frames
 
+- (BOOL)hasFailed { return _failed; }
+
+/// Gives up on the context for good: the core's frames may still be in use on
+/// the GPU, or the device is gone, so nothing may run on.
+- (void)failWithMessage:(const char *)message result:(VkResult)result {
+    if (!_failed) URVulkanLog("%s (VkResult %d); the game stops.", message, result);
+    _failed = YES;
+}
+
 - (void)beginFrame {
     _syncIndex = (_syncIndex + 1) % URVulkanSyncIndexCount;
 }
@@ -525,6 +551,10 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
     _waitSemaphoreCount = 0;
     _coreCommandBufferCount = 0;
     _signalSemaphore = VK_NULL_HANDLE;
+}
+
+- (void)simulateNextFenceWaitResult:(VkResult)result {
+    _simulatedWaitResult = result;
 }
 
 /// Grows the readback buffer to `size` bytes.
@@ -581,74 +611,156 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
     return YES;
 }
 
-/// Records the copy of the core's image into the readback buffer.
-- (void)recordCopyWidth:(unsigned)width height:(unsigned)height transferOwnership:(BOOL)transfer {
+/// Records what the frame does with the core's image: taking it over from
+/// its queue family (`transfer`), copying it into the readback buffer
+/// (`copy`) and giving it back.
+- (VkResult)recordFrameCopy:(BOOL)copy width:(unsigned)width height:(unsigned)height transferOwnership:(BOOL)transfer {
     VkCommandBufferBeginInfo begin = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
-    vkBeginCommandBuffer(_commandBuffer, &begin);
+    VkResult result = vkBeginCommandBuffer(_commandBuffer, &begin);
+    if (result != VK_SUCCESS) return result;
 
-    // A GENERAL image may not be transitioned (the core may read it meanwhile).
-    VkImageLayout copyLayout = _imageLayout == VK_IMAGE_LAYOUT_GENERAL ? VK_IMAGE_LAYOUT_GENERAL
-                                                                       : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-    VkImageSubresourceRange range = {
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel = _imageMipLevel,
-        .levelCount = 1,
-        .baseArrayLayer = _imageArrayLayer,
-        .layerCount = 1,
-    };
+    // Ownership moves in the layout the core handed the image over in, on
+    // both sides, matching the core's own release and acquire (as in
+    // RetroArch); the copy's layout changes stay within this queue family.
     VkImageMemoryBarrier acquire = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .srcAccessMask = 0,
+        .dstAccessMask = copy ? VK_ACCESS_TRANSFER_READ_BIT : 0,
         .oldLayout = _imageLayout,
-        .newLayout = copyLayout,
-        .srcQueueFamilyIndex = transfer ? _sourceQueueFamily : VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = transfer ? _queueFamily : VK_QUEUE_FAMILY_IGNORED,
+        .newLayout = _imageLayout,
+        .srcQueueFamilyIndex = _sourceQueueFamily,
+        .dstQueueFamilyIndex = _queueFamily,
         .image = _image,
-        .subresourceRange = range,
+        .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS},
     };
-    vkCmdPipelineBarrier(_commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-                         0, NULL, 0, NULL, 1, &acquire);
+    if (transfer) {
+        vkCmdPipelineBarrier(_commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
+                             0, NULL, 0, NULL, 1, &acquire);
+    }
 
-    VkBufferImageCopy region = {
-        .imageSubresource = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .mipLevel = _imageMipLevel,
-            .baseArrayLayer = _imageArrayLayer,
-            .layerCount = 1,
-        },
-        .imageExtent = {width, height, 1},
-    };
-    vkCmdCopyImageToBuffer(_commandBuffer, _image, copyLayout, _readback, 1, &region);
+    if (copy) {
+        // A GENERAL image may not be transitioned (the core may read it meanwhile).
+        VkImageLayout copyLayout = _imageLayout == VK_IMAGE_LAYOUT_GENERAL ? VK_IMAGE_LAYOUT_GENERAL
+                                                                           : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        VkImageMemoryBarrier toCopy = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .oldLayout = _imageLayout,
+            .newLayout = copyLayout,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = _image,
+            .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, _imageMipLevel, 1, _imageArrayLayer, 1},
+        };
+        vkCmdPipelineBarrier(_commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                             0, NULL, 0, NULL, 1, &toCopy);
 
-    // Back to the layout the core left it in, and to its queue family.
-    VkImageMemoryBarrier release = acquire;
-    release.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    release.dstAccessMask = 0;
-    release.oldLayout = copyLayout;
-    release.newLayout = _imageLayout;
-    release.srcQueueFamilyIndex = acquire.dstQueueFamilyIndex;
-    release.dstQueueFamilyIndex = acquire.srcQueueFamilyIndex;
-    VkBufferMemoryBarrier host = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = _readback,
-        .size = VK_WHOLE_SIZE,
+        VkBufferImageCopy region = {
+            .imageSubresource = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = _imageMipLevel,
+                .baseArrayLayer = _imageArrayLayer,
+                .layerCount = 1,
+            },
+            .imageExtent = {width, height, 1},
+        };
+        vkCmdCopyImageToBuffer(_commandBuffer, _image, copyLayout, _readback, 1, &region);
+
+        // Back to the layout the core left it in.
+        VkImageMemoryBarrier back = toCopy;
+        back.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        back.dstAccessMask = 0;
+        back.oldLayout = copyLayout;
+        back.newLayout = _imageLayout;
+        VkBufferMemoryBarrier host = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .buffer = _readback,
+            .size = VK_WHOLE_SIZE,
+        };
+        vkCmdPipelineBarrier(_commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_HOST_BIT, 0,
+                             0, NULL, 1, &host, 1, &back);
+    }
+
+    if (transfer) {
+        VkImageMemoryBarrier release = acquire;
+        release.dstAccessMask = 0;
+        release.srcQueueFamilyIndex = _queueFamily;
+        release.dstQueueFamilyIndex = _sourceQueueFamily;
+        vkCmdPipelineBarrier(_commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0,
+                             0, NULL, 0, NULL, 1, &release);
+    }
+    return vkEndCommandBuffer(_commandBuffer);
+}
+
+/// Submits the core's command buffers (first), the frame's own commands and
+/// `waitCount` of the image's semaphores, signals the core's semaphore and
+/// waits for the GPU. NO when nothing ran or the context failed.
+- (BOOL)submitWaitingFor:(uint32_t)waitCount
+                    copy:(BOOL)copy
+                   width:(unsigned)width
+                  height:(unsigned)height
+       transferOwnership:(BOOL)transfer {
+    BOOL records = copy || transfer;
+    uint32_t bufferCount = _coreCommandBufferCount;
+    if (!records && bufferCount == 0 && waitCount == 0 && !_signalSemaphore) return NO;
+    // Command buffers and the signal semaphore are used once.
+    _coreCommandBufferCount = 0;
+    VkSemaphore signal = _signalSemaphore;
+    _signalSemaphore = VK_NULL_HANDLE;
+
+    VkResult result = VK_SUCCESS;
+    if (records) {
+        result = [self recordFrameCopy:copy width:width height:height transferOwnership:transfer];
+        // set_command_buffers leaves room for this one.
+        _coreCommandBuffers[bufferCount++] = _commandBuffer;
+    }
+    VkSubmitInfo submit = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = waitCount,
+        .pWaitSemaphores = _waitSemaphores,
+        .pWaitDstStageMask = _waitStages,
+        .commandBufferCount = bufferCount,
+        .pCommandBuffers = _coreCommandBuffers,
+        .signalSemaphoreCount = signal ? 1 : 0,
+        .pSignalSemaphores = &signal,
     };
-    vkCmdPipelineBarrier(_commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT | VK_PIPELINE_STAGE_HOST_BIT, 0,
-                         0, NULL, 1, &host, 1, &release);
-    vkEndCommandBuffer(_commandBuffer);
+    if (result == VK_SUCCESS) result = vkResetFences(_device, 1, &_fence);
+    if (result == VK_SUCCESS) {
+        pthread_mutex_lock(&_queueLock);
+        result = vkQueueSubmit(_queue, 1, &submit, _fence);
+        pthread_mutex_unlock(&_queueLock);
+    }
+    if (result != VK_SUCCESS) {
+        [self failWithMessage:"Could not submit a frame" result:result];
+        return NO;
+    }
+
+    // The fence, the command buffer, the readback buffer and the core's image
+    // are all reused next frame: a frame that does not finish in time ends the
+    // context rather than running on beside it.
+    result = _simulatedWaitResult != VK_SUCCESS ? _simulatedWaitResult
+                                                : vkWaitForFences(_device, 1, &_fence, VK_TRUE, URVulkanFenceTimeout);
+    _simulatedWaitResult = VK_SUCCESS;
+    if (result != VK_SUCCESS) {
+        _fenceUnfinished = result == VK_TIMEOUT;
+        [self failWithMessage:result == VK_TIMEOUT ? "The GPU did not finish a frame in time" : "The GPU failed a frame"
+                       result:result];
+        return NO;
+    }
+    return YES;
 }
 
 - (BOOL)submitFrameWidth:(unsigned)width height:(unsigned)height destination:(nullable uint8_t *)destination {
-    if (!_device) return NO;
+    if (!_device || _failed) return NO;
     URPixelLayout layout = URPixelLayoutForFormat(_imageFormat);
     BOOL copy = destination && _image && width > 0 && height > 0;
     if (copy && _imageFormat != _loggedFormat) {
@@ -667,58 +779,53 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
         URVulkanLog("Could not allocate %ux%u readback memory.", width, height);
         copy = NO;
     }
-    if (!copy && _coreCommandBufferCount == 0 && _waitSemaphoreCount == 0 && !_signalSemaphore) return NO;
 
-    // Like RetroArch, the image changes queue family only when the frame
-    // waits for the core's semaphores.
-    BOOL waits = _waitSemaphoreCount > 0;
-    BOOL transfer = waits && _sourceQueueFamily != VK_QUEUE_FAMILY_IGNORED && _sourceQueueFamily != _queueFamily;
-    if (copy) [self recordCopyWidth:width height:height transferOwnership:transfer];
-
-    VkCommandBuffer stackBuffers[8];
-    uint32_t bufferCount = _coreCommandBufferCount + (copy ? 1 : 0);
-    VkCommandBuffer *buffers = bufferCount <= 8 ? stackBuffers : calloc(bufferCount, sizeof(VkCommandBuffer));
-    if (_coreCommandBufferCount) memcpy(buffers, _coreCommandBuffers, _coreCommandBufferCount * sizeof(VkCommandBuffer));
-    if (copy) buffers[_coreCommandBufferCount] = _commandBuffer;
-
-    VkSubmitInfo submit = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount = _waitSemaphoreCount,
-        .pWaitSemaphores = _waitSemaphores,
-        .pWaitDstStageMask = _waitStages,
-        .commandBufferCount = bufferCount,
-        .pCommandBuffers = buffers,
-        .signalSemaphoreCount = _signalSemaphore ? 1 : 0,
-        .pSignalSemaphores = &_signalSemaphore,
-    };
-    uint64_t start = mach_absolute_time();
-    vkResetFences(_device, 1, &_fence);
-    pthread_mutex_lock(&_queueLock);
-    VkResult result = vkQueueSubmit(_queue, 1, &submit, _fence);
-    pthread_mutex_unlock(&_queueLock);
-    if (buffers != stackBuffers) free(buffers);
-
-    // Semaphores and command buffers are used once.
+    // The image's semaphores count only without command buffers: with them
+    // the core synchronises through barriers and they are ignored
+    // (libretro_vulkan.h, set_image). Either way they are used up. Like
+    // RetroArch, the image changes queue family only when they are waited for.
+    uint32_t waitCount = _coreCommandBufferCount == 0 ? _waitSemaphoreCount : 0;
     _waitSemaphoreCount = 0;
-    _coreCommandBufferCount = 0;
-    _signalSemaphore = VK_NULL_HANDLE;
+    BOOL transfer = waitCount > 0 && _image && _sourceQueueFamily != VK_QUEUE_FAMILY_IGNORED
+        && _sourceQueueFamily != _queueFamily;
 
-    if (result == VK_SUCCESS) result = vkWaitForFences(_device, 1, &_fence, VK_TRUE, URVulkanFenceTimeout);
-    if (result != VK_SUCCESS) {
-        URVulkanLog("Frame submission failed (%d).", result);
+    uint64_t start = mach_absolute_time();
+    if (![self submitWaitingFor:waitCount copy:copy width:width height:height transferOwnership:transfer] || !copy) {
         return NO;
     }
-    if (!copy) return NO;
     uint64_t waited = mach_absolute_time();
-    BOOL converted = URConvertPixelsToBGRA8(layout, _readbackPixels, (size_t)width * bytesPerPixel, destination, width, height);
+    const URComponentMapping *mapping = &_imageMapping;
+    BOOL converted = URConvertPixelsToBGRA8(layout, _readbackPixels, (size_t)width * bytesPerPixel, mapping,
+                                            destination, width, height);
     _readbackFrames++;
     _readbackWaitTicks += waited - start;
     _readbackConvertTicks += mach_absolute_time() - waited;
     return converted;
 }
 
+- (void)submitDuplicateFrame {
+    if (!_device || _failed) return;
+    // A duplicate frame waits for no semaphores and leaves the image alone;
+    // its semaphores stay for the frame that shows it.
+    [self submitWaitingFor:0 copy:NO width:0 height:0 transferOwnership:NO];
+}
+
+/// Whether the GPU is done with the frame that timed out (or with the lost
+/// device). Until then nothing it uses may be destroyed.
+- (BOOL)settleUnfinishedFrame {
+    if (!_fenceUnfinished) return YES;
+    if (_abandoned) return NO;
+    if (vkWaitForFences(_device, 1, &_fence, VK_TRUE, URVulkanFenceTimeout) == VK_TIMEOUT) {
+        URVulkanLog("The GPU is still busy with a frame; its resources stay.");
+        _abandoned = YES;
+        return NO;
+    }
+    _fenceUnfinished = NO;
+    return YES;
+}
+
 - (void)waitIdle {
-    if (!_device) return;
+    if (!_device || ![self settleUnfinishedFrame]) return;
     pthread_mutex_lock(&_queueLock);
     vkDeviceWaitIdle(_device);
     pthread_mutex_unlock(&_queueLock);
@@ -732,6 +839,15 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
         URVulkanLog("%llu frames read back: %.2f ms submit and GPU wait, %.2f ms conversion per frame",
                     _readbackFrames, _readbackWaitTicks * scale, _readbackConvertTicks * scale);
         _readbackFrames = 0;
+    }
+    if (_device && ![self settleUnfinishedFrame]) {
+        // Destroying what the GPU may still use would crash the app: the
+        // device, its instance and the surface's layer are left behind.
+        (void)CFBridgingRetain(_layer);
+        _device = VK_NULL_HANDLE;
+        _surface = VK_NULL_HANDLE;
+        _instance = VK_NULL_HANDLE;
+        _destroyDevice = NULL;
     }
     if (_device) {
         [self waitIdle];
@@ -783,6 +899,9 @@ static void URVulkanSetImage(void *handle, const struct retro_vulkan_image *imag
         context->_imageFormat = image->create_info.format;
         context->_imageMipLevel = image->create_info.subresourceRange.baseMipLevel;
         context->_imageArrayLayer = image->create_info.subresourceRange.baseArrayLayer;
+        VkComponentMapping components = image->create_info.components;
+        context->_imageMapping = (URComponentMapping){(URSwizzle)components.r, (URSwizzle)components.g,
+                                                      (URSwizzle)components.b, (URSwizzle)components.a};
     } else {
         context->_image = VK_NULL_HANDLE;
     }
@@ -792,7 +911,9 @@ static void URVulkanSetImage(void *handle, const struct retro_vulkan_image *imag
         VkPipelineStageFlags *grownStages = realloc(context->_waitStages, semaphoreCount * sizeof(VkPipelineStageFlags));
         if (grownStages) context->_waitStages = grownStages;
         if (!grownSemaphores || !grownStages) {
+            // Running on without the waits would show frames that are not done.
             context->_waitSemaphoreCount = 0;
+            [context failWithMessage:"Out of memory for the core's semaphores" result:VK_ERROR_OUT_OF_HOST_MEMORY];
             return;
         }
         context->_waitSemaphoreCapacity = semaphoreCount;
@@ -818,21 +939,24 @@ static uint32_t URVulkanGetSyncIndexMask(void *handle) {
 static void URVulkanSetCommandBuffers(void *handle, uint32_t count, const VkCommandBuffer *buffers) {
     URVulkanContext *context = (__bridge URVulkanContext *)handle;
     if (!context) return;
-    if (count > context->_coreCommandBufferCapacity) {
-        VkCommandBuffer *grown = realloc(context->_coreCommandBuffers, count * sizeof(VkCommandBuffer));
+    // One more for the frame's own commands, submitted after the core's.
+    if (count + 1 > context->_coreCommandBufferCapacity) {
+        VkCommandBuffer *grown = realloc(context->_coreCommandBuffers, (count + 1) * sizeof(VkCommandBuffer));
         if (!grown) {
             context->_coreCommandBufferCount = 0;
+            [context failWithMessage:"Out of memory for the core's command buffers" result:VK_ERROR_OUT_OF_HOST_MEMORY];
             return;
         }
         context->_coreCommandBuffers = grown;
-        context->_coreCommandBufferCapacity = count;
+        context->_coreCommandBufferCapacity = count + 1;
     }
     if (count) memcpy(context->_coreCommandBuffers, buffers, count * sizeof(VkCommandBuffer));
     context->_coreCommandBufferCount = count;
 }
 
 static void URVulkanWaitSyncIndex(void *handle) {
-    // Every frame's GPU work is waited for when it is submitted.
+    // Every frame's GPU work is waited for when it is submitted; a frame that
+    // was not done in time stops the game (-failed).
     (void)handle;
 }
 

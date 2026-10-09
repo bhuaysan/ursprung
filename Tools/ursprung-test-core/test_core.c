@@ -85,6 +85,21 @@ static struct {
 static uint32_t slotCount;
 static VkCommandPool commandPool;
 
+// Test switches for the frontend's side of the contract (libretro_vulkan.h).
+/// The image view swaps red and blue.
+static bool swizzledView;
+/// With command buffers, set_image also passes a semaphore nobody signals:
+/// in that mode the frontend must ignore it.
+static bool ignoredSemaphore;
+/// Every run first refreshes a duplicate frame with its own signal
+/// semaphore, then the real frame with another; each must be signalled.
+static bool signalsFrames;
+static uint32_t signalsSeen;
+static VkSemaphore neverSignaled;
+static VkSemaphore duplicateSignal;
+static VkSemaphore frameSignal;
+static VkFence checkFence;
+
 RETRO_API void ur_test_core_set_vulkan_mode(int mode) { vulkanMode = mode; }
 /// Whether the loaded game renders with Vulkan (the frontend accepted it).
 RETRO_API bool ur_test_core_vulkan_active(void) { return vulkanActive; }
@@ -92,6 +107,11 @@ RETRO_API bool ur_test_core_vulkan_active(void) { return vulkanActive; }
 RETRO_API uint32_t ur_test_core_sync_indices_seen(void) { return syncIndicesSeen; }
 RETRO_API uint32_t ur_test_core_destroy_device_calls(void) { return destroyDeviceCalls; }
 RETRO_API uint32_t ur_test_core_context_destroy_calls(void) { return contextDestroyCalls; }
+RETRO_API void ur_test_core_set_swizzled_view(bool on) { swizzledView = on; }
+RETRO_API void ur_test_core_set_ignored_semaphore(bool on) { ignoredSemaphore = on; }
+RETRO_API void ur_test_core_set_signals_frames(bool on) { signalsFrames = on; }
+/// How many of the signal semaphores (see signalsFrames) were signalled.
+RETRO_API uint32_t ur_test_core_signals_seen(void) { return signalsSeen; }
 
 /// The colour frame `n` is cleared to, as the frontend's BGRA8 pixel.
 RETRO_API uint32_t ur_test_core_vulkan_pixel(uint32_t n) { return 0xFF000000u | ((n & 0xFF) << 16) | 0x4080u; }
@@ -178,6 +198,12 @@ static void TestDestroyResources(void) {
     }
     if (commandPool) vk.destroyCommandPool(device, commandPool, NULL);
     commandPool = VK_NULL_HANDLE;
+    vk.destroySemaphore(device, neverSignaled, NULL);
+    vk.destroySemaphore(device, duplicateSignal, NULL);
+    vk.destroySemaphore(device, frameSignal, NULL);
+    vk.destroyFence(device, checkFence, NULL);
+    neverSignaled = duplicateSignal = frameSignal = VK_NULL_HANDLE;
+    checkFence = VK_NULL_HANDLE;
     memset(slots, 0, sizeof(slots));
     slotCount = 0;
 }
@@ -227,6 +253,12 @@ static void TestContextReset(void) {
         .queueFamilyIndex = vulkan->queue_index,
     };
     vk.createCommandPool(device, &pool, NULL, &commandPool);
+    VkSemaphoreCreateInfo semaphoreInfo = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+    vk.createSemaphore(device, &semaphoreInfo, NULL, &neverSignaled);
+    vk.createSemaphore(device, &semaphoreInfo, NULL, &duplicateSignal);
+    vk.createSemaphore(device, &semaphoreInfo, NULL, &frameSignal);
+    VkFenceCreateInfo fenceInfo = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+    vk.createFence(device, &fenceInfo, NULL, &checkFence);
 
     uint32_t mask = vulkan->get_sync_index_mask(vulkan->handle);
     slotCount = 0;
@@ -263,6 +295,10 @@ static void TestContextReset(void) {
             .format = VK_FORMAT_R8G8B8A8_UNORM,
             .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
         };
+        if (swizzledView) {
+            view.components = (VkComponentMapping){VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_G,
+                                                   VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_A};
+        }
         vk.createImageView(device, &view, NULL, &slots[i].view);
         slots[i].retroImage.image_view = slots[i].view;
         slots[i].retroImage.image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -288,9 +324,33 @@ static void TestContextDestroy(void) {
     vulkan = NULL;
 }
 
+/// Whether the frontend signalled `semaphore`: waits for it on the GPU, for
+/// at most two seconds.
+static bool TestConsumeSignal(VkSemaphore semaphore) {
+    VkPipelineStageFlags stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    VkSubmitInfo submit = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &semaphore,
+        .pWaitDstStageMask = &stage,
+    };
+    vulkan->lock_queue(vulkan->handle);
+    VkResult result = vk.queueSubmit(vulkan->queue, 1, &submit, checkFence);
+    vulkan->unlock_queue(vulkan->handle);
+    if (result != VK_SUCCESS) return false;
+    if (vk.waitForFences(vulkan->device, 1, &checkFence, VK_TRUE, 2ull * 1000 * 1000 * 1000) != VK_SUCCESS) return false;
+    vk.resetFences(vulkan->device, 1, &checkFence);
+    return true;
+}
+
 /// Clears the image of this sync index to the frame's colour and hands it over.
 static void TestRenderVulkanFrame(void) {
     if (!vulkan || slotCount == 0) return;
+    if (signalsFrames && video) {
+        vulkan->set_signal_semaphore(vulkan->handle, duplicateSignal);
+        video(NULL, 4, 4, 0);
+        if (TestConsumeSignal(duplicateSignal)) signalsSeen++;
+    }
     uint32_t index = vulkan->get_sync_index(vulkan->handle);
     if (index >= slotCount) return;
     syncIndicesSeen |= 1u << index;
@@ -349,9 +409,15 @@ static void TestRenderVulkanFrame(void) {
         vulkan->set_image(vulkan->handle, &slots[index].retroImage, 1, &slots[index].rendered, vulkan->queue_index);
     } else {
         vulkan->set_command_buffers(vulkan->handle, 1, &cmd);
-        vulkan->set_image(vulkan->handle, &slots[index].retroImage, 0, NULL, VK_QUEUE_FAMILY_IGNORED);
+        if (ignoredSemaphore) {
+            vulkan->set_image(vulkan->handle, &slots[index].retroImage, 1, &neverSignaled, vulkan->queue_index);
+        } else {
+            vulkan->set_image(vulkan->handle, &slots[index].retroImage, 0, NULL, VK_QUEUE_FAMILY_IGNORED);
+        }
     }
+    if (signalsFrames) vulkan->set_signal_semaphore(vulkan->handle, frameSignal);
     if (video) video(RETRO_HW_FRAME_BUFFER_VALID, 4, 4, 0);
+    if (signalsFrames && TestConsumeSignal(frameSignal)) signalsSeen++;
 }
 
 #pragma mark - libretro
@@ -423,6 +489,7 @@ RETRO_API bool retro_load_game(const struct retro_game_info *game) {
     (void)game;
     vulkanActive = false;
     syncIndicesSeen = 0;
+    signalsSeen = 0;
     vulkan = NULL;
     if (vulkanMode != URTestVulkanOff) {
         memset(&hwRender, 0, sizeof(hwRender));

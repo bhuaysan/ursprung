@@ -3,6 +3,7 @@
 #import "URLibretroCore+Internal.h"
 
 #import "URGLContext.h"
+#import "URLibretroCore+Testing.h"
 #import "URVulkanContext.h"
 #import "libretro.h"
 #import "libretro_vulkan.h"
@@ -421,7 +422,8 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 }
 
 - (void)runFrame {
-    if (!_gameLoaded) return;
+    // After a failed GPU frame the core's resources may still be in use.
+    if (!_gameLoaded || _vulkan.hasFailed) return;
     [self deliverKeyEvents];
     if (_hasFrameTimeCallback && _frameTimeCallback.callback) {
         _frameTimeCallback.callback(_frameTimeCallback.reference);
@@ -429,8 +431,8 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     if (_gl) [_gl makeCurrent];
     [_vulkan beginFrame];
     _sym.run();
-    // Work the core handed over without presenting a frame still runs once.
-    [_vulkan submitFrameWidth:0 height:0 destination:NULL];
+    // Work the core handed over without a video refresh still runs once.
+    [_vulkan submitDuplicateFrame];
 }
 
 - (void)reset {
@@ -639,6 +641,7 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 - (unsigned)baseWidth { return _avInfo.geometry.base_width; }
 - (unsigned)baseHeight { return _avInfo.geometry.base_height; }
 - (BOOL)usesHardwareRendering { return _gl != nil || _vulkan != nil; }
+- (BOOL)shutdownRequested { return _shutdownRequested || _vulkan.hasFailed; }
 
 - (URGraphicsAPI)graphicsAPI {
     if (_vulkan) return URGraphicsAPIVulkan;
@@ -646,6 +649,10 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 }
 
 + (BOOL)vulkanAvailable { return URVulkanContext.isAvailable; }
+
+- (void)simulateVulkanFenceWaitResult:(int32_t)result {
+    [_vulkan simulateNextFenceWaitResult:(VkResult)result];
+}
 
 - (float)aspectRatio {
     float aspect = _avInfo.geometry.aspect_ratio;
@@ -1369,21 +1376,29 @@ static inline uint32_t URConvert2101010(uint32_t p) {
 
 void URCoreVideoRefresh(const void *data, unsigned width, unsigned height, size_t pitch) {
     URLibretroCore *core = gActiveCore;
-    if (!core || !data || width == 0 || height == 0) return; // NULL = duplicate frame
-    if (!atomic_load(&core->_videoEnabled)) {
-        // A frame nobody sees, but the core's GPU work must still run.
-        if (data == RETRO_HW_FRAME_BUFFER_VALID) [core->_vulkan submitFrameWidth:0 height:0 destination:NULL];
+    if (!core) return;
+    if (core->_vulkan && (!data || data == RETRO_HW_FRAME_BUFFER_VALID)) {
+        // Every refresh takes what the core handed over with it (its signal
+        // semaphore even on a duplicate frame), within this call.
+        if (!data) {
+            [core->_vulkan submitDuplicateFrame];
+        } else if (width == 0 || height == 0 || !atomic_load(&core->_videoEnabled)) {
+            // A frame nobody sees, but the core's GPU work must still run.
+            [core->_vulkan submitFrameWidth:0 height:0 destination:NULL];
+        } else {
+            URFrameBuffer *back = &core->_back;
+            URFrameBufferEnsure(back, width, height);
+            if ([core->_vulkan submitFrameWidth:width height:height destination:back->data]) [core publishBackBuffer];
+        }
         return;
     }
+    if (!data || width == 0 || height == 0) return; // NULL = duplicate frame
+    if (!atomic_load(&core->_videoEnabled)) return;
 
     URFrameBuffer *back = &core->_back;
     URFrameBufferEnsure(back, width, height);
 
     if (data == RETRO_HW_FRAME_BUFFER_VALID) {
-        if (core->_vulkan) {
-            if ([core->_vulkan submitFrameWidth:width height:height destination:back->data]) [core publishBackBuffer];
-            return;
-        }
         if (!core->_gl) return;
         [core->_gl readPixelsWidth:width height:height
                   bottomLeftOrigin:core->_hwRender.bottom_left_origin

@@ -40,9 +40,10 @@ run: build
 	open "$(DERIVED_DATA)/Build/Products/Debug/Ursprung.app"
 
 # Headless core test: make smoke CORE=path/to/core.dylib ROM=path/to/game [FRAMES=600] [RENDERER=vulkan|opengl]
+# [OPTIONS="key=value;key=value"] [ALLOW_FALLBACK=1]. RENDERER=vulkan fails when the game does not render with Vulkan.
 smoke: project
 	$(XCODEBUILD_BASE) -scheme ursprung-smoke -configuration Debug build -quiet
-	URSMOKE_RENDERER=$(RENDERER) "$(DERIVED_DATA)/Build/Products/Debug/ursprung-smoke" "$(CORE)" "$(ROM)" $(or $(FRAMES),600) smoke.png
+	URSMOKE_RENDERER=$(RENDERER) $(if $(OPTIONS),URSMOKE_OPTIONS="$(OPTIONS)") $(if $(ALLOW_FALLBACK),URSMOKE_ALLOW_FALLBACK=1) "$(DERIVED_DATA)/Build/Products/Debug/ursprung-smoke" "$(CORE)" "$(ROM)" $(or $(FRAMES),600) smoke.png
 
 icon:
 	swift Scripts/generate-icon.swift

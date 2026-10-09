@@ -6,14 +6,17 @@ import Testing
 /// Frames read back from Vulkan cores, converted into the player's BGRA8.
 struct PixelConversionTests {
     /// Converts one row of `source` pixels and returns them as BGRA8 words.
-    private func convert<T>(_ layout: URPixelLayout, _ source: [T]) -> [UInt32] {
+    private func convert<T>(_ layout: URPixelLayout, _ source: [T], mapping: URComponentMapping? = nil) -> [UInt32] {
         let bytesPerPixel = Int(URPixelLayoutBytesPerPixel(layout))
         let width = source.count * MemoryLayout<T>.stride / bytesPerPixel
         var output = [UInt32](repeating: 0, count: width)
         let converted = source.withUnsafeBytes { input in
             output.withUnsafeMutableBytes { out in
-                URConvertPixelsToBGRA8(layout, input.baseAddress, input.count, out.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                                       UInt32(width), 1)
+                let destination = out.baseAddress!.assumingMemoryBound(to: UInt8.self)
+                guard var mapping else {
+                    return URConvertPixelsToBGRA8(layout, input.baseAddress, input.count, nil, destination, UInt32(width), 1)
+                }
+                return URConvertPixelsToBGRA8(layout, input.baseAddress, input.count, &mapping, destination, UInt32(width), 1)
             }
         }
         #expect(converted)
@@ -52,11 +55,34 @@ struct PixelConversionTests {
         let source: UInt32 = 0
         let converted = withUnsafeBytes(of: source) { input in
             withUnsafeMutableBytes(of: &output) { out in
-                URConvertPixelsToBGRA8(URPixelLayoutUnsupported, input.baseAddress, 4,
+                URConvertPixelsToBGRA8(URPixelLayoutUnsupported, input.baseAddress, 4, nil,
                                        out.baseAddress!.assumingMemoryBound(to: UInt8.self), 1, 1)
             }
         }
         #expect(!converted)
         #expect(URPixelLayoutBytesPerPixel(URPixelLayoutUnsupported) == 0)
+    }
+
+    /// The image view's channel mapping (VkComponentMapping) applies to the
+    /// frame, not just its format.
+    @Test func channelMappingsApply() {
+        func mapping(_ r: URSwizzle, _ g: URSwizzle, _ b: URSwizzle, _ a: URSwizzle = URSwizzleIdentity) -> URComponentMapping {
+            URComponentMapping(r: r, g: g, b: b, a: a)
+        }
+        // Memory order R, G, B, A = 0x11, 0x22, 0x33, 0x44.
+        let rgba = [UInt32(0x4433_2211)]
+        let identity = mapping(URSwizzleIdentity, URSwizzleIdentity, URSwizzleIdentity)
+        #expect(convert(URPixelLayoutR8G8B8A8, rgba, mapping: identity) == [0xFF11_2233])
+        #expect(convert(URPixelLayoutR8G8B8A8, rgba, mapping: mapping(URSwizzleR, URSwizzleG, URSwizzleB)) == [0xFF11_2233])
+        #expect(convert(URPixelLayoutR8G8B8A8, rgba, mapping: mapping(URSwizzleB, URSwizzleG, URSwizzleR)) == [0xFF33_2211],
+                "Red and blue swapped")
+        #expect(convert(URPixelLayoutR8G8B8A8, rgba, mapping: mapping(URSwizzleOne, URSwizzleZero, URSwizzleA)) == [0xFFFF_0044],
+                "Constants and alpha")
+        #expect(convert(URPixelLayoutB8G8R8A8, [UInt32(0x4411_2233)], mapping: mapping(URSwizzleB, URSwizzleIdentity, URSwizzleR))
+                == [0xFF33_2211])
+        #expect(convert(URPixelLayoutR5G6B5, [UInt16(0xF800)], mapping: mapping(URSwizzleB, URSwizzleG, URSwizzleR))
+                == [0xFF00_00FF], "Packed formats too")
+        #expect(convert(URPixelLayoutR16G16B16A16Float, [Float16(1.0), 0.5, 0.0, 1.0],
+                        mapping: mapping(URSwizzleB, URSwizzleG, URSwizzleR)) == [0xFF00_80FF])
     }
 }

@@ -17,6 +17,7 @@ private struct TestCore {
     let destroyDeviceCalls: @convention(c) () -> UInt32
     let contextDestroyCalls: @convention(c) () -> UInt32
     let vulkanPixel: @convention(c) (UInt32) -> UInt32
+    let signalsSeen: @convention(c) () -> UInt32
 
     /// How the core renders (see test_core.c).
     enum Rendering: Int32 {
@@ -27,7 +28,20 @@ private struct TestCore {
         case vulkanCommandBuffers = 2
     }
 
-    static func load(rendering: Rendering = .software, preferring api: GraphicsAPI? = nil) throws -> TestCore {
+    /// Cases of the Vulkan contract the core exercises (see test_core.c).
+    struct Variant: OptionSet {
+        let rawValue: Int
+        /// The image view swaps red and blue.
+        static let swizzledView = Variant(rawValue: 1 << 0)
+        /// With command buffers, set_image also passes a semaphore nobody signals.
+        static let ignoredSemaphore = Variant(rawValue: 1 << 1)
+        /// Every run refreshes a duplicate frame and then the real one, each
+        /// with its own signal semaphore.
+        static let signalsFrames = Variant(rawValue: 1 << 2)
+    }
+
+    static func load(rendering: Rendering = .software, preferring api: GraphicsAPI? = nil,
+                     variant: Variant = []) throws -> TestCore {
         let url = try #require(Bundle(for: TestBundle.self).url(forResource: "ursprung-test-core", withExtension: "dylib"))
         let core = try LibretroCore(path: url.path(percentEncoded: false))
         // The same image the core opened, so the same state.
@@ -37,6 +51,12 @@ private struct TestCore {
         }
         let setVulkanMode = try function("ur_test_core_set_vulkan_mode", as: (@convention(c) (Int32) -> Void).self)
         setVulkanMode(rendering.rawValue)
+        let switches: [(String, Variant)] = [("ur_test_core_set_swizzled_view", .swizzledView),
+                                             ("ur_test_core_set_ignored_semaphore", .ignoredSemaphore),
+                                             ("ur_test_core_set_signals_frames", .signalsFrames)]
+        for (name, option) in switches {
+            try function(name, as: (@convention(c) (Bool) -> Void).self)(variant.contains(option))
+        }
         core.preferredGraphicsAPI = api ?? (rendering == .software ? .openGL : .vulkan)
         try core.loadGame(atPath: url.path(percentEncoded: false))
         return TestCore(core: core,
@@ -50,7 +70,8 @@ private struct TestCore {
                                                          as: (@convention(c) () -> UInt32).self),
                         contextDestroyCalls: try function("ur_test_core_context_destroy_calls",
                                                           as: (@convention(c) () -> UInt32).self),
-                        vulkanPixel: try function("ur_test_core_vulkan_pixel", as: (@convention(c) (UInt32) -> UInt32).self))
+                        vulkanPixel: try function("ur_test_core_vulkan_pixel", as: (@convention(c) (UInt32) -> UInt32).self),
+                        signalsSeen: try function("ur_test_core_signals_seen", as: (@convention(c) () -> UInt32).self))
     }
 
     /// The top-left pixel of the latest frame (BGRA8 as a little-endian word).
@@ -178,6 +199,59 @@ extension EmulationRunnerTests {
                 test.core.unloadGame()
             }
             #expect(destroyedBefore.destroyDeviceCalls() == devices + 13)
+        }
+
+        /// With command buffers the core synchronises through barriers: the
+        /// image's semaphores are ignored (libretro_vulkan.h, set_image), even
+        /// one that is never signalled.
+        @Test func commandBuffersIgnoreTheImageSemaphores() throws {
+            let test = try TestCore.load(rendering: .vulkanCommandBuffers, variant: .ignoredSemaphore)
+            defer { test.core.unloadGame() }
+            for _ in 0..<3 { test.core.runFrame() }
+            #expect(!test.core.shutdownRequested)
+            #expect(test.latestPixel == test.vulkanPixel(3))
+        }
+
+        /// The signal semaphore belongs to the next video refresh, a duplicate
+        /// frame's too, and is signalled within it.
+        @Test(arguments: [TestCore.Rendering.vulkanSubmit, .vulkanCommandBuffers])
+        fileprivate func everyRefreshSignalsItsSemaphore(rendering: TestCore.Rendering) throws {
+            let test = try TestCore.load(rendering: rendering, variant: .signalsFrames)
+            defer { test.core.unloadGame() }
+            for _ in 0..<3 { test.core.runFrame() }
+            #expect(test.signalsSeen() == 6, "A duplicate and a real frame per run")
+            #expect(test.core.frameSerial == 3, "Duplicate frames keep the last frame")
+            #expect(test.latestPixel == test.vulkanPixel(3))
+        }
+
+        @Test func theImageViewsChannelMappingApplies() throws {
+            let test = try TestCore.load(rendering: .vulkanSubmit, variant: .swizzledView)
+            defer { test.core.unloadGame() }
+            test.core.runFrame()
+            // Red and blue swap: the image's blue (0x80) shows as red, the
+            // frame number as blue.
+            #expect(test.latestPixel == 0xFF80_4001)
+        }
+
+        /// A frame the GPU does not finish in time (VK_TIMEOUT) or a lost
+        /// device (VK_ERROR_DEVICE_LOST) stops the game: the core does not run
+        /// on beside resources that may still be in use, and it still unloads.
+        @Test(arguments: [Int32(2), -4])
+        func aFailedFrameStopsTheGame(result: Int32) throws {
+            let test = try TestCore.load(rendering: .vulkanSubmit)
+            let devices = test.destroyDeviceCalls()
+            for _ in 0..<2 { test.core.runFrame() }
+            #expect(!test.core.shutdownRequested)
+
+            test.core.simulateVulkanFenceWaitResult(result)
+            test.core.runFrame()
+            #expect(test.core.shutdownRequested)
+            #expect(test.latestPixel == test.vulkanPixel(2), "The failed frame is not shown")
+            test.core.runFrame()
+            #expect(test.frame() == 3, "No retro_run after the failure")
+
+            test.core.unloadGame()
+            #expect(test.destroyDeviceCalls() == devices + 1)
         }
 
         @Test func softwareCoresIgnoreTheVulkanPreference() throws {

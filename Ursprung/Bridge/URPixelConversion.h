@@ -26,12 +26,31 @@ typedef enum {
     URPixelLayoutR5G5B5A1,
 } URPixelLayout;
 
+/// Where a channel of the shown frame comes from, with the values of
+/// VkComponentSwizzle.
+typedef enum {
+    URSwizzleIdentity = 0,
+    URSwizzleZero = 1,
+    URSwizzleOne = 2,
+    URSwizzleR = 3,
+    URSwizzleG = 4,
+    URSwizzleB = 5,
+    URSwizzleA = 6,
+} URSwizzle;
+
+/// The channel mapping of the image view a core hands over
+/// (VkComponentMapping).
+typedef struct {
+    URSwizzle r, g, b, a;
+} URComponentMapping;
+
 /// Bytes per pixel of `layout`, 0 when unsupported.
 size_t URPixelLayoutBytesPerPixel(URPixelLayout layout);
 
-/// Converts `width`×`height` pixels into opaque BGRA8 (row pitch `width * 4`).
-/// Returns false for an unsupported layout.
+/// Converts `width`×`height` pixels into opaque BGRA8 (row pitch `width * 4`),
+/// through `mapping` (NULL: identity). Returns false for an unsupported layout.
 bool URConvertPixelsToBGRA8(URPixelLayout layout, const void *source, size_t sourcePitch,
+                            const URComponentMapping *mapping,
                             uint8_t *destination, unsigned width, unsigned height);
 
 #ifdef __cplusplus

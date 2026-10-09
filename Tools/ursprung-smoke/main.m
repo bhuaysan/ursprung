@@ -9,7 +9,9 @@
 // the last frame through a RetroArch preset first, at URSMOKE_SHADER_HEIGHT
 // (default 4× the frame) and the core's aspect ratio. URSMOKE_RENDERER=vulkan
 // asks the core for Vulkan instead of OpenGL; the option defaults that go
-// with it (SystemCatalog) are passed with URSMOKE_OPTIONS. URSMOKE_LIST_OPTIONS=1
+// with it (SystemCatalog) are passed with URSMOKE_OPTIONS. The run fails when
+// the game then renders with another API, unless URSMOKE_ALLOW_FALLBACK=1
+// (to check the fallback itself). URSMOKE_LIST_OPTIONS=1
 // prints the core's options with their values; URSMOKE_REPEAT=n plays the game
 // n times in one process; URSMOKE_SAVE_STATE / URSMOKE_LOAD_STATE=<file> write
 // the final state and load one after the first frame.
@@ -130,6 +132,13 @@ int main(int argc, const char *argv[]) {
             printf("loaded: %.3f fps, %.1f Hz, %ux%u, aspect %.3f, hw=%s, options=%lu\n", core.framesPerSecond,
                    core.sampleRate, core.baseWidth, core.baseHeight, core.aspectRatio, apis[core.graphicsAPI],
                    (unsigned long)core.options.count);
+            if (renderer && strcmp(renderer, "vulkan") == 0 && core.graphicsAPI != URGraphicsAPIVulkan
+                && !getenv("URSMOKE_ALLOW_FALLBACK")) {
+                fprintf(stderr, "error: asked for Vulkan, but the game renders with %s (renderer options in "
+                                "URSMOKE_OPTIONS? URSMOKE_ALLOW_FALLBACK=1 accepts it)\n", apis[core.graphicsAPI]);
+                [core unloadGame];
+                return 2;
+            }
 
             if (getenv("URSMOKE_LIST_OPTIONS")) {
                 for (URCoreOption *option in core.options) {
