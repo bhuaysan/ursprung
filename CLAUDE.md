@@ -37,5 +37,5 @@ Debug builds read `URSPRUNG_*` environment variables (snapshots, autoplay, core 
 ## Known issues
 
 - GLideN64 frame buffer emulation renders black on Apple OpenGL → Mupen64Plus-Next uses paraLLEl-RDP (Vulkan), angrylion without Vulkan; ParaLLEl N64's macOS build has no paraLLEl-RDP.
-- Dolphin presents nothing without a `VkSurfaceKHR`: `URVulkanContext` gives every core a surface of an unseen `CAMetalLayer`; keep it.
+- Dolphin presents nothing without a `VkSurfaceKHR`: `URVulkanContext` gives every core a surface of an unseen `CAMetalLayer`; keep it. Dolphin also `dlopen`s `libvulkan.1.dylib` at boot (else a “Failed to load Vulkan library” toast): keep the symlink to MoltenVK (build phase in `project.yml`, `Scripts/fetch-moltenvk.sh`).
 - ARMSX2: every error dialog crashes it on macOS 27 (`NSAlert` icon rasterising in CoreUI); quitting while a memory card is being written may hit that too. Only macOS nightlies exist, so the pin in `SystemCatalog` moves after the manual checks in `docs/STANDALONE_PLAN.md`.

@@ -19,8 +19,16 @@ URL="https://github.com/KhronosGroup/MoltenVK/releases/download/v$VERSION/$ARCHI
 OUTPUT="${1:-$(dirname "$0")/../ThirdParty/moltenvk}"
 STAMP="$OUTPUT/lib/.version"
 
+# Dolphin dlopens "libvulkan.1.dylib" at boot. This link lets the smoke tool's
+# rpath find MoltenVK under that name; the app gets its own link in a build
+# phase (project.yml).
+link_libvulkan() {
+    ln -sf libMoltenVK.dylib "$OUTPUT/lib/libvulkan.1.dylib"
+}
+
 if [ -f "$OUTPUT/lib/libMoltenVK.dylib" ] && [ -f "$OUTPUT/include/vulkan/vulkan.h" ] \
     && [ "$(cat "$STAMP" 2>/dev/null)" = "$VERSION" ]; then
+    link_libvulkan
     exit 0
 fi
 
@@ -49,3 +57,4 @@ cp "$STAGING"/MoltenVK/MoltenVK/include/vulkan/*.h "$OUTPUT/include/vulkan/"
 cp -R "$STAGING/MoltenVK/MoltenVK/include/vk_video" "$STAGING/MoltenVK/MoltenVK/include/MoltenVK" "$OUTPUT/include/"
 mv -f "$STAGING/libMoltenVK.dylib" "$OUTPUT/lib/libMoltenVK.dylib"
 echo "$VERSION" > "$STAMP"
+link_libvulkan

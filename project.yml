@@ -97,6 +97,16 @@ targets:
         outputFiles:
           - $(SRCROOT)/Ursprung/Support/Secrets.generated.swift
         basedOnDependencyAnalysis: false
+    postBuildScripts:
+      # Dolphin dlopens "libvulkan.1.dylib" at boot; dyld finds this link
+      # through the app's rpath and hands it the MoltenVK that is already
+      # loaded. See ThirdParty/moltenvk/README.md.
+      - name: Link libvulkan to MoltenVK
+        script: |
+          ln -sf libMoltenVK.dylib "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/libvulkan.1.dylib"
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/libvulkan.1.dylib
+        basedOnDependencyAnalysis: false
 
   UrsprungTests:
     type: bundle.unit-test

@@ -26,6 +26,10 @@ libretro cores a Vulkan context (paraLLEl-RDP, Dolphin, Flycast, …), see
   `@rpath/libMoltenVK.dylib` as install name. Xcode links the dylib directly
   (no Vulkan loader) and embeds it, re-signed, in
   `Ursprung.app/Contents/Frameworks`.
+- `libvulkan.1.dylib`: a symlink to `libMoltenVK.dylib`, made by the fetch
+  script in `lib/` and by a build phase in the app's `Frameworks`. Dolphin
+  `dlopen`s that name at boot; dyld finds it through the rpath and returns the
+  MoltenVK that is already loaded.
 
 ## Updating
 
