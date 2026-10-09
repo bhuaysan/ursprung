@@ -29,6 +29,8 @@ static const uint32_t URVulkanSyncIndexCount = 2;
 static const uint64_t URVulkanFenceTimeout = 10ull * 1000 * 1000 * 1000;
 /// Room for the core's command buffers; set_command_buffers grows it.
 static const uint32_t URVulkanInitialCommandBufferCapacity = 4;
+/// Simulated fence results a test can queue up.
+#define UR_VULKAN_SIMULATED_WAITS 8
 
 static os_log_t URVulkanLogHandle(void) {
     static os_log_t log;
@@ -274,12 +276,13 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
     uint32_t _coreCommandBufferCapacity;
     VkSemaphore _signalSemaphore;
 
-    // See -failed. After a timeout the last frame may still run on the GPU:
-    // nothing it uses may be reused or destroyed until its fence signals.
+    // See -failed and -busy. After a timeout the last frame may still run on
+    // the GPU: nothing it uses may be reused or destroyed until its fence
+    // signals.
     BOOL _failed;
     BOOL _fenceUnfinished;
-    BOOL _abandoned;
-    VkResult _simulatedWaitResult;
+    VkResult _simulatedWaitResults[UR_VULKAN_SIMULATED_WAITS];
+    uint32_t _simulatedWaitCount;
 
     // Readback
     VkCommandPool _commandPool;
@@ -553,8 +556,19 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
     _signalSemaphore = VK_NULL_HANDLE;
 }
 
-- (void)simulateNextFenceWaitResult:(VkResult)result {
-    _simulatedWaitResult = result;
+- (void)simulateFenceWaitResult:(VkResult)result {
+    if (_simulatedWaitCount < UR_VULKAN_SIMULATED_WAITS) _simulatedWaitResults[_simulatedWaitCount++] = result;
+}
+
+/// Waits for the frame's fence, or returns the next simulated result.
+- (VkResult)waitForFenceWithin:(uint64_t)timeout {
+    if (_simulatedWaitCount > 0) {
+        VkResult result = _simulatedWaitResults[0];
+        _simulatedWaitCount--;
+        memmove(_simulatedWaitResults, _simulatedWaitResults + 1, _simulatedWaitCount * sizeof(VkResult));
+        return result;
+    }
+    return vkWaitForFences(_device, 1, &_fence, VK_TRUE, timeout);
 }
 
 /// Grows the readback buffer to `size` bytes.
@@ -747,11 +761,10 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
     // The fence, the command buffer, the readback buffer and the core's image
     // are all reused next frame: a frame that does not finish in time ends the
     // context rather than running on beside it.
-    result = _simulatedWaitResult != VK_SUCCESS ? _simulatedWaitResult
-                                                : vkWaitForFences(_device, 1, &_fence, VK_TRUE, URVulkanFenceTimeout);
-    _simulatedWaitResult = VK_SUCCESS;
+    result = [self waitForFenceWithin:URVulkanFenceTimeout];
     if (result != VK_SUCCESS) {
-        _fenceUnfinished = result == VK_TIMEOUT;
+        // A lost device runs nothing any more; other errors leave it open.
+        _fenceUnfinished = result != VK_ERROR_DEVICE_LOST;
         [self failWithMessage:result == VK_TIMEOUT ? "The GPU did not finish a frame in time" : "The GPU failed a frame"
                        result:result];
         return NO;
@@ -810,25 +823,28 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
     [self submitWaitingFor:0 copy:NO width:0 height:0 transferOwnership:NO];
 }
 
-/// Whether the GPU is done with the frame that timed out (or with the lost
-/// device). Until then nothing it uses may be destroyed.
-- (BOOL)settleUnfinishedFrame {
+- (BOOL)isBusy { return _fenceUnfinished; }
+
+- (BOOL)settleWithin:(uint64_t)timeout {
     if (!_fenceUnfinished) return YES;
-    if (_abandoned) return NO;
-    if (vkWaitForFences(_device, 1, &_fence, VK_TRUE, URVulkanFenceTimeout) == VK_TIMEOUT) {
-        URVulkanLog("The GPU is still busy with a frame; its resources stay.");
-        _abandoned = YES;
-        return NO;
-    }
+    VkResult result = [self waitForFenceWithin:timeout];
+    // Finished, or the device is lost: either way nothing runs any more.
+    if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST) return NO;
     _fenceUnfinished = NO;
+    URVulkanLog("The frame that did not finish in time is done (VkResult %d).", result);
     return YES;
 }
 
-- (void)waitIdle {
-    if (!_device || ![self settleUnfinishedFrame]) return;
+- (BOOL)waitIdle {
+    if (!_device) return YES;
+    if (![self settleWithin:URVulkanFenceTimeout]) {
+        URVulkanLog("The GPU is still busy with a frame; the core's resources stay.");
+        return NO;
+    }
     pthread_mutex_lock(&_queueLock);
     vkDeviceWaitIdle(_device);
     pthread_mutex_unlock(&_queueLock);
+    return YES;
 }
 
 - (void)destroy {
@@ -840,7 +856,7 @@ static void URVulkanSetSignalSemaphore(void *handle, VkSemaphore semaphore);
                     _readbackFrames, _readbackWaitTicks * scale, _readbackConvertTicks * scale);
         _readbackFrames = 0;
     }
-    if (_device && ![self settleUnfinishedFrame]) {
+    if (_device && ![self settleWithin:URVulkanFenceTimeout]) {
         // Destroying what the GPU may still use would crash the app: the
         // device, its instance and the surface's layer are left behind.
         (void)CFBridgingRetain(_layer);
@@ -955,9 +971,15 @@ static void URVulkanSetCommandBuffers(void *handle, uint32_t count, const VkComm
 }
 
 static void URVulkanWaitSyncIndex(void *handle) {
-    // Every frame's GPU work is waited for when it is submitted; a frame that
-    // was not done in time stops the game (-failed).
-    (void)handle;
+    // Every frame's GPU work is waited for when it is submitted, so only a
+    // frame that did not finish in time can still run. The core may reuse
+    // its resources once that is done, however long it takes: returning
+    // earlier would let it overwrite or free what the GPU still uses. The
+    // game stops after this retro_run anyway (-failed).
+    URVulkanContext *context = (__bridge URVulkanContext *)handle;
+    while (context && ![context settleWithin:URVulkanFenceTimeout]) {
+        URVulkanLog("wait_sync_index: still waiting for the frame that did not finish in time.");
+    }
 }
 
 static void URVulkanLockQueue(void *handle) {

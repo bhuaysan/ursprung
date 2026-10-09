@@ -39,6 +39,8 @@ static bool vulkanActive;
 static uint32_t syncIndicesSeen;
 static uint32_t destroyDeviceCalls;
 static uint32_t contextDestroyCalls;
+static uint32_t unloadGameCalls;
+static uint32_t deinitCalls;
 static const struct retro_hw_render_interface_vulkan *vulkan;
 static struct retro_hw_render_callback hwRender;
 
@@ -95,6 +97,10 @@ static bool ignoredSemaphore;
 /// semaphore, then the real frame with another; each must be signalled.
 static bool signalsFrames;
 static uint32_t signalsSeen;
+/// After handing over a frame, waits for its sync index within the same run,
+/// as cores do before reusing what the frame used.
+static bool waitsAfterFrame;
+static uint32_t waitsReturned;
 static VkSemaphore neverSignaled;
 static VkSemaphore duplicateSignal;
 static VkSemaphore frameSignal;
@@ -107,11 +113,16 @@ RETRO_API bool ur_test_core_vulkan_active(void) { return vulkanActive; }
 RETRO_API uint32_t ur_test_core_sync_indices_seen(void) { return syncIndicesSeen; }
 RETRO_API uint32_t ur_test_core_destroy_device_calls(void) { return destroyDeviceCalls; }
 RETRO_API uint32_t ur_test_core_context_destroy_calls(void) { return contextDestroyCalls; }
+RETRO_API uint32_t ur_test_core_unload_game_calls(void) { return unloadGameCalls; }
+RETRO_API uint32_t ur_test_core_deinit_calls(void) { return deinitCalls; }
 RETRO_API void ur_test_core_set_swizzled_view(bool on) { swizzledView = on; }
 RETRO_API void ur_test_core_set_ignored_semaphore(bool on) { ignoredSemaphore = on; }
 RETRO_API void ur_test_core_set_signals_frames(bool on) { signalsFrames = on; }
 /// How many of the signal semaphores (see signalsFrames) were signalled.
 RETRO_API uint32_t ur_test_core_signals_seen(void) { return signalsSeen; }
+RETRO_API void ur_test_core_set_waits_after_frame(bool on) { waitsAfterFrame = on; }
+/// How often wait_sync_index returned after a frame (see waitsAfterFrame).
+RETRO_API uint32_t ur_test_core_waits_returned(void) { return waitsReturned; }
 
 /// The colour frame `n` is cleared to, as the frontend's BGRA8 pixel.
 RETRO_API uint32_t ur_test_core_vulkan_pixel(uint32_t n) { return 0xFF000000u | ((n & 0xFF) << 16) | 0x4080u; }
@@ -418,6 +429,10 @@ static void TestRenderVulkanFrame(void) {
     if (signalsFrames) vulkan->set_signal_semaphore(vulkan->handle, frameSignal);
     if (video) video(RETRO_HW_FRAME_BUFFER_VALID, 4, 4, 0);
     if (signalsFrames && TestConsumeSignal(frameSignal)) signalsSeen++;
+    if (waitsAfterFrame) {
+        vulkan->wait_sync_index(vulkan->handle);
+        waitsReturned++;
+    }
 }
 
 #pragma mark - libretro
@@ -458,7 +473,7 @@ RETRO_API void retro_set_input_state(retro_input_state_t callback) { (void)callb
 RETRO_API void retro_set_controller_port_device(unsigned port, unsigned device) { (void)port; (void)device; }
 
 RETRO_API void retro_init(void) { frame = 0; unserializeFails = false; }
-RETRO_API void retro_deinit(void) {}
+RETRO_API void retro_deinit(void) { deinitCalls++; }
 RETRO_API void retro_reset(void) { frame = 0; }
 
 RETRO_API void retro_run(void) {
@@ -503,6 +518,9 @@ RETRO_API bool retro_load_game(const struct retro_game_info *game) {
     return true;
 }
 
-RETRO_API void retro_unload_game(void) { vulkanActive = false; }
+RETRO_API void retro_unload_game(void) {
+    unloadGameCalls++;
+    vulkanActive = false;
+}
 RETRO_API void *retro_get_memory_data(unsigned id) { (void)id; return NULL; }
 RETRO_API size_t retro_get_memory_size(unsigned id) { (void)id; return 0; }

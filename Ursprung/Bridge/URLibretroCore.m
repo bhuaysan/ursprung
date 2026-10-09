@@ -105,6 +105,11 @@ typedef struct {
 
 @class URLibretroCore;
 static __unsafe_unretained URLibretroCore *gActiveCore = nil;
+/// A core whose game was unloaded while the GPU still ran one of its frames.
+/// context_destroy, retro_unload_game and retro_deinit could free what that
+/// frame uses, so they wait until it is done; meanwhile the core keeps its
+/// library, its Vulkan context and the callbacks (gActiveCore).
+static URLibretroCore *gUnfinishedCore = nil;
 
 @interface URLibretroCore ()
 - (void)postMessage:(NSString *)message duration:(NSTimeInterval)duration;
@@ -305,6 +310,13 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 #pragma mark - Lifecycle
 
 - (BOOL)loadGameAtPath:(NSString *)path error:(NSError **)error {
+    URLibretroCore *unfinished = gUnfinishedCore;
+    if (unfinished && ![unfinished finishUnloading]) {
+        if (error) *error = [NSError errorWithDomain:URCoreErrorDomain code:7 userInfo:@{
+            NSLocalizedDescriptionKey: @"The graphics card is still busy with the previous game. Quit and reopen Ursprung to play again."
+        }];
+        return NO;
+    }
     if (gActiveCore && gActiveCore != self) {
         if (error) *error = [NSError errorWithDomain:URCoreErrorDomain code:4 userInfo:@{
             NSLocalizedDescriptionKey: @"Another game is already running."
@@ -421,9 +433,14 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
     if (_avInfo.geometry.max_height < _avInfo.geometry.base_height) _avInfo.geometry.max_height = _avInfo.geometry.base_height;
 }
 
+/// Whether the core may run, reset, load or save states and the like. After a
+/// failed GPU frame its resources may still be in use, or the device is gone.
+- (BOOL)isUsable {
+    return _gameLoaded && !_vulkan.hasFailed;
+}
+
 - (void)runFrame {
-    // After a failed GPU frame the core's resources may still be in use.
-    if (!_gameLoaded || _vulkan.hasFailed) return;
+    if (!self.isUsable) return;
     [self deliverKeyEvents];
     if (_hasFrameTimeCallback && _frameTimeCallback.callback) {
         _frameTimeCallback.callback(_frameTimeCallback.reference);
@@ -436,20 +453,39 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 }
 
 - (void)reset {
-    if (!_gameLoaded) return;
+    if (!self.isUsable) return;
     // Vulkan cores may recreate the image they handed over.
     [_vulkan forgetImage];
     _sym.reset();
 }
 
 - (void)unloadGame {
-    if (!_gameLoaded) return;
+    if (!_gameLoaded || gUnfinishedCore == self) return;
     [self writeSaveRAMIfChanged];
+    if (_vulkan && ![_vulkan waitIdle]) {
+        os_log_error(URCoreLog(), "Unloading waits until the GPU finishes the core's last frame.");
+        gUnfinishedCore = self;
+        return;
+    }
+    [self tearDownGame];
+}
+
+/// Tears down gUnfinishedCore's game if its GPU work is done by now. NO while
+/// it still runs.
+- (BOOL)finishUnloading {
+    if (![_vulkan settleWithin:0] || ![_vulkan waitIdle]) return NO;
+    [self tearDownGame];
+    gUnfinishedCore = nil;
+    return YES;
+}
+
+/// context_destroy, retro_unload_game, retro_deinit, then the GPU context.
+/// Nothing may run on the GPU any more.
+- (void)tearDownGame {
     if (_gl) {
         [_gl makeCurrent];
         if (_hwRender.context_destroy) _hwRender.context_destroy();
     } else if (_vulkan) {
-        [_vulkan waitIdle];
         if (_hwRender.context_destroy) _hwRender.context_destroy();
     }
     _sym.unload_game();
@@ -466,11 +502,11 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 }
 
 - (BOOL)supportsSaveStates {
-    return _gameLoaded && _sym.serialize_size() > 0;
+    return self.isUsable && _sym.serialize_size() > 0;
 }
 
 - (nullable NSData *)serializeState {
-    if (!_gameLoaded) return nil;
+    if (!self.isUsable) return nil;
     size_t size = _sym.serialize_size();
     if (size == 0) return nil;
     NSMutableData *data = [NSMutableData dataWithLength:size];
@@ -479,16 +515,16 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 }
 
 - (BOOL)unserializeState:(NSData *)state {
-    if (!_gameLoaded || state.length == 0) return NO;
+    if (!self.isUsable || state.length == 0) return NO;
     return _sym.unserialize(state.bytes, state.length);
 }
 
 - (size_t)stateSize {
-    return _gameLoaded ? _sym.serialize_size() : 0;
+    return self.isUsable ? _sym.serialize_size() : 0;
 }
 
 - (BOOL)serializeStateIntoBuffer:(NSMutableData *)buffer {
-    if (!_gameLoaded) return NO;
+    if (!self.isUsable) return NO;
     size_t size = _sym.serialize_size();
     if (size == 0) return NO;
     if (buffer.length != size) buffer.length = size;
@@ -496,7 +532,7 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 }
 
 - (BOOL)unserializeStateFromBytes:(const void *)bytes length:(size_t)length {
-    if (!_gameLoaded || length == 0) return NO;
+    if (!self.isUsable || length == 0) return NO;
     return _sym.unserialize(bytes, length);
 }
 
@@ -507,11 +543,11 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 }
 
 - (void)resetCheats {
-    if (_gameLoaded && _sym.cheat_reset) _sym.cheat_reset();
+    if (self.isUsable && _sym.cheat_reset) _sym.cheat_reset();
 }
 
 - (void)setCheatAtIndex:(NSUInteger)index enabled:(BOOL)enabled code:(NSString *)code {
-    if (!_gameLoaded || !_sym.cheat_set) return;
+    if (!self.isUsable || !_sym.cheat_set) return;
     _sym.cheat_set((unsigned)index, enabled, code.UTF8String ?: "");
 }
 
@@ -627,7 +663,7 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 }
 
 - (BOOL)insertDiskAtIndex:(NSInteger)index {
-    if (!_hasDiskControl || index < 0 || index >= self.diskCount) return NO;
+    if (!self.isUsable || !_hasDiskControl || index < 0 || index >= self.diskCount) return NO;
     _disk.set_eject_state(true);
     BOOL ok = _disk.set_image_index((unsigned)index);
     _disk.set_eject_state(false);
@@ -651,8 +687,10 @@ static __unsafe_unretained URLibretroCore *gActiveCore = nil;
 + (BOOL)vulkanAvailable { return URVulkanContext.isAvailable; }
 
 - (void)simulateVulkanFenceWaitResult:(int32_t)result {
-    [_vulkan simulateNextFenceWaitResult:(VkResult)result];
+    [_vulkan simulateFenceWaitResult:(VkResult)result];
 }
+
+- (BOOL)vulkanBusy { return _vulkan.busy; }
 
 - (float)aspectRatio {
     float aspect = _avInfo.geometry.aspect_ratio;

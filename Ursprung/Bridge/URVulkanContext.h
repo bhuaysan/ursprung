@@ -52,15 +52,28 @@ NS_ASSUME_NONNULL_BEGIN
 /// still be in use, so the game must not run on.
 @property (nonatomic, readonly, getter=hasFailed) BOOL failed;
 
-/// Makes the next wait for a frame return `result` (e.g. VK_TIMEOUT,
-/// VK_ERROR_DEVICE_LOST) instead of waiting. For tests.
-- (void)simulateNextFenceWaitResult:(VkResult)result;
+/// Whether a frame that did not finish in time may still run on the GPU.
+/// Until it is done nothing it uses may be reused or destroyed: no
+/// wait_sync_index returns, and the core must not get context_destroy,
+/// retro_unload_game or retro_deinit.
+@property (nonatomic, readonly, getter=isBusy) BOOL busy;
+
+/// Waits up to `timeout` nanoseconds for that frame. YES once nothing runs
+/// any more: it finished, or the device is lost.
+- (BOOL)settleWithin:(uint64_t)timeout;
+
+/// Makes the next wait for a frame's fence return `result` (e.g. VK_TIMEOUT,
+/// VK_ERROR_DEVICE_LOST) instead of waiting; several calls queue up. Real
+/// waits follow once the queue is empty. For tests.
+- (void)simulateFenceWaitResult:(VkResult)result;
 
 /// Forgets the core's image, e.g. before retro_reset may destroy it.
 - (void)forgetImage;
 
-/// Waits until the GPU is idle, with the queue locked.
-- (void)waitIdle;
+/// Waits for a frame that did not finish in time (once more, up to the frame
+/// timeout), then until the GPU is idle, with the queue locked. NO when that
+/// frame still runs: the core's resources must stay.
+- (BOOL)waitIdle;
 
 /// Lets the core free its device resources (destroy_device), then destroys
 /// the device and the instance. Called by dealloc if not done before.

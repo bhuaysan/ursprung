@@ -97,6 +97,10 @@ NS_SWIFT_SENDABLE
 - (BOOL)loadGameAtPath:(NSString *)path error:(NSError **)error;
 - (void)runFrame;
 - (void)reset;
+/// Writes save RAM and unloads the game. If its GPU work does not finish
+/// (see URVulkanContext.busy), the core is kept, library and all, and torn
+/// down by the next -loadGameAtPath:error: of any core once it is done;
+/// until then no other game can load.
 - (void)unloadGame;
 /// Whether the loaded game can be saved as a state (the core reports a state size).
 @property (nonatomic, readonly) BOOL supportsSaveStates;

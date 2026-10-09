@@ -91,3 +91,14 @@ xcodebuild -project Ursprung.xcodeproj \
 Zusätzlich wurde unter `/tmp/ursprung-vulkan-rereview/` ein temporäres Prüfprogramm gegen die aktuellen Original-Implementierungen gebaut. Es bestätigt die Submit-/Callback-/Barrier-Korrekturen für F2–F4 und reproduziert R1 mit abgefangenen Vulkan-Submissions und simuliert anhaltenden Timeouts. Anwendungscode und Repository-Tests wurden dabei nicht verändert.
 
 Die im Plan nachgetragenen manuellen MGS-/Disc-Wechsel-Prüfungen wurden in diesem Re-Review nicht wiederholt. Vulkan bei 2× N64-Auflösung in der App, Langzeitverhalten und notarisierten Distributionsbuild habe ich ebenfalls nicht erneut geprüft. Der verbleibende Fallback-Neustart aus V1 bleibt eine dokumentierte Produktentscheidung.
+
+## Behebung (09.10.2026)
+
+| ID | Status | Umsetzung | Test |
+|---|---|---|---|
+| R1 | behoben | „Fehlgeschlagen“ und „ausstehend“ sind getrennt: Nach einem Timeout bleibt der Kontext `busy`, bis die Fence signalisiert oder das Device verloren ist (andere Fehler gelten nicht als Abschluss). `wait_sync_index` blockiert bis dahin und kehrt nie mit ausstehender Arbeit zurück. `waitIdle` meldet das Ergebnis; ist der Frame beim Entladen noch nicht fertig, ruft `unloadGame` weder `context_destroy` noch `retro_unload_game` oder `retro_deinit` auf. Strategie für einen dauerhaft blockierten Core: Quarantäne im Prozess. Core-Objekt, `dlopen`-Handle, Vulkan-Kontext samt Interface und `gActiveCore` bleiben gültig (`gUnfinishedCore`). Der nächste Spielstart prüft ohne Warten, ob der Frame fertig ist: dann wird der alte Core genau einmal abgebaut, sonst verweigert der Start mit Fehler 7 und dem Hinweis, Ursprung neu zu öffnen. Nach einem Fehler nimmt der Core außerdem kein Reset, keine States (auch kein Autosave), keine Cheats und keinen Discwechsel mehr an. | `waitingForTheSyncIndexWaitsForAnUnfinishedFrame` (Timeout, `wait_sync_index` im selben `retro_run`), `anUnfinishedFrameDefersTheTeardown` (zwei Timeouts samt Abbau: keine Abbau-Callbacks, Core-Objekt bleibt; weiterer Timeout blockiert den nächsten Start; danach Abbau genau einmal vor dem neuen Spiel), `aFailedFrameStopsTheGame` (Timeout mit späterem Abschluss: Abbau genau einmal, keine States) |
+| V2/V3 | behoben | Der Speicherfehlerzustand setzt `failed`; dieselben Sperren gelten. Ausstehende GPU-Arbeit entsteht dabei nicht, der Abbau läuft normal. | – |
+
+Simulierte Fence-Ergebnisse stehen jetzt in einer Warteschlange (`simulateFenceWaitResult:`), damit Frame-Wait, `wait_sync_index` und Abbau einzeln ausfallen können. Der Test-Core zählt `retro_unload_game` und `retro_deinit` und kann nach dem Frame `wait_sync_index` aufrufen (`waitsAfterFrame`).
+
+Validierung: `xcodebuild … test` mit 442 Tests grün, 2 übersprungen (Shader-Pack); `make smoke RENDERER=vulkan` mit Mupen64Plus-Next (paraLLEl-RDP, Ocarina of Time, 300 Frames, State und Entladen).

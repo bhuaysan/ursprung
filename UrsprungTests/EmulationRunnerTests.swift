@@ -18,6 +18,9 @@ private struct TestCore {
     let contextDestroyCalls: @convention(c) () -> UInt32
     let vulkanPixel: @convention(c) (UInt32) -> UInt32
     let signalsSeen: @convention(c) () -> UInt32
+    let unloadGameCalls: @convention(c) () -> UInt32
+    let deinitCalls: @convention(c) () -> UInt32
+    let waitsReturned: @convention(c) () -> UInt32
 
     /// How the core renders (see test_core.c).
     enum Rendering: Int32 {
@@ -38,6 +41,29 @@ private struct TestCore {
         /// Every run refreshes a duplicate frame and then the real one, each
         /// with its own signal semaphore.
         static let signalsFrames = Variant(rawValue: 1 << 2)
+        /// After handing over a frame, the run waits for its sync index.
+        static let waitsAfterFrame = Variant(rawValue: 1 << 3)
+    }
+
+    /// How often the core was torn down, call by call (counted across games).
+    struct Teardown: Equatable {
+        var contextDestroys: UInt32
+        var gameUnloads: UInt32
+        var deinits: UInt32
+        var deviceDestroys: UInt32
+
+        func plus(_ count: UInt32) -> Teardown {
+            Teardown(contextDestroys: contextDestroys + count, gameUnloads: gameUnloads + count,
+                     deinits: deinits + count, deviceDestroys: deviceDestroys + count)
+        }
+    }
+
+    var teardown: Teardown { teardownReader() }
+
+    /// Reads `teardown` without keeping the core alive.
+    var teardownReader: () -> Teardown {
+        let (contexts, unloads, deinits, devices) = (contextDestroyCalls, unloadGameCalls, deinitCalls, destroyDeviceCalls)
+        return { Teardown(contextDestroys: contexts(), gameUnloads: unloads(), deinits: deinits(), deviceDestroys: devices()) }
     }
 
     static func load(rendering: Rendering = .software, preferring api: GraphicsAPI? = nil,
@@ -53,7 +79,8 @@ private struct TestCore {
         setVulkanMode(rendering.rawValue)
         let switches: [(String, Variant)] = [("ur_test_core_set_swizzled_view", .swizzledView),
                                              ("ur_test_core_set_ignored_semaphore", .ignoredSemaphore),
-                                             ("ur_test_core_set_signals_frames", .signalsFrames)]
+                                             ("ur_test_core_set_signals_frames", .signalsFrames),
+                                             ("ur_test_core_set_waits_after_frame", .waitsAfterFrame)]
         for (name, option) in switches {
             try function(name, as: (@convention(c) (Bool) -> Void).self)(variant.contains(option))
         }
@@ -71,7 +98,11 @@ private struct TestCore {
                         contextDestroyCalls: try function("ur_test_core_context_destroy_calls",
                                                           as: (@convention(c) () -> UInt32).self),
                         vulkanPixel: try function("ur_test_core_vulkan_pixel", as: (@convention(c) (UInt32) -> UInt32).self),
-                        signalsSeen: try function("ur_test_core_signals_seen", as: (@convention(c) () -> UInt32).self))
+                        signalsSeen: try function("ur_test_core_signals_seen", as: (@convention(c) () -> UInt32).self),
+                        unloadGameCalls: try function("ur_test_core_unload_game_calls",
+                                                      as: (@convention(c) () -> UInt32).self),
+                        deinitCalls: try function("ur_test_core_deinit_calls", as: (@convention(c) () -> UInt32).self),
+                        waitsReturned: try function("ur_test_core_waits_returned", as: (@convention(c) () -> UInt32).self))
     }
 
     /// The top-left pixel of the latest frame (BGRA8 as a little-endian word).
@@ -235,11 +266,12 @@ extension EmulationRunnerTests {
 
         /// A frame the GPU does not finish in time (VK_TIMEOUT) or a lost
         /// device (VK_ERROR_DEVICE_LOST) stops the game: the core does not run
-        /// on beside resources that may still be in use, and it still unloads.
+        /// on beside resources that may still be in use, and it still unloads
+        /// (the timed-out frame is done by then).
         @Test(arguments: [Int32(2), -4])
         func aFailedFrameStopsTheGame(result: Int32) throws {
             let test = try TestCore.load(rendering: .vulkanSubmit)
-            let devices = test.destroyDeviceCalls()
+            let teardown = test.teardown
             for _ in 0..<2 { test.core.runFrame() }
             #expect(!test.core.shutdownRequested)
 
@@ -249,9 +281,66 @@ extension EmulationRunnerTests {
             #expect(test.latestPixel == test.vulkanPixel(2), "The failed frame is not shown")
             test.core.runFrame()
             #expect(test.frame() == 3, "No retro_run after the failure")
+            #expect(!test.core.supportsSaveStates, "No states of a core whose GPU failed")
 
             test.core.unloadGame()
-            #expect(test.destroyDeviceCalls() == devices + 1)
+            #expect(test.teardown == teardown.plus(1))
+        }
+
+        /// wait_sync_index promises that the GPU is done with the frame, so
+        /// after a timeout it returns only once that frame finished.
+        @Test func waitingForTheSyncIndexWaitsForAnUnfinishedFrame() throws {
+            let test = try TestCore.load(rendering: .vulkanSubmit, variant: .waitsAfterFrame)
+            defer { test.core.unloadGame() }
+            test.core.runFrame()
+            let waits = test.waitsReturned()
+
+            // The frame and wait_sync_index's first wait time out; its second
+            // wait finds the frame done.
+            test.core.simulateVulkanFenceWaitResult(2)
+            test.core.simulateVulkanFenceWaitResult(2)
+            test.core.runFrame()
+            #expect(test.waitsReturned() == waits + 1)
+            #expect(!test.core.vulkanBusy, "wait_sync_index returned only after the frame was done")
+            #expect(test.core.shutdownRequested)
+        }
+
+        /// A frame that still runs when the game unloads keeps the core whole
+        /// (no context_destroy, retro_unload_game, retro_deinit, nor its
+        /// library or object going away) and blocks other games; once the
+        /// frame is done, the next game tears it down first, exactly once.
+        @Test func anUnfinishedFrameDefersTheTeardown() throws {
+            weak var unfinished: LibretroCore?
+            var before: TestCore.Teardown?
+            var teardownNow: (() -> TestCore.Teardown)?
+            try autoreleasepool {
+                let test = try TestCore.load(rendering: .vulkanSubmit)
+                before = test.teardown
+                teardownNow = test.teardownReader
+                test.core.runFrame()
+                // Timeouts for the frame, the unload and the first other game.
+                for _ in 0..<3 { test.core.simulateVulkanFenceWaitResult(2) }
+                test.core.runFrame()
+                #expect(test.core.vulkanBusy)
+                test.core.unloadGame()
+                unfinished = test.core
+            }
+            let teardown = try #require(before)
+            let current = try #require(teardownNow)
+            #expect(unfinished != nil, "The core stays while the GPU runs its frame")
+            #expect(current() == teardown)
+
+            let error = #expect(throws: (any Error).self) { _ = try TestCore.load() }
+            #expect((error as? NSError)?.code == 7)
+            #expect(current() == teardown, "Still running: nothing torn down")
+
+            // Done now: the frame's real fence signalled long ago.
+            let next = try TestCore.load()
+            defer { next.core.unloadGame() }
+            #expect(current() == teardown.plus(1))
+            #expect(unfinished == nil, "The core went once torn down")
+            next.core.runFrame()
+            #expect(next.frame() == 1)
         }
 
         @Test func softwareCoresIgnoreTheVulkanPreference() throws {
