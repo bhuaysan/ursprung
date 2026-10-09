@@ -3,6 +3,29 @@
 #import "URShaderChain.h"
 #import "URShaderPreset+Internal.h"
 
+/// Whether the preset at `path`, or one it references, has a wildcard such
+/// as `$CORE$` in it.
+static BOOL URPresetUsesWildcards(NSString *path, NSUInteger depth) {
+    static NSRegularExpression *wildcard;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ wildcard = [NSRegularExpression regularExpressionWithPattern:@"\\$[A-Z_-]+\\$" options:0 error:NULL]; });
+    NSString *text = depth < 16 ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL] : nil;
+    if (!text) return NO;
+    if ([wildcard firstMatchInString:text options:0 range:NSMakeRange(0, text.length)]) return YES;
+    for (NSString *line in [text componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]) {
+        NSString *trimmed = [line stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+        if (![trimmed hasPrefix:@"#reference"]) continue;
+        NSString *reference = [[trimmed substringFromIndex:@"#reference".length]
+            stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" \t\""]];
+        reference = [reference stringByReplacingOccurrencesOfString:@"\\" withString:@"/"];
+        if (reference.length == 0) continue;
+        NSString *referenced = reference.isAbsolutePath ? reference
+            : [path.stringByDeletingLastPathComponent stringByAppendingPathComponent:reference];
+        if (URPresetUsesWildcards(referenced.stringByStandardizingPath, depth + 1)) return YES;
+    }
+    return NO;
+}
+
 @implementation URShaderChain {
     libra_mtl_filter_chain_t _chain;
 }
@@ -28,8 +51,20 @@
         .original_aspect_uniforms = true,
         .frametime_uniforms = true,
     };
-    BOOL parsed = URShaderCheck(libra_preset_create_with_options(path.fileSystemRepresentation, &context, &presetOptions,
-                                                                 &preset), error);
+    BOOL parsed;
+    if (URPresetUsesWildcards(path, 0)) {
+        // librashader 0.12.0's libra_preset_create_with_options parses without
+        // the context (try_parse, not try_parse_with_context), so wildcards
+        // never resolve. The older call applies it, without the original
+        // aspect and frame time uniforms.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        parsed = URShaderCheck(libra_preset_create_with_context(path.fileSystemRepresentation, &context, &preset), error);
+#pragma clang diagnostic pop
+    } else {
+        parsed = URShaderCheck(libra_preset_create_with_options(path.fileSystemRepresentation, &context, &presetOptions,
+                                                                &preset), error);
+    }
     if (context) libra_preset_ctx_free(&context);
     if (!parsed) return nil;
 

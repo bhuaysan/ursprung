@@ -34,7 +34,7 @@ Non-goals: `.glslp`/`.cgp` presets (librashader only reads slang), a node graph 
 - Presets are loaded **only from file paths** (`libra_preset_create*`); there is no in-memory API. The editor therefore writes working copies to disk.
 - `libra_preset_get_runtime_params` lists parameters (name, description, initial/min/max/step). Pass options (scale, filter, wrap, formats, aliases) are **not** exposed in structured form. The editor needs its own `.slangp` model.
 - "The Metal runtime is not thread safe." Only GPU resource creation can be deferred to a command buffer. Compiling large presets (Mega Bezel, crt-royale) takes seconds of CPU.
-- Wildcard context (`libra_preset_ctx_*`): core name, content directory, rotation, aspect orientation. These feed `$CORE$`-style paths in presets.
+- Wildcard context (`libra_preset_ctx_*`): core name, content directory, rotation, aspect orientation. These feed `$CORE$`-style paths in presets. librashader 0.12.0's `libra_preset_create_with_options` ignores the context (it parses with `try_parse`, not `try_parse_with_context`), so `URShaderChain` loads presets that have a wildcard (or reference one that has) with the deprecated `libra_preset_create_with_context`, which applies it but has no options (no original aspect and frame time uniforms).
 - Mipmaps are never generated for the input texture; the chain never renders to the backbuffer itself.
 
 ### Ursprung today

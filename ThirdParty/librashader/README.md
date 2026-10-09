@@ -24,6 +24,16 @@ shader presets (`.slangp`) on Metal; see `docs/SHADER_PLAN.md`.
   puts the dylib here. Xcode links it and embeds it, re-signed, in
   `Ursprung.app/Contents/Frameworks`.
 
+## Known issue
+
+In 0.12.0 `libra_preset_create_with_options` builds the wildcard context but
+parses the preset without it (`ShaderPreset::try_parse` instead of
+`try_parse_with_context` in `librashader-capi/src/presets.rs`), so `$CORE$`
+and the other wildcards never resolve. `URShaderChain` loads presets with
+wildcards through the deprecated `libra_preset_create_with_context` instead.
+When updating, check whether that is fixed; if so, drop the workaround
+(`URPresetUsesWildcards`).
+
 ## Updating
 
 1. Pick a release on <https://github.com/SnowflakePowered/librashader/releases>.

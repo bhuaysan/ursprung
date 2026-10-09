@@ -44,6 +44,29 @@ func writeShaderFixtures(in directory: URL) throws {
 @Suite("Shader presets (librashader)")
 struct ShaderPresetTests {
 
+    /// `$CORE$` picks the preset of the running core, in a referenced preset
+    /// too. librashader 0.12.0 drops the wildcards on one of its two ways
+    /// to load a preset; `ShaderChain` takes the other for these.
+    @Test func wildcardsPickTheCoresVariant() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for (core, strength) in [("CoreA", "0.2"), ("CoreB", "0.9")] {
+            try dimShader.replacing("0.5 0.0 1.0", with: "\(strength) 0.0 1.0")
+                .write(to: directory.appending(path: "\(core).slang"), atomically: true, encoding: .utf8)
+            try "shaders = 1\nshader0 = \(core).slang\n"
+                .write(to: directory.appending(path: "\(core).slangp"), atomically: true, encoding: .utf8)
+        }
+        try "#reference \"$CORE$.slangp\"\n".write(to: directory.appending(path: "core.slangp"), atomically: true, encoding: .utf8)
+        try "#reference \"core.slangp\"\n".write(to: directory.appending(path: "outer.slangp"), atomically: true, encoding: .utf8)
+        let queue = try #require(MTLCreateSystemDefaultDevice()?.makeCommandQueue())
+
+        for (preset, core, strength) in [("core", "CoreA", Float(0.2)), ("core", "CoreB", 0.9), ("outer", "CoreB", 0.9)] {
+            let chain = try ShaderChain(presetAtPath: directory.appending(path: "\(preset).slangp").path, queue: queue,
+                                        coreName: core, rotation: 0)
+            #expect(chain.parameters.first?.initial == strength, "\(preset) for \(core)")
+        }
+    }
+
     @Test func readsDeclaredParameters() throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
