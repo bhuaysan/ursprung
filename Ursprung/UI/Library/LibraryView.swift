@@ -934,6 +934,8 @@ struct LibraryView: View {
         if game.fileURL.pathExtension.lowercased() == "m3u" {
             return DiscAction(kind: .edit) { discEditor = .edit(game) }
         }
+        // A standalone emulator can't switch the discs of a playlist.
+        guard game.effectiveCore?.isLibretro != false else { return nil }
         let set = DiscSets.set(containing: game, in: libraryGames)
         guard set.count > 1 else { return nil }
         return DiscAction(kind: .create) { discEditor = .create(set) }

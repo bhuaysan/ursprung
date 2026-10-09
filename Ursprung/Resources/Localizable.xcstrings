@@ -11774,6 +11774,56 @@
           }
         }
       }
+    },
+    "ARMSX2 can't start games from archives. Unpack “%@” in the Finder, then rescan.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ARMSX2 kann keine Spiele aus Archiven starten. Entpacke „%@“ im Finder und scanne dann erneut."
+          }
+        }
+      }
+    },
+    "ARMSX2 can't switch the discs of a playlist. Delete “%@” to start each disc on its own, then rescan.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ARMSX2 kann die Discs einer Playlist nicht wechseln. Lösche „%@“, um jede Disc einzeln zu starten, und scanne dann erneut."
+          }
+        }
+      }
+    },
+    "ARMSX2 can't read “%@”. It starts ISO, BIN, IMG, MDF, CHD, CSO, ZSO and GZ disc images.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ARMSX2 kann „%@“ nicht lesen. Es startet Disc-Images im Format ISO, BIN, IMG, MDF, CHD, CSO, ZSO und GZ."
+          }
+        }
+      }
+    },
+    "The save state couldn't be restored": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Spielstand konnte nicht wiederhergestellt werden"
+          }
+        }
+      }
+    },
+    "Quit %@ to restore this state.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beende %@, um diesen Spielstand wiederherzustellen."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

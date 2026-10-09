@@ -23,14 +23,13 @@ nonisolated private func png(width: Int, height: Int) -> Data {
 struct PS2SavesTests {
     private let version: UInt32 = 0x9A59_0000
 
-    /// A state laid out like ARMSX2's: version entry and stored screenshot.
+    /// A state laid out like ARMSX2's: its parts and a stored screenshot.
     @discardableResult
     private func writeState(_ name: String, in folder: URL, version: UInt32? = nil, modified: Date? = nil) throws -> URL {
-        var bytes = withUnsafeBytes(of: (version ?? self.version).littleEndian) { Data($0) }
-        bytes.append(contentsOf: Array("0.1 test".utf8) + [0])
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appending(path: name)
-        try makeZip(at: url, files: [("PCSX2 Savestate Version.id", bytes), ("Screenshot.png", png(width: 64, height: 48))],
+        try makeZip(at: url, files: armsx2StateFiles(version: version ?? self.version,
+                                                     extra: [("Screenshot.png", png(width: 64, height: 48))]),
                     stored: true)
         if let modified {
             try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path(percentEncoded: false))

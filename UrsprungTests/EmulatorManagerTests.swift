@@ -139,7 +139,7 @@ struct EmulatorManagerTests {
         #expect(manager.hasPreviousVersion(second))
 
         // Going back sticks while the pin stays the same.
-        manager.restorePreviousVersion(second)
+        try manager.restorePreviousVersion(second)
         #expect(manager.versions["armsx2"]?.current?.commit == "aaaa")
         #expect(manager.isUpdateAvailable(second))
         #expect(try await manager.ensureInstalled(second) == manager.appURL(for: second, commit: "aaaa"))
@@ -151,7 +151,7 @@ struct EmulatorManagerTests {
         #expect(await log.urls.count == 2)
 
         // A held version gives way when the pin moves; the oldest version is deleted.
-        manager.restorePreviousVersion(second)
+        try manager.restorePreviousVersion(second)
         _ = try await manager.ensureInstalled(third)
         #expect(manager.versions["armsx2"]?.current?.commit == "cccc")
         #expect(manager.versions["armsx2"]?.previous?.commit == "aaaa")
@@ -169,7 +169,7 @@ struct EmulatorManagerTests {
         _ = try await manager.ensureInstalled(new)
         #expect(manager.saveStateVersion(of: new) == 0x9B00_0000)
 
-        manager.restorePreviousVersion(new)
+        try manager.restorePreviousVersion(new)
         #expect(manager.saveStateVersion(of: new) == 0x9A59_0000)
         // Ursprung keeps the format across launches.
         let reloaded = makeManager(root: root, log: DownloadLog())
@@ -183,6 +183,26 @@ struct EmulatorManagerTests {
         let legacy = makeManager(root: root, log: DownloadLog())
         #expect(legacy.saveStateVersion(of: new) == nil)
         #expect(legacy.saveStateVersion(of: old) == 0x9A59_0000)
+    }
+
+    @Test func goingBackOnlyCountsOnceItIsSaved() async throws {
+        let root = try makeTemporaryDirectory()
+        let directory = root.appending(path: "Emulators", directoryHint: .isDirectory)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory.path(percentEncoded: false))
+            try? FileManager.default.removeItem(at: root)
+        }
+        let first = try emulator(commit: "aaaa", archive: makeArchive(in: root, commit: "aaaa"))
+        let second = try emulator(commit: "bbbb", archive: makeArchive(in: root, commit: "bbbb"))
+        let manager = makeManager(root: root, log: DownloadLog())
+        _ = try await manager.ensureInstalled(first)
+        _ = try await manager.ensureInstalled(second)
+
+        // versions.json can't be replaced: the switch would last only until the next launch.
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory.path(percentEncoded: false))
+        #expect(throws: (any Error).self) { try manager.restorePreviousVersion(second) }
+        #expect(manager.versions["armsx2"]?.current?.commit == "bbbb")
+        #expect(makeManager(root: root, log: DownloadLog()).versions["armsx2"]?.current?.commit == "bbbb")
     }
 
     @Test func removingDeletesTheVersionsButKeepsTheDataFolder() async throws {

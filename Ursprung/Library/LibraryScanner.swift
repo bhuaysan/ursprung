@@ -294,7 +294,7 @@ nonisolated enum LibraryScanner {
     }
 
     /// The file a descriptor's reference points to.
-    private static func resolve(_ reference: String, in directory: URL) -> URL {
+    static func resolve(_ reference: String, in directory: URL) -> URL {
         var path = reference.replacingOccurrences(of: "\\", with: "/")
         // An absolute Windows path ("C:/Games/Track.bin") cannot be
         // resolved here; the file is expected next to the descriptor.

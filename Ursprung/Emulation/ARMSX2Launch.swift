@@ -7,6 +7,11 @@ import Foundation
 /// what it can beforehand (docs/STANDALONE_PLAN.md, S5).
 nonisolated enum StandaloneLaunchError: LocalizedError {
     case gameUnreadable(name: String)
+    /// A format the emulator does not read: an archive, a playlist, a sheet
+    /// without a disc image it reads.
+    case unsupportedArchive(name: String)
+    case unsupportedPlaylist(name: String)
+    case unsupportedFormat(name: String)
     case memoryCardReadOnly(URL)
     case folderNotWritable(URL)
     case settingsNotWritten(reason: String)
@@ -16,6 +21,12 @@ nonisolated enum StandaloneLaunchError: LocalizedError {
         switch self {
         case .gameUnreadable(let name):
             String(localized: "“\(name)” can't be read. Check its permissions in the Finder (Get Info › Sharing & Permissions), then try again.")
+        case .unsupportedArchive(let name):
+            String(localized: "ARMSX2 can't start games from archives. Unpack “\(name)” in the Finder, then rescan.")
+        case .unsupportedPlaylist(let name):
+            String(localized: "ARMSX2 can't switch the discs of a playlist. Delete “\(name)” to start each disc on its own, then rescan.")
+        case .unsupportedFormat(let name):
+            String(localized: "ARMSX2 can't read “\(name)”. It starts ISO, BIN, IMG, MDF, CHD, CSO, ZSO and GZ disc images.")
         case .memoryCardReadOnly(let url):
             String(localized: "The game's memory card is locked or read-only, so its saves couldn't be written: \(url.path(percentEncoded: false)).")
         case .folderNotWritable(let url):
@@ -70,6 +81,9 @@ nonisolated struct ARMSX2Launch: Sendable {
     /// Ursprung's environment, with `TMPDIR` pointing at the PINE folder.
     let environment: [String: String]
     let config: PCSX2Config
+    /// Where `writeSharedFiles` puts `PCSX2.ini`.
+    let dataFolder: URL
+    /// Shared by every launch: `writeSharedFiles` removes the last run's.
     let logFile: URL
     /// The resume state the game continues from.
     let stateFile: URL?
@@ -77,10 +91,13 @@ nonisolated struct ARMSX2Launch: Sendable {
     /// The save state format the states were checked against.
     let saveStateVersion: UInt32?
 
-    /// Checks the request, chooses the BIOS and writes `PCSX2.ini`.
+    /// Checks the request and chooses the BIOS. `PCSX2.ini` and the log,
+    /// which every launch shares, are left to `writeSharedFiles`, right
+    /// before the process starts.
     static func prepare(_ request: Request, environment base: [String: String]) throws -> ARMSX2Launch {
         let fileManager = FileManager.default
-        if let game = request.game {
+        let game = try request.game.map(discImage(for:))
+        if let game {
             guard let handle = try? FileHandle(forReadingFrom: game), (try? handle.read(upToCount: 1))?.count == 1 else {
                 throw StandaloneLaunchError.gameUnreadable(name: game.lastPathComponent)
             }
@@ -100,7 +117,7 @@ nonisolated struct ARMSX2Launch: Sendable {
             throw StandaloneLaunchError.memoryCardReadOnly(card)
         }
 
-        let region = request.game.flatMap { game in
+        let region = game.flatMap { game in
             PS2Disc.serial(of: game).flatMap(PS2Disc.region(ofSerial:)) ?? PS2Disc.region(ofFileName: game.lastPathComponent)
         } ?? request.fallbackRegion
         // The BIOS check before the launch makes sure there is a dump.
@@ -112,17 +129,12 @@ nonisolated struct ARMSX2Launch: Sendable {
                                  snapshotFolder: request.snapshotFolder, pineSlot: pineSlot,
                                  saveStateOnShutdown: request.saveStateOnShutdown, fullscreen: request.fullscreen,
                                  controls: request.controls)
-        do {
-            try config.write(dataFolder: request.dataFolder)
-        } catch {
-            throw StandaloneLaunchError.settingsNotWritten(reason: error.localizedDescription)
-        }
 
         // A damaged or incompatible state would open a dialog. A chosen state
         // is refused; without a loadable resume state the game starts from
         // the beginning.
         let stateFile: URL?
-        if request.game == nil {
+        if game == nil {
             stateFile = nil
         } else if let chosen = request.stateFile {
             guard ARMSX2States.isLoadable(chosen, by: request.saveStateVersion) else {
@@ -136,9 +148,8 @@ nonisolated struct ARMSX2Launch: Sendable {
                 : nil
         }
 
-        try? fileManager.removeItem(at: request.logFile)
         var arguments = ["-datapath", request.dataFolder.path(percentEncoded: false)]
-        if let game = request.game {
+        if let game {
             arguments += ["-batch", "-nogui", "-logfile", request.logFile.path(percentEncoded: false),
                           request.fullscreen ? "-fullscreen" : "-nofullscreen"]
             if let stateFile { arguments += ["-statefile", stateFile.path(percentEncoded: false)] }
@@ -151,9 +162,53 @@ nonisolated struct ARMSX2Launch: Sendable {
         var environment = base
         environment["TMPDIR"] = request.pineFolder.path(percentEncoded: false)
         return ARMSX2Launch(executable: request.app.appending(path: request.executable), arguments: arguments,
-                            environment: environment, config: config, logFile: request.logFile, stateFile: stateFile,
+                            environment: environment, config: config, dataFolder: request.dataFolder,
+                            logFile: request.logFile, stateFile: stateFile,
                             pineSocket: pineSocket(slot: pineSlot, in: request.pineFolder),
                             saveStateVersion: request.saveStateVersion)
+    }
+
+    /// The extensions ARMSX2 starts as discs (`VMManager::IsDiscFileName`).
+    static let discExtensions: Set<String> = ["iso", "bin", "img", "mdf", "gz", "cso", "zso", "chd"]
+
+    /// The disc image ARMSX2 is started with for a library file: the file
+    /// itself, or the image a CUE or CCD sheet names. ARMSX2 has no reader
+    /// for sheets, playlists or archives and would show an error dialog.
+    static func discImage(for game: URL) throws -> URL {
+        let name = game.lastPathComponent
+        switch game.pathExtension.lowercased() {
+        case let ext where discExtensions.contains(ext):
+            return game
+        case "cue":
+            // The data track comes first; PlayStation 2 games rarely have audio tracks.
+            guard let image = CueSheet.referencedFiles(in: game)
+                .map({ LibraryScanner.resolve($0, in: game.deletingLastPathComponent()) })
+                .first(where: { discExtensions.contains($0.pathExtension.lowercased()) }) else {
+                throw StandaloneLaunchError.unsupportedFormat(name: name)
+            }
+            return image
+        case "ccd":
+            return game.deletingPathExtension().appendingPathExtension("img")
+        case "m3u":
+            throw StandaloneLaunchError.unsupportedPlaylist(name: name)
+        case "zip", "7z":
+            throw StandaloneLaunchError.unsupportedArchive(name: name)
+        default:
+            throw StandaloneLaunchError.unsupportedFormat(name: name)
+        }
+    }
+
+    /// Writes `PCSX2.ini` and removes the last run's log, which every launch
+    /// shares: only the launch that is about to start its process may touch
+    /// them, so the caller does that with no suspension point before the
+    /// start. A launch that was superseded while it prepared must not.
+    func writeSharedFiles() throws {
+        try? FileManager.default.removeItem(at: logFile)
+        do {
+            try config.write(dataFolder: dataFolder)
+        } catch {
+            throw StandaloneLaunchError.settingsNotWritten(reason: error.localizedDescription)
+        }
     }
 
     /// A PINE folder of its own for every launch (ARMSX2 puts its socket in

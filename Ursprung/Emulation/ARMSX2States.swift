@@ -14,6 +14,13 @@ nonisolated enum ARMSX2States {
     static let fileExtension = "p2s"
     private static let screenshotEntry = "Screenshot.png"
     private static let versionEntry = "PCSX2 Savestate Version.id"
+    /// What ARMSX2 refuses to load a state without (`SaveState_UnzipFromZip`
+    /// and the required `SavestateEntries` at the pinned commit).
+    static let requiredEntries = [
+        "PCSX2 Internal Structures.dat", "eeMemory.bin", "iopMemory.bin", "eeHwRegs.bin", "iopHwRegs.bin",
+        "Scratchpad.bin", "vu0Memory.bin", "vu1Memory.bin", "vu0MicroMem.bin", "vu1MicroMem.bin",
+        "SPU2.bin", "PAD.bin", "GS.bin",
+    ]
 
     /// What a state file holds, from its name.
     enum Kind: Hashable, Sendable {
@@ -198,11 +205,27 @@ nonisolated enum ARMSX2States {
         version >> 16 == current >> 16 && version <= current
     }
 
-    /// Whether the emulator with save state format `current` loads the
-    /// state; never when that format is unknown.
+    /// Whether the emulator with save state format `current` can load the
+    /// state, as far as Ursprung can tell: its format is compatible and it
+    /// has every part ARMSX2 requires, each within the file. The compressed
+    /// data itself is not checked (ARMSX2 uses Zstandard). Never when the
+    /// format is unknown.
     static func isLoadable(_ url: URL, by current: UInt32?) -> Bool {
-        guard let current, let version = saveStateVersion(of: url) else { return false }
-        return isCompatible(version, with: current)
+        guard let current, let zip = try? ZipArchive(url: url),
+              let entry = zip.files.first(where: { $0.path == versionEntry }),
+              let data = try? zip.data(of: entry), data.count >= 4,
+              isCompatible(data.uint32(at: 0), with: current) else { return false }
+        return hasRequiredEntries(zip)
+    }
+
+    /// Every required part is there, not empty, and has its local header,
+    /// with its data before the central directory, as in a file that was
+    /// written completely.
+    private static func hasRequiredEntries(_ zip: ZipArchive) -> Bool {
+        let entries = Dictionary(zip.files.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+        let required = requiredEntries.compactMap { entries[$0] }
+        return required.count == requiredEntries.count && required.allSatisfy { $0.uncompressedSize > 0 }
+            && zip.hasIntactLocalHeaders(required)
     }
 
     /// What a manifest records for a state ARMSX2 wrote, when the user names it.
@@ -229,9 +252,10 @@ nonisolated enum ARMSX2States {
 
     /// Saves the running game into `slot` and waits until ARMSX2 has written
     /// the state: PINE answers as soon as the save is queued. The state it
-    /// replaces goes into the history first, like a libretro core's slot, and
-    /// comes back if the save fails. Cancelled before the request, nothing
-    /// is saved; cancelled afterwards, it stops waiting.
+    /// replaces goes into the history first, like a libretro core's slot.
+    /// Cancelled before the request, nothing is saved. Once the request may
+    /// have reached ARMSX2, nothing takes it back: ARMSX2 can still write the
+    /// state after the wait has ended, so the copy in the history stays.
     @concurrent
     static func save(slot: Int, through client: PINEClient, in folder: URL,
                      timeout: Duration = .seconds(10)) async throws -> URL {
@@ -239,12 +263,16 @@ nonisolated enum ARMSX2States {
         try Task.checkCancellation()
         let previous = modificationDate(url)
         let archived = try archiveCopy(of: url, date: .now)
+        var mayBeQueued = false
         do {
             try Task.checkCancellation()
             do {
+                mayBeQueued = true
                 try await client.saveState(slot: UInt8(armsx2Slot(slot)))
-            } catch {
-                throw ARMSX2ControlError(error)
+            } catch let failure as PINEClient.Failure {
+                // Not connected, or ARMSX2 said no: nothing is queued.
+                mayBeQueued = failure != .unreachable && failure != .refused
+                throw ARMSX2ControlError(failure)
             }
             // ARMSX2 writes `<state>.<random>.part` and renames it when done.
             let clock = ContinuousClock()
@@ -254,18 +282,24 @@ nonisolated enum ARMSX2States {
                 if modificationDate(url) > previous { break }
             }
             guard modificationDate(url) > previous else { throw ARMSX2ControlError.notSaved }
-            SaveStateStore.pruneHistory(in: folder)
+            didSave(into: url, in: folder)
             return url
         } catch {
             // Written after all, just before ARMSX2 quit or the wait ended:
             // the copy in the history is the replaced state.
             if modificationDate(url) > previous {
-                SaveStateStore.pruneHistory(in: folder)
+                didSave(into: url, in: folder)
                 return url
             }
-            if let archived { unarchive(archived, to: url) }
+            if let archived, !mayBeQueued { unarchive(archived) }
             throw error
         }
+    }
+
+    /// The name of the replaced state went into the history with its copy.
+    private static func didSave(into url: URL, in folder: URL) {
+        try? FileManager.default.removeItem(at: manifestURL(for: url))
+        SaveStateStore.pruneHistory(in: folder)
     }
 
     /// Loads the state in `slot` of the running disc. With `expected`, only
@@ -300,9 +334,10 @@ nonisolated enum ARMSX2States {
         }
     }
 
-    /// Copies the state at `url` (if any) into the history and moves its
-    /// manifest along. The copy keeps the state's date, which the manifest
-    /// is checked against.
+    /// Copies the state at `url` (if any) and its manifest into the history.
+    /// The copy keeps the state's date, which the manifest is checked
+    /// against. The manifest stays next to the state until the new one is
+    /// written: a name never goes with a state written later.
     private static func archiveCopy(of url: URL, date: Date) throws -> (state: URL, manifest: URL?)? {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: url.path(percentEncoded: false)) else { return nil }
@@ -316,29 +351,33 @@ nonisolated enum ARMSX2States {
         try? fileManager.setAttributes([.modificationDate: modificationDate(url)], ofItemAtPath: copy.path(percentEncoded: false))
         let manifest = manifestURL(for: url)
         guard fileManager.fileExists(atPath: manifest.path(percentEncoded: false)) else { return (copy, nil) }
-        let movedManifest = history.appending(path: prefix + manifest.lastPathComponent)
-        try? fileManager.removeItem(at: movedManifest)
-        try? fileManager.moveItem(at: manifest, to: movedManifest)
-        return (copy, movedManifest)
+        let copiedManifest = history.appending(path: prefix + manifest.lastPathComponent)
+        try? fileManager.removeItem(at: copiedManifest)
+        guard (try? fileManager.copyItem(at: manifest, to: copiedManifest)) != nil else { return (copy, nil) }
+        return (copy, copiedManifest)
     }
 
-    /// Undoes `archiveCopy` after a failed save: the state is still in place.
-    private static func unarchive(_ archived: (state: URL, manifest: URL?), to url: URL) {
+    /// Undoes `archiveCopy` after a save that was never queued: the state is still in place.
+    private static func unarchive(_ archived: (state: URL, manifest: URL?)) {
         try? FileManager.default.removeItem(at: archived.state)
-        if let manifest = archived.manifest {
-            try? FileManager.default.moveItem(at: manifest, to: manifestURL(for: url))
-        }
+        if let manifest = archived.manifest { try? FileManager.default.removeItem(at: manifest) }
     }
 
     // MARK: Resume
 
-    /// Removes the resume state unless ARMSX2 wrote it since `date`. Quitting
-    /// in ARMSX2 itself writes none, and the old one would continue from a
-    /// point older than the memory card.
+    /// Removes the resume states unless ARMSX2 wrote one since `date`.
+    /// Quitting in ARMSX2 itself writes none, and an old one would continue
+    /// from a point older than the memory card. Every old one goes: the next
+    /// newest would otherwise become the automatic state. Merged copies are
+    /// not automatic states and stay.
     static func removeStaleResumeState(in folder: URL, olderThan date: Date) {
-        guard let state = resumeState(in: folder), modificationDate(state) < date else { return }
-        try? FileManager.default.removeItem(at: state)
-        try? FileManager.default.removeItem(at: manifestURL(for: state))
+        guard let newest = resumeState(in: folder), modificationDate(newest) < date else { return }
+        for name in fileNames(in: folder) where name.hasSuffix(".resume.p2s") {
+            let state = folder.appending(path: name)
+            guard modificationDate(state) < date else { continue }
+            try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.removeItem(at: manifestURL(for: state))
+        }
     }
 
     private static func modificationDate(_ url: URL) -> Date {

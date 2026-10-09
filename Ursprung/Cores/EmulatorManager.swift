@@ -144,7 +144,7 @@ final class EmulatorManager {
                 return
             }
             if entry?.previous?.commit == pin, hasPreviousVersion(emulator) {
-                restorePreviousVersion(emulator)
+                try restorePreviousVersion(emulator)
                 return
             }
             downloads[emulator.id] = 0
@@ -153,7 +153,7 @@ final class EmulatorManager {
             try await Self.install(archive: archive, of: emulator,
                                    into: appURL(for: emulator, commit: pin).deletingLastPathComponent(),
                                    verifySignature: verifySignature)
-            activate(EmulatorVersionRecord(tag: emulator.release.tag, commit: pin, installed: .now,
+            try activate(EmulatorVersionRecord(tag: emulator.release.tag, commit: pin, installed: .now,
                                            saveStateVersion: emulator.saveStateVersion), of: emulator)
         }
         installations[emulator.id] = task
@@ -161,30 +161,37 @@ final class EmulatorManager {
     }
 
     /// Records a freshly installed version as active. The version it replaces
-    /// becomes the previous one; any older version is deleted.
-    private func activate(_ record: EmulatorVersionRecord, of emulator: StandaloneEmulator) {
+    /// becomes the previous one; any older version is deleted, once the
+    /// change is saved.
+    private func activate(_ record: EmulatorVersionRecord, of emulator: StandaloneEmulator) throws {
         var entry = versions[emulator.id] ?? EmulatorVersionEntry()
         let displaced = [entry.current, entry.previous].compactMap { $0 }.filter { $0.commit != record.commit }
-        for old in displaced.dropFirst() {
-            try? FileManager.default.removeItem(at: appURL(for: emulator, commit: old.commit).deletingLastPathComponent())
-        }
         entry.previous = displaced.first
         entry.current = record
         entry.heldBackFrom = nil
-        versions[emulator.id] = entry
-        saveVersions()
-        revision += 1
+        try setVersions(entry, of: emulator)
+        for old in displaced.dropFirst() {
+            try? FileManager.default.removeItem(at: appURL(for: emulator, commit: old.commit).deletingLastPathComponent())
+        }
     }
 
     /// Swaps the active and the previous version, so this can be undone the
     /// same way. Going back to a version other than the pinned release holds
-    /// it until the pin moves.
-    func restorePreviousVersion(_ emulator: StandaloneEmulator) {
+    /// it until the pin moves. Nothing changes if the switch can't be saved:
+    /// it would last only until the next launch of Ursprung.
+    func restorePreviousVersion(_ emulator: StandaloneEmulator) throws {
         guard hasPreviousVersion(emulator), var entry = versions[emulator.id] else { return }
         (entry.current, entry.previous) = (entry.previous, entry.current)
         entry.heldBackFrom = entry.current?.commit == emulator.release.commit ? nil : emulator.release.commit
-        versions[emulator.id] = entry
-        saveVersions()
+        try setVersions(entry, of: emulator)
+    }
+
+    /// Saves `entry` first and takes it over only once it is saved.
+    private func setVersions(_ entry: EmulatorVersionEntry, of emulator: StandaloneEmulator) throws {
+        var updated = versions
+        updated[emulator.id] = entry
+        try EmulatorVersionStore.save(updated, in: directory)
+        versions = updated
         revision += 1
     }
 

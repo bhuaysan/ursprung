@@ -198,12 +198,10 @@ struct ARMSX2ControlTests {
     @discardableResult
     private static func writeState(_ name: String, in folder: URL, version: UInt32 = 0x9A59_0000,
                                    modified: Date? = nil) throws -> URL {
-        var bytes = withUnsafeBytes(of: version.littleEndian) { Data($0) }
-        bytes.append(contentsOf: Array("0.1 test".utf8) + [0])
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appending(path: name)
         try? FileManager.default.removeItem(at: url)
-        try makeZip(at: url, files: [("PCSX2 Savestate Version.id", bytes)], stored: true)
+        try makeZip(at: url, files: armsx2StateFiles(version: version), stored: true)
         if let modified {
             try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path(percentEncoded: false))
         }
@@ -271,7 +269,7 @@ struct ARMSX2ControlTests {
         #expect(server.requests.last.map { [$0.opcode] + $0.arguments } == [0x09, 1], "Quick Save is ARMSX2's slot 1")
     }
 
-    @Test func aSaveThatNeverLandsLeavesTheSlotAsItWas() async throws {
+    @Test func aSaveThatDoesNotLandInTimeKeepsTheCopy() async throws {
         let root = try makeTemporaryDirectory()
         let socketFolder = try makeSocketFolder()
         defer {
@@ -283,13 +281,58 @@ struct ARMSX2ControlTests {
         let quickSave = try #require(ARMSX2States.states(in: folder).slots.first)
         try SaveStateStore.rename(quickSave, to: "Keep me",
                                   origin: ARMSX2States.context(for: quickSave, gameFileName: "p4.iso", gameFileSize: 1))
-        // ARMSX2 accepts the request but the memory card is busy, so nothing is written.
-        let server = try FakePINEServer(socket: socketFolder.appending(path: "pcsx2.sock"), handler: persona4)
+        // ARMSX2 accepts the request but writes the state only after the wait.
+        let fresh = try Self.writeState("fresh.p2s", in: root)
+        let server = try FakePINEServer(socket: socketFolder.appending(path: "pcsx2.sock")) { opcode, arguments in
+            if opcode == PINEClient.Opcode.saveState.rawValue {
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.6) {
+                    let slot = folder.appending(path: "SLES-55474 (117D1977).01.p2s")
+                    let part = folder.appending(path: "SLES-55474 (117D1977).01.p2s.x7Kq.part")
+                    try? FileManager.default.copyItem(at: fresh, to: part)
+                    try? FileManager.default.setAttributes([.modificationDate: Date.now], ofItemAtPath: part.path(percentEncoded: false))
+                    _ = rename(part.path(percentEncoded: false), slot.path(percentEncoded: false))
+                }
+            }
+            return persona4(opcode, arguments)
+        }
         defer { server.stop() }
 
         await #expect(throws: ARMSX2ControlError.notSaved) {
             try await ARMSX2States.save(slot: 0, through: PINEClient(socket: server.socket), in: folder,
-                                        timeout: .milliseconds(400))
+                                        timeout: .milliseconds(200))
+        }
+        // Until ARMSX2 writes, the slot keeps its state and name; the copy waits in the history.
+        #expect(ARMSX2States.states(in: folder).slots.first?.name == "Keep me")
+        #expect(ARMSX2States.history(in: folder).map(\.name) == ["Keep me"])
+
+        try await Task.sleep(for: .seconds(1))
+        let slot = try #require(ARMSX2States.states(in: folder).slots.first)
+        #expect(slot.date > quickSave.date, "Written late")
+        #expect(slot.name == nil)
+        #expect(ARMSX2States.history(in: folder).map(\.name) == ["Keep me"], "The replaced state survived")
+    }
+
+    @Test func aRefusedSaveLeavesTheSlotAsItWas() async throws {
+        let root = try makeTemporaryDirectory()
+        let socketFolder = try makeSocketFolder()
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: socketFolder)
+        }
+        let folder = root.appending(path: "armsx2", directoryHint: .isDirectory)
+        try Self.writeState("SLES-55474 (117D1977).01.p2s", in: folder, modified: .now.addingTimeInterval(-600))
+        let quickSave = try #require(ARMSX2States.states(in: folder).slots.first)
+        try SaveStateStore.rename(quickSave, to: "Keep me",
+                                  origin: ARMSX2States.context(for: quickSave, gameFileName: "p4.iso", gameFileSize: 1))
+        // ARMSX2 says no to the save itself: nothing is queued.
+        let server = try FakePINEServer(socket: socketFolder.appending(path: "pcsx2.sock")) { opcode, arguments in
+            opcode == PINEClient.Opcode.saveState.rawValue ? nil : persona4(opcode, arguments)
+        }
+        defer { server.stop() }
+
+        await #expect(throws: ARMSX2ControlError.noGame) {
+            try await ARMSX2States.save(slot: 0, through: PINEClient(socket: server.socket), in: folder,
+                                        timeout: .milliseconds(200))
         }
         #expect(ARMSX2States.history(in: folder).isEmpty)
         #expect(ARMSX2States.states(in: folder).slots.first?.name == "Keep me")

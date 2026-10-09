@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
+import SwiftData
 import Testing
 @testable import Ursprung
 
@@ -179,13 +180,11 @@ struct StandaloneLaunchTests {
                 fullscreen: true, controls: .standardUS, saveStateVersion: 0x9A59_0000)
         }
 
-        /// A state as ARMSX2 writes it, with only its version entry.
-        func writeState(named name: String, version: UInt32) throws -> URL {
-            var bytes = withUnsafeBytes(of: version.littleEndian) { Data($0) }
-            bytes.append(contentsOf: Array("0.1 test".utf8) + [0])
+        /// A state laid out as ARMSX2 writes it, without `omitting`.
+        func writeState(named name: String, version: UInt32, omitting: Set<String> = []) throws -> URL {
             let url = request.saveStateFolder.appending(path: name)
             try FileManager.default.createDirectory(at: request.saveStateFolder, withIntermediateDirectories: true)
-            try makeZip(at: url, containing: "PCSX2 Savestate Version.id", bytes: bytes)
+            try makeZip(at: url, files: armsx2StateFiles(version: version, omitting: omitting))
             return url
         }
     }
@@ -195,6 +194,9 @@ struct StandaloneLaunchTests {
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let launch = try ARMSX2Launch.prepare(fixture.request, environment: ["HOME": "/Users/x", "TMPDIR": "/var/T/"])
         let request = fixture.request
+        #expect(!FileManager.default.fileExists(atPath: PCSX2Config.iniURL(dataFolder: request.dataFolder).path(percentEncoded: false)),
+                "Written only right before the start")
+        try launch.writeSharedFiles()
 
         #expect(launch.executable == request.app.appending(path: "Contents/MacOS/ARMSX2"))
         #expect(launch.arguments == ["-datapath", request.dataFolder.path(percentEncoded: false), "-batch", "-nogui",
@@ -223,6 +225,7 @@ struct StandaloneLaunchTests {
         fixture.request.memoryCardFolder = PCSX2Config.ownFolder("memcards", dataFolder: dataFolder)
         _ = try fixture.writeState(named: "SLUS-21782 (01234567).resume.p2s", version: 0x9A59_0000)
         let launch = try ARMSX2Launch.prepare(fixture.request, environment: [:])
+        try launch.writeSharedFiles()
 
         // No -batch/-nogui: closing its main window quits ARMSX2.
         #expect(launch.arguments == ["-datapath", dataFolder.path(percentEncoded: false),
@@ -276,6 +279,174 @@ struct StandaloneLaunchTests {
         #expect(try ARMSX2Launch.prepare(fixture.request, environment: [:]).stateFile == nil, "Damaged")
     }
 
+    @Test func refusesIncompleteStates() throws {
+        var fixture = try Fixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        // Only the version: the format fits, but there is nothing to load.
+        let versionOnly = fixture.request.saveStateFolder.appending(path: "SLUS-21782 (01234567).02.p2s")
+        try FileManager.default.createDirectory(at: fixture.request.saveStateFolder, withIntermediateDirectories: true)
+        try makeZip(at: versionOnly, files: Array(armsx2StateFiles(version: 0x9A59_0000).prefix(1)))
+        #expect(!ARMSX2States.isLoadable(versionOnly, by: 0x9A59_0000))
+
+        let complete = try fixture.writeState(named: "SLUS-21782 (01234567).03.p2s", version: 0x9A59_0000)
+        #expect(ARMSX2States.isLoadable(complete, by: 0x9A59_0000))
+        let noStructures = try fixture.writeState(named: "SLUS-21782 (01234567).04.p2s", version: 0x9A59_0000,
+                                                  omitting: ["PCSX2 Internal Structures.dat"])
+        #expect(!ARMSX2States.isLoadable(noStructures, by: 0x9A59_0000))
+        let noGS = try fixture.writeState(named: "SLUS-21782 (01234567).05.p2s", version: 0x9A59_0000, omitting: ["GS.bin"])
+        #expect(!ARMSX2States.isLoadable(noGS, by: 0x9A59_0000))
+
+        // The last part cut short, with the central directory and its offset moved to match.
+        var data = try Data(contentsOf: complete)
+        let directoryStart = Int(data.uint32(at: data.count - 6))
+        let cut = complete.deletingLastPathComponent().appending(path: "SLUS-21782 (01234567).06.p2s")
+        let entries = data.subdata(in: directoryStart..<data.count)
+        // One byte is enough: the check reads the local headers.
+        let missing = 1
+        data = data.prefix(directoryStart - missing) + entries
+        data.replaceSubrange((data.count - 6)..<(data.count - 2),
+                             with: withUnsafeBytes(of: UInt32(directoryStart - missing).littleEndian, Array.init))
+        try data.write(to: cut)
+        #expect(!ARMSX2States.isLoadable(cut, by: 0x9A59_0000))
+
+        fixture.request.stateFile = noStructures
+        #expect(throws: StandaloneLaunchError.self) { try ARMSX2Launch.prepare(fixture.request, environment: [:]) }
+    }
+
+    @Test func refusesStatesWithDamagedZipStructures() throws {
+        let fixture = try Fixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let folder = fixture.request.saveStateFolder
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var number = 0
+        func write(_ data: Data) throws -> URL {
+            number += 1
+            let url = folder.appending(path: "SLUS-21782 (01234567).\(String(format: "%02d", number)).p2s")
+            try data.write(to: url)
+            return url
+        }
+        let files = armsx2StateFiles(version: 0x9A59_0000)
+        // Built byte by byte, not by `zip`: the valid one passes.
+        let built = handmadeZip(files: files)
+        let valid = try write(built)
+        #expect(ARMSX2States.isLoadable(valid, by: 0x9A59_0000))
+        let gs = try #require(ZipArchive(url: valid).files.first { $0.path == "GS.bin" })
+        let header = Int(gs.localHeaderOffset)
+
+        // ZIP64 values a damaged file can carry are compared, never added:
+        // refused without a trap or a large allocation.
+        let extremes: [(uncompressed: UInt64, compressed: UInt64, offset: UInt64?)] = [
+            (4, .max, nil), (4, .max - 40, nil), (.max, .max, nil), (4, 4, .max), (4, 4, .max - 20), (4, 4, gs.localHeaderOffset + 2),
+        ]
+        for values in extremes {
+            let state = try write(handmadeZip(files: files, zip64: ["GS.bin": values]))
+            #expect(!ARMSX2States.isLoadable(state, by: 0x9A59_0000), "\(values)")
+            let zip = try ZipArchive(url: state)
+            let entry = try #require(zip.files.first { $0.path == "GS.bin" })
+            #expect(throws: ZipArchive.ZipError.self) { try zip.data(of: entry) }
+        }
+
+        // Damaged local headers behind an intact central directory.
+        func damaged(_ change: (inout Data) -> Void) throws -> URL {
+            var data = built
+            change(&data)
+            return try write(data)
+        }
+        let wrongMagic = try damaged { $0.replaceSubrange(header..<(header + 4), with: [0, 0, 0, 0]) }
+        #expect(!ARMSX2States.isLoadable(wrongMagic, by: 0x9A59_0000))
+        let otherMethod = try damaged { $0[header + 8] = 8 }
+        #expect(!ARMSX2States.isLoadable(otherMethod, by: 0x9A59_0000))
+        // A local extra field the central directory doesn't have pushes the data past it.
+        let longerExtra = try damaged { $0[header + 28] = 1 }
+        #expect(!ARMSX2States.isLoadable(longerExtra, by: 0x9A59_0000))
+        let longestExtra = try damaged { $0[header + 28] = 0xFF; $0[header + 29] = 0xFF }
+        #expect(!ARMSX2States.isLoadable(longestExtra, by: 0x9A59_0000))
+    }
+
+    @Test func statesStayLockedUntilTheEmulatorHasQuit() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = EmulationSession(cores: CoreManager(coresDirectory: root, systemDirectory: root),
+                                       emulators: EmulatorManager(directory: root),
+                                       bios: BIOSManager(systemDirectory: root), achievements: AchievementService())
+        let container = try ModelContainer(for: Game.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let ps2 = Game(path: "/ROMs/PS2/A.iso", systemID: "ps2", title: "A", fileName: "A.iso", fileSize: 1, crc32: nil)
+        // No standalone emulator: the next game's backend must not unlock the first's states.
+        let other = Game(path: "/ROMs/X/B.bin", systemID: "unknown", title: "B", fileName: "B.bin", fileSize: 1, crc32: nil)
+        container.mainContext.insert(ps2)
+        container.mainContext.insert(other)
+
+        // Stands in for ARMSX2 finishing a save as it quits: it ends once `released` exists.
+        let ready = root.appending(path: "ready").path(percentEncoded: false)
+        let released = root.appending(path: "released").path(percentEncoded: false)
+        let emulator = try ExternalSession(executable: URL(filePath: "/bin/sh"), arguments: [
+            "-c", "trap 'while [ ! -e \"$1\" ]; do /bin/sleep 0.02; done; exit 0' TERM; : > \"$0\"; while :; do /bin/sleep 0.02; done",
+            ready, released,
+        ], environment: [:])
+        while !FileManager.default.fileExists(atPath: ready) { try await Task.sleep(for: .milliseconds(10)) }
+        session.adoptExternalForTesting(emulator, gameID: ps2.id)
+        #expect(session.standaloneMayWriteStates(of: ps2.id))
+
+        let launch = Task { await session.launch(other, context: container.mainContext) }
+        while session.phase == .external { await Task.yield() }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!session.isStandaloneGameActive, "The next game is not a standalone one")
+        #expect(session.standaloneMayWriteStates(of: ps2.id), "ARMSX2 still quits")
+        #expect(session.isStandaloneEmulatorInUse, "Its settings are still in use")
+        #expect(!session.standaloneMayWriteStates(of: other.id))
+
+        FileManager.default.createFile(atPath: released, contents: nil)
+        await launch.value
+        #expect(!emulator.isRunning)
+        #expect(!session.standaloneMayWriteStates(of: ps2.id))
+        #expect(!session.isStandaloneEmulatorInUse)
+    }
+
+    @Test func startsTheDiscImageARMSX2Reads() throws {
+        var fixture = try Fixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let folder = fixture.request.game!.deletingLastPathComponent()
+        let image = folder.appending(path: "Game (USA).bin")
+        try FileManager.default.moveItem(at: fixture.request.game!, to: image)
+        let cue = folder.appending(path: "Game (USA).cue")
+        try "FILE \"Game (USA).bin\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n".write(to: cue, atomically: true, encoding: .utf8)
+        fixture.request.game = cue
+        let launch = try ARMSX2Launch.prepare(fixture.request, environment: [:])
+        #expect(launch.arguments.suffix(2) == ["--", image.path(percentEncoded: false)])
+        #expect(launch.config.biosFileName == "US.bin", "The serial is read from the image")
+
+        #expect(try ARMSX2Launch.discImage(for: image) == image)
+        #expect(try ARMSX2Launch.discImage(for: folder.appending(path: "Game.ccd")) == folder.appending(path: "Game.img"))
+        for name in ["Game.m3u", "Game.zip", "Game.7z", "Game.nrg"] {
+            #expect(throws: StandaloneLaunchError.self) { try ARMSX2Launch.discImage(for: folder.appending(path: name)) }
+        }
+        // A sheet that names no image ARMSX2 reads.
+        try "FILE \"Game.wav\" WAVE\n".write(to: cue, atomically: true, encoding: .utf8)
+        #expect(throws: StandaloneLaunchError.self) { try ARMSX2Launch.prepare(fixture.request, environment: [:]) }
+    }
+
+    @Test func onlyTheLaunchThatStartsTouchesTheSharedFiles() throws {
+        var fixture = try Fixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let first = try ARMSX2Launch.prepare(fixture.request, environment: [:])
+        fixture.request.memoryCardFolder = fixture.root.appending(path: "Saves/ps2/H")
+        fixture.request.saveStateFolder = fixture.root.appending(path: "States/H/armsx2")
+        let second = try ARMSX2Launch.prepare(fixture.request, environment: [:])
+        try Data("last run".utf8).write(to: fixture.request.logFile)
+        try second.writeSharedFiles()
+        #expect(!FileManager.default.fileExists(atPath: fixture.request.logFile.path(percentEncoded: false)))
+        // The second one runs and logs; one preparing late leaves its log alone.
+        try Data("running".utf8).write(to: fixture.request.logFile)
+        _ = try ARMSX2Launch.prepare(fixture.request, environment: [:])
+        #expect(try Data(contentsOf: fixture.request.logFile) == Data("running".utf8))
+        // The first launch was superseded while it prepared: it writes nothing.
+        _ = first
+        let written = IniDocument(parsing: try String(contentsOf: PCSX2Config.iniURL(dataFolder: fixture.request.dataFolder),
+                                                      encoding: .utf8))
+        #expect(written.values("MemoryCards", in: "Folders") == [fixture.request.memoryCardFolder.path(percentEncoded: false)])
+        #expect(written.values("Savestates", in: "Folders") == [fixture.request.saveStateFolder.path(percentEncoded: false)])
+    }
+
     @Test func refusesWhatWouldCrashARMSX2() throws {
         var fixture = try Fixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -306,6 +477,33 @@ struct StandaloneLaunchTests {
                                               ofItemAtPath: state.path(percentEncoded: false))
         ARMSX2States.removeStaleResumeState(in: fixture.request.saveStateFolder, olderThan: start)
         #expect(!FileManager.default.fileExists(atPath: state.path(percentEncoded: false)))
+    }
+
+    @Test func noOlderResumeStateMovesUp() throws {
+        let fixture = try Fixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let folder = fixture.request.saveStateFolder
+        let start = Date.now
+        func write(_ name: String, age: TimeInterval) throws -> URL {
+            let url = try fixture.writeState(named: name, version: 0x9A59_0000)
+            try FileManager.default.setAttributes([.modificationDate: start.addingTimeInterval(age)],
+                                                  ofItemAtPath: url.path(percentEncoded: false))
+            return url
+        }
+        // Two discs of the game; the session ended without a new resume state.
+        _ = try write("SLUS-21782 (01234567).resume.p2s", age: -60)
+        _ = try write("SLUS-21783 (89ABCDEF).resume.p2s", age: -120)
+        let copy = try write("SLUS-21783 (89ABCDEF).resume (from backup 2026-10-03 14.22.11).p2s", age: -180)
+        ARMSX2States.removeStaleResumeState(in: folder, olderThan: start)
+        #expect(ARMSX2States.resumeState(in: folder) == nil)
+        #expect(ARMSX2States.states(in: folder).autosave == nil)
+        #expect(FileManager.default.fileExists(atPath: copy.path(percentEncoded: false)), "Merged copies are not automatic")
+
+        // A new one and an old one: the new one is the automatic state.
+        let fresh = try write("SLUS-21782 (01234567).resume.p2s", age: 5)
+        _ = try write("SLUS-21783 (89ABCDEF).resume.p2s", age: -120)
+        ARMSX2States.removeStaleResumeState(in: folder, olderThan: start)
+        #expect(ARMSX2States.resumeState(in: folder) == fresh)
     }
 
     @Test func findsTheErrorInTheLog() {

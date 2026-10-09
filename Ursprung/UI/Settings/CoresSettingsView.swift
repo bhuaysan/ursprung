@@ -70,7 +70,8 @@ struct CoresSettingsView: View {
                 if let failure, !failure.core.isLibretro { failureRow(failure) }
                 ForEach(CoreManager.standaloneEmulators) { emulator in
                     if let standalone = emulator.standalone {
-                        StandaloneEmulatorRow(definition: emulator, emulator: standalone, install: install, remove: remove,
+                        StandaloneEmulatorRow(definition: emulator, emulator: standalone, install: install,
+                                              goBack: restorePreviousEmulator, remove: remove,
                                               isInUse: session.isActive && session.coreName == emulator.name
                                                   || session.standaloneSettingsID == standalone.id)
                         LabeledContent {
@@ -157,6 +158,15 @@ struct CoresSettingsView: View {
         }
     }
 
+    private func restorePreviousEmulator(_ core: CoreDefinition) {
+        guard let emulator = core.standalone else { return }
+        do {
+            try emulators.restorePreviousVersion(emulator)
+        } catch {
+            failure = DownloadFailure(core: core, message: error.localizedDescription)
+        }
+    }
+
     private func install(_ core: CoreDefinition) {
         if failure?.core == core { failure = nil }
         Task {
@@ -199,6 +209,7 @@ private struct StandaloneEmulatorRow: View {
     let definition: CoreDefinition
     let emulator: StandaloneEmulator
     let install: (CoreDefinition) -> Void
+    let goBack: (CoreDefinition) -> Void
     let remove: (CoreDefinition) -> Void
     /// A game runs in the emulator: its app can't be swapped now.
     let isInUse: Bool
@@ -222,7 +233,7 @@ private struct StandaloneEmulatorRow: View {
                                 .disabled(isInUse)
                         }
                         if emulators.hasPreviousVersion(emulator), let previous = emulators.versions[emulator.id]?.previous {
-                            Button("Go Back to \(previous.tag)") { emulators.restorePreviousVersion(emulator) }
+                            Button("Go Back to \(previous.tag)") { goBack(definition) }
                                 .disabled(isInUse)
                         }
                         if let app = emulators.installedApp(for: emulator) {

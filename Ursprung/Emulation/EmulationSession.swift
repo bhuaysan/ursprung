@@ -160,12 +160,16 @@ final class EmulationSession {
     private var externalStateTask: Task<Void, Never>?
     private var pine: PINEClient?
     private var pineTask: Task<Void, Never>?
+    /// Watches the running game's state folder while `phase == .external`.
+    @ObservationIgnored private lazy var stateWatcher = LibraryWatcher { [weak self] in self?.reloadSlots() }
     /// The save state format of the emulator version that runs.
     private var externalSaveStateVersion: UInt32?
     /// The game has shown its first frame (PINE's frame counter).
     private var externalHasStarted = false
     /// A standalone emulator opened with its own window, for its settings.
     private var standaloneSettings: ExternalSession?
+    /// The game a launch is starting, until the next launch or stop.
+    private var requestedGameUUID: UUID?
     /// The emulator whose own window is open or opening.
     private(set) var standaloneSettingsID: String?
     private var standaloneSettingsOpening: Task<Void, any Error>?
@@ -247,6 +251,7 @@ final class EmulationSession {
         // The preparing panel shows the title above the message.
         gameTitle = game.title
         standaloneName = game.system.map { $0.core(withID: game.coreID ?? Preferences.coreChoice(for: $0.id)) }?.standalone?.name
+        requestedGameUUID = game.id
         phase = .preparing(String(localized: "Loading game…"))
         await shutDownRunner(context: context)
         guard generation == self.generation else { return }
@@ -536,13 +541,22 @@ final class EmulationSession {
 
             let stateFolder = SaveStateStore.directory(in: AppPaths.states, gameID: game.id, coreID: emulator.id)
             let logFolder = emulators.logFolder(for: emulator)
-            let launch = try await Self.prepare(armsx2Request(app: app, emulator: emulator, system: system, game: game,
-                                                              resume: resume, state: state))
-            try checkCurrent(generation)
-
-            let external = try ExternalSession(executable: launch.executable, arguments: launch.arguments,
+            let request = armsx2Request(app: app, emulator: emulator, system: system, game: game, resume: resume, state: state)
+            let launch: ARMSX2Launch
+            let external: ExternalSession
+            do {
+                launch = try await Self.prepare(request)
+                try checkCurrent(generation)
+                // From here to the start nothing suspends, so no other launch
+                // can write the shared settings or log in between.
+                try launch.writeSharedFiles()
+                external = try ExternalSession(executable: launch.executable, arguments: launch.arguments,
                                                environment: launch.environment,
                                                output: logFolder.appending(path: "last-run-output.log"))
+            } catch {
+                try? FileManager.default.removeItem(at: request.pineFolder)
+                throw error
+            }
             external.onExit = { [weak self] exit in self?.externalDidExit(exit) }
             self.external = external
             externalStateFolder = stateFolder
@@ -552,6 +566,8 @@ final class EmulationSession {
             startedAt = .now
             phase = .external
             reloadSlots()
+            // Saves made in the emulator's window, and saves that land late.
+            stateWatcher.watch([stateFolder])
             let pine = PINEClient(socket: launch.pineSocket)
             self.pine = pine
             externalControl = .connecting
@@ -633,7 +649,7 @@ final class EmulationSession {
         if let standaloneSettings, standaloneSettings.isRunning {
             return standaloneSettings.activate()
         }
-        guard !isStandaloneGameActive, standaloneSettingsOpening == nil, let system = SystemCatalog.all.first(where: {
+        guard !isStandaloneEmulatorInUse, standaloneSettingsOpening == nil, let system = SystemCatalog.all.first(where: {
             $0.cores.contains { $0.standalone?.id == emulator.id }
         }) else { return }
         standaloneSettingsID = emulator.id
@@ -651,15 +667,25 @@ final class EmulationSession {
     private func startStandaloneSettings(_ emulator: StandaloneEmulator, system: GameSystem) async throws {
         let app = try await emulators.ensureInstalled(emulator)
         await bios.refresh()
-        let launch = try await Self.prepare(armsx2Request(app: app, emulator: emulator, system: system, game: nil))
-        // A game launch waits for this, then writes the settings again.
-        guard !isStandaloneGameActive else {
-            standaloneSettingsID = nil
-            return
-        }
-        let process = try ExternalSession(executable: launch.executable, arguments: launch.arguments,
+        let request = armsx2Request(app: app, emulator: emulator, system: system, game: nil)
+        let launch: ARMSX2Launch
+        let process: ExternalSession
+        do {
+            launch = try await Self.prepare(request)
+            // A game launch waits for this, then writes its own settings.
+            guard !isStandaloneEmulatorInUse else {
+                try? FileManager.default.removeItem(at: request.pineFolder)
+                standaloneSettingsID = nil
+                return
+            }
+            try launch.writeSharedFiles()
+            process = try ExternalSession(executable: launch.executable, arguments: launch.arguments,
                                           environment: launch.environment,
                                           output: emulators.logFolder(for: emulator).appending(path: "last-run-output.log"))
+        } catch {
+            try? FileManager.default.removeItem(at: request.pineFolder)
+            throw error
+        }
         let pine = PINEClient(socket: launch.pineSocket)
         process.onExit = { [weak self, weak process] _ in
             Self.removePINEFolder(of: pine)
@@ -675,6 +701,32 @@ final class EmulationSession {
         if case .preparing = phase { return standaloneName != nil }
         return phase == .external
     }
+
+    /// A standalone emulator runs a game, still quits, or one is starting:
+    /// its settings are in use. The next game's backend does not matter
+    /// while the previous emulator quits.
+    var isStandaloneEmulatorInUse: Bool {
+        external != nil || isStandaloneGameActive
+    }
+
+    /// Whether a standalone emulator may write into the states of the game
+    /// `id` right now: it is starting the game, runs it, or still quits
+    /// (a quit waits for a save under way, then writes the resume state).
+    func standaloneMayWriteStates(of id: UUID) -> Bool {
+        if external != nil, gameUUID == id { return true }
+        return isStandaloneGameActive && requestedGameUUID == id
+    }
+
+    #if DEBUG
+    /// Tests: `process` runs the game `id` in its standalone emulator, as
+    /// after a launch, without PINE.
+    func adoptExternalForTesting(_ process: ExternalSession, gameID id: UUID) {
+        external = process
+        gameUUID = id
+        requestedGameUUID = id
+        phase = .external
+    }
+    #endif
 
     /// Quits the emulator's own window, which saves its settings as it goes.
     /// One that is still opening is waited for: it writes the settings too.
@@ -742,6 +794,7 @@ final class EmulationSession {
         }
         pineTask?.cancel()
         pineTask = nil
+        stateWatcher.stop()
         externalStateTask?.cancel()
         externalStateTask = nil
         if let pine { Self.removePINEFolder(of: pine) }
@@ -1299,7 +1352,7 @@ final class EmulationSession {
 
     /// Save and load through PINE can be used now.
     var canUseExternalStates: Bool {
-        phase == .external && externalControl == .ready && !isExternalStateBusy
+        phase == .external && externalControl == .ready && !isExternalStateBusy && shutdown == nil
     }
 
     /// Why save and load are not available while the game runs in its own window.
@@ -1317,7 +1370,8 @@ final class EmulationSession {
         guard externalControl == .ready else {
             return showToast(externalStatesNote ?? "", kind: .warning, duration: 5)
         }
-        guard !isExternalStateBusy else { return }
+        // A quitting emulator saves its resume state; nothing new goes out.
+        guard !isExternalStateBusy, shutdown == nil else { return }
         isExternalStateBusy = true
         let session = external
         externalStateTask = Task {
@@ -1346,7 +1400,8 @@ final class EmulationSession {
         guard externalControl == .ready else {
             return showToast(externalStatesNote ?? "", kind: .warning, duration: 5)
         }
-        guard !isExternalStateBusy else { return }
+        // A quitting emulator saves its resume state; nothing new goes out.
+        guard !isExternalStateBusy, shutdown == nil else { return }
         isExternalStateBusy = true
         let version = externalSaveStateVersion
         let session = external

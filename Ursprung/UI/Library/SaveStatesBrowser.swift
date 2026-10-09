@@ -18,7 +18,13 @@ struct SaveStatesBrowser: View {
     @State private var stateToRename: SaveStateSlot?
     @State private var newName = ""
     @State private var stateToDelete: SaveStateSlot?
-    @State private var deleteError: String?
+    @State private var failure: Failure?
+
+    /// An action on a state that did not work.
+    private struct Failure {
+        let title: LocalizedStringKey
+        let message: String
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -104,7 +110,7 @@ struct SaveStatesBrowser: View {
                 do {
                     try SaveStateStore.discard(state)
                 } catch {
-                    deleteError = error.localizedDescription
+                    failure = Failure(title: "The save state couldn't be deleted", message: error.localizedDescription)
                 }
                 reload()
             }
@@ -113,10 +119,11 @@ struct SaveStatesBrowser: View {
             Text(state.isHistory || state.isAutosave || state.isLegacy ? "This can't be undone."
                                                                         : "You can restore it from Recently Replaced.")
         }
-        .alert("The save state couldn't be deleted", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+        .alert(failure?.title ?? "", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } }),
+               presenting: failure) { _ in
             Button("OK", role: .cancel) {}
-        } message: {
-            Text(deleteError ?? "")
+        } message: { failure in
+            Text(failure.message)
         }
     }
 
@@ -155,6 +162,7 @@ struct SaveStatesBrowser: View {
                         ForEach(core.history) { state in
                             StateCard(state: state, canPlay: canPlay, play: { start(state) },
                                       restore: core.coreID.map { coreID in { restore(state, coreID: coreID) } },
+                                      restoreBlockedBy: restoreBlocker(core),
                                       delete: { stateToDelete = state })
                         }
                     }
@@ -174,6 +182,14 @@ struct SaveStatesBrowser: View {
     /// The game runs in its standalone emulator, which loads its slots on request.
     private var isRunningExternally: Bool {
         session.phase == .external && session.gameID == game.persistentModelID
+    }
+
+    /// The standalone emulator that may write into these states' slots right
+    /// now, on a request from Ursprung or by its own hotkeys: a restore could
+    /// then be overwritten without a copy in the history.
+    private func restoreBlocker(_ core: SaveStateStore.CoreStates) -> StandaloneEmulator? {
+        guard session.standaloneMayWriteStates(of: game.id), let standalone, core.coreID == standalone.id else { return nil }
+        return standalone
     }
 
     private func loadsInRunningEmulator(_ core: SaveStateStore.CoreStates) -> Bool {
@@ -216,8 +232,13 @@ struct SaveStatesBrowser: View {
     }
 
     private func restore(_ state: SaveStateSlot, coreID: String) {
-        try? SaveStateStore.restore(state, toSlot: state.slot,
-                                    in: SaveStateStore.directory(in: AppPaths.states, gameID: game.id, coreID: coreID))
+        guard let core = cores.first(where: { $0.coreID == coreID }), restoreBlocker(core) == nil else { return }
+        do {
+            try SaveStateStore.restore(state, toSlot: state.slot,
+                                       in: SaveStateStore.directory(in: AppPaths.states, gameID: game.id, coreID: coreID))
+        } catch {
+            failure = Failure(title: "The save state couldn't be restored", message: error.localizedDescription)
+        }
         reload()
     }
 }
@@ -230,6 +251,8 @@ private struct StateCard: View {
     let play: () -> Void
     var rename: (() -> Void)?
     var restore: (() -> Void)?
+    /// Restoring waits until this emulator has quit.
+    var restoreBlockedBy: StandaloneEmulator?
     let delete: () -> Void
 
     var body: some View {
@@ -256,7 +279,8 @@ private struct StateCard: View {
                 Spacer(minLength: 0)
                 if let restore {
                     Button("Restore", systemImage: "arrow.uturn.backward", action: restore)
-                        .help(state.slot == 0 ? Text("Restore as Quick Save") : Text("Restore to Slot \(state.slot)"))
+                        .disabled(restoreBlockedBy != nil)
+                        .help(restoreHelp)
                 }
                 if let rename {
                     Button("Rename…", systemImage: "pencil", action: rename)
@@ -276,6 +300,7 @@ private struct StateCard: View {
                 .disabled(!canPlay)
             if let restore {
                 Button(state.slot == 0 ? "Restore as Quick Save" : "Restore to Slot \(state.slot)", action: restore)
+                    .disabled(restoreBlockedBy != nil)
             }
             if let rename {
                 Button("Rename…", action: rename)
@@ -286,6 +311,11 @@ private struct StateCard: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text(verbatim: [state.name, state.slotTitle].compactMap { $0 }.joined(separator: ", ")))
+    }
+
+    private var restoreHelp: Text {
+        if let emulator = restoreBlockedBy { return Text("Quit \(emulator.name) to restore this state.") }
+        return state.slot == 0 ? Text("Restore as Quick Save") : Text("Restore to Slot \(state.slot)")
     }
 
     private var subtitle: String {

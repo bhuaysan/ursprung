@@ -39,12 +39,14 @@ nonisolated struct ZipArchive: Sendable {
 
     let url: URL
     let entries: [Entry]
+    /// Where the central directory starts: every entry's data lies before it.
+    let directoryOffset: UInt64
 
     init(url: URL) throws {
         self.url = url
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
-        self.entries = try Self.readCentralDirectory(handle)
+        (entries, directoryOffset) = try Self.readCentralDirectory(handle)
     }
 
     /// Files only (no directory entries, no macOS resource forks).
@@ -62,17 +64,9 @@ nonisolated struct ZipArchive: Sendable {
     func data(of entry: Entry) throws -> Data {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
-        let fileSize = try handle.seekToEnd()
-
         guard let compressedSize = Int(exactly: entry.compressedSize),
-              let uncompressedSize = Int(exactly: entry.uncompressedSize),
-              entry.localHeaderOffset <= fileSize, fileSize - entry.localHeaderOffset >= 30 else { throw ZipError.corrupt }
-        try handle.seek(toOffset: entry.localHeaderOffset)
-        guard let header = try handle.read(upToCount: 30), header.count == 30,
-              header.uint32(at: 0) == 0x04034B50 else { throw ZipError.corrupt }
-        let dataOffset = entry.localHeaderOffset + 30 + UInt64(header.uint16(at: 26)) + UInt64(header.uint16(at: 28))
-        guard dataOffset <= fileSize, fileSize - dataOffset >= entry.compressedSize else { throw ZipError.corrupt }
-        try handle.seek(toOffset: dataOffset)
+              let uncompressedSize = Int(exactly: entry.uncompressedSize) else { throw ZipError.corrupt }
+        try handle.seek(toOffset: try dataOffset(of: entry, in: handle))
         // Reading zero bytes returns nil; an empty entry is still valid.
         let compressed = compressedSize == 0 ? Data() : try handle.read(upToCount: compressedSize) ?? Data()
         guard compressed.count == compressedSize else { throw ZipError.corrupt }
@@ -93,6 +87,35 @@ nonisolated struct ZipArchive: Sendable {
         // checksum notices them. Nothing is written for such an entry.
         guard output.count == uncompressedSize, Checksum.crc(of: output) == entry.crc32 else { throw ZipError.corrupt }
         return output
+    }
+
+    /// Whether every entry in `entries` has its local header and its data
+    /// lies before the central directory, as in a file written completely.
+    /// The data itself is neither read nor checked.
+    func hasIntactLocalHeaders(_ entries: [Entry]) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        return entries.allSatisfy { (try? dataOffset(of: $0, in: handle)) != nil }
+    }
+
+    /// Where `entry`'s data starts, after its local header (with the local
+    /// name and extra field, which may differ from the central directory's).
+    /// The header and data must end before the central directory. Values
+    /// from the file are only compared, never added unchecked: ZIP64 sizes
+    /// can be anything.
+    private func dataOffset(of entry: Entry, in handle: FileHandle) throws -> UInt64 {
+        guard entry.localHeaderOffset <= directoryOffset, directoryOffset - entry.localHeaderOffset >= 30 else {
+            throw ZipError.corrupt
+        }
+        try handle.seek(toOffset: entry.localHeaderOffset)
+        guard let header = try handle.read(upToCount: 30), header.count == 30,
+              header.uint32(at: 0) == 0x04034B50, header.uint16(at: 8) == entry.method else { throw ZipError.corrupt }
+        // At most 30 + 2 × 65535 past an offset below the directory: no overflow.
+        let dataOffset = entry.localHeaderOffset + 30 + UInt64(header.uint16(at: 26)) + UInt64(header.uint16(at: 28))
+        guard dataOffset <= directoryOffset, entry.compressedSize <= directoryOffset - dataOffset else {
+            throw ZipError.corrupt
+        }
+        return dataOffset
     }
 
     /// Extracts `entry` into `directory` unless an earlier extraction of the
@@ -140,7 +163,7 @@ nonisolated struct ZipArchive: Sendable {
 
     // MARK: - Parsing
 
-    private static func readCentralDirectory(_ handle: FileHandle) throws -> [Entry] {
+    private static func readCentralDirectory(_ handle: FileHandle) throws -> (entries: [Entry], directoryOffset: UInt64) {
         let fileSize = try handle.seekToEnd()
         guard fileSize >= 22 else { throw ZipError.notAZip }
 
@@ -232,7 +255,7 @@ nonisolated struct ZipArchive: Sendable {
                                  method: method, localHeaderOffset: localOffset))
             offset = nameStart + nameLength + extraLength + commentLength
         }
-        return entries
+        return (entries, directoryOffset)
     }
 
     private static func inflate(_ data: Data, expectedSize: Int) throws -> Data {

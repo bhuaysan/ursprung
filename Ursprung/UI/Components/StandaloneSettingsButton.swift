@@ -23,8 +23,8 @@ struct StandaloneSettingsButton: View {
         } label: {
             if isShort { Text("Open") } else { Text("Open \(emulator.name) Settings") }
         }
-        .disabled(session.isStandaloneGameActive)
-        .help(session.isStandaloneGameActive
+        .disabled(session.isStandaloneEmulatorInUse)
+        .help(session.isStandaloneEmulatorInUse
               ? String(localized: "Available when no game is running in \(emulator.name)")
               : String(localized: "Opens \(emulator.name)'s window; its settings are in its Settings menu"))
         .alert(Text("\(emulator.name) couldn't be opened"),
