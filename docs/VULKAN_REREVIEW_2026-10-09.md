@@ -4,7 +4,7 @@
 
 **Datum:** 09.10.2026  
 **Stand:** uncommittete Änderungen im Working Tree auf `main`, Basis `46c8e137ad1c48c7c159b6a78224b261d8564ba4`  
-**Vorheriges Review:** [VULKAN_REVIEW_2026-10-09.md](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/docs/VULKAN_REVIEW_2026-10-09.md>)
+**Vorheriges Review:** [VULKAN_REVIEW_2026-10-09.md](VULKAN_REVIEW_2026-10-09.md)
 
 Geprüft wurden die Fixes für F1–F5, die zusätzlichen Regressionstests, Speicherfehlerbehandlung, Smoke-Renderer-Prüfung und die neue `libvulkan.1.dylib`-Einbindung. Die vorhandenen Änderungen und der erste Review-Bericht wurden nicht bearbeitet.
 
@@ -22,13 +22,13 @@ Geprüft wurden die Fixes für F1–F5, die zusätzlichen Regressionstests, Spei
 
 ## R1 · P1 – Ein anhaltender Timeout erlaubt weiterhin Zugriff und Freigabe laufender Core-Ressourcen
 
-**Stellen:** [URLibretroCore.m:452](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URLibretroCore.m:452>), [URVulkanContext.m:815](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:815>), [wait_sync_index:959](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:959>).
+**Stellen:** [URLibretroCore.m:452](../Ursprung/Bridge/URLibretroCore.m#L452), [URVulkanContext.m:815](../Ursprung/Bridge/URVulkanContext.m#L815), [wait_sync_index:959](../Ursprung/Bridge/URVulkanContext.m#L959).
 
 ### Der Core-Abbau ignoriert den gescheiterten Abschluss
 
 `settleUnfinishedFrame` setzt nach einem zweiten Timeout `_abandoned = YES` und liefert `NO`. `waitIdle` kehrt daraufhin zurück, ohne nachgewiesen zu haben, dass die GPU fertig ist. Da `waitIdle` keinen Status zurückgibt, fährt `unloadGame` unmittelbar mit `context_destroy`, `retro_unload_game` und `retro_deinit` fort.
 
-Diese Core-Callbacks können genau die Images, Semaphoren, Speicherbereiche und Command Pools freigeben, welche die noch laufende Submission verwendet. Dass `URVulkanContext.destroy` später das eigene Device und die Instanz absichtlich bestehen lässt, schützt die vorher freigegebenen Core-Ressourcen nicht. Wartet ein Core in seinem Destructor selbst mit `vkDeviceWaitIdle`, kann stattdessen der gesamte Shutdown hängen bleiben. Der mitgelieferte Test-Core tut das in [TestDestroyResources:188](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Tools/ursprung-test-core/test_core.c:188>).
+Diese Core-Callbacks können genau die Images, Semaphoren, Speicherbereiche und Command Pools freigeben, welche die noch laufende Submission verwendet. Dass `URVulkanContext.destroy` später das eigene Device und die Instanz absichtlich bestehen lässt, schützt die vorher freigegebenen Core-Ressourcen nicht. Wartet ein Core in seinem Destructor selbst mit `vkDeviceWaitIdle`, kann stattdessen der gesamte Shutdown hängen bleiben. Der mitgelieferte Test-Core tut das in [TestDestroyResources:188](../Tools/ursprung-test-core/test_core.c#L188).
 
 **Reproduziert:** Frame-Wait und nachfolgender Teardown-Wait wurden im Originalcode beide mit `VK_TIMEOUT` beantwortet. Trotzdem liefen sämtliche drei Core-Abbau-Callbacks:
 
@@ -40,7 +40,7 @@ F1 after persistent timeout: context_destroy=1 unload=1 deinit=1 abandoned=1
 
 ### Auch der bereits laufende Core-Aufruf ist noch nicht abgesichert
 
-Die neue Schranke in `runFrame` verhindert erst den nächsten Aufruf. Der aktuelle `retro_run` läuft nach der Rückkehr aus dem fehlgeschlagenen Video-Callback weiter. Ruft der Core dort `wait_sync_index` auf, kehrt dieser weiterhin sofort zurück. Damit erhält er die vertragliche Freigabe zur Wiederverwendung seiner Frame-Ressourcen, obwohl `_fenceUnfinished` gesetzt ist. Der [libretro-Vertrag:476](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/libretro_vulkan.h:476>) verlangt an dieser Stelle den Abschluss der GPU-Arbeit für den aktuellen Index.
+Die neue Schranke in `runFrame` verhindert erst den nächsten Aufruf. Der aktuelle `retro_run` läuft nach der Rückkehr aus dem fehlgeschlagenen Video-Callback weiter. Ruft der Core dort `wait_sync_index` auf, kehrt dieser weiterhin sofort zurück. Damit erhält er die vertragliche Freigabe zur Wiederverwendung seiner Frame-Ressourcen, obwohl `_fenceUnfinished` gesetzt ist. Der [libretro-Vertrag:476](../Ursprung/Bridge/libretro_vulkan.h#L476) verlangt an dieser Stelle den Abschluss der GPU-Arbeit für den aktuellen Index.
 
 **Reproduziert:** Eine temporäre Core-Run-Funktion ruft nach dem Video-Callback `wait_sync_index` auf. Die Kontrolle kehrt mit `failed=1 unfinished=1` zum Core zurück. Ein anschließend angeforderter zweiter `retro_run` unterbleibt dagegen korrekt.
 

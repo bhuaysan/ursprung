@@ -4,7 +4,7 @@
 
 **Datum:** 09.10.2026  
 **Basis:** `main`, HEAD `8fb567e29ec0`, einschließlich der zu Review-Beginn vorhandenen uncommitteten Änderungen in 15 Code-/Testdateien.  
-**Referenz:** [Review und Umsetzungsnotizen vom 09.10.2026](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/docs/STANDALONE_REVIEW_2026-10-09.md>).
+**Referenz:** [Review und Umsetzungsnotizen vom 09.10.2026](STANDALONE_REVIEW_2026-10-09.md).
 
 Die Korrekturen beheben mehrere der ursprünglichen Probleme. Der vollständige Testlauf besteht. Drei relevante Befunde bleiben: ein neuer Überlaufabsturz bei der ZIP64-Prüfung, eine weiterhin unvollständige ZIP-Strukturprüfung und eine vorzeitig aufgehobene Restore-Sperre beim Backend-Wechsel. Die Änderungen sind deshalb noch nicht vollständig freigabefähig.
 
@@ -20,7 +20,7 @@ Anwendungscode, vorhandene Tests und der ursprüngliche Review-Bericht wurden in
 
 ### R1 — P1: Ungesicherte Addition vor der eigentlichen Überlaufprüfung
 
-**Stelle:** [ARMSX2States.swift:229](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2States.swift:229>).
+**Stelle:** [ARMSX2States.swift:229](../Ursprung/Emulation/ARMSX2States.swift#L229).
 
 Die neue Prüfung berechnet:
 
@@ -42,7 +42,7 @@ entry.localHeaderOffset.addingReportingOverflow(header + entry.compressedSize)
 
 ### R2 — P1: Restore wird während eines Backend-Wechsels wieder freigegeben
 
-**Stellen:** [SaveStatesBrowser.swift:190](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/UI/Library/SaveStatesBrowser.swift:190>), [EmulationSession.swift:251](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/EmulationSession.swift:251>), [EmulationSession.swift:697](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/EmulationSession.swift:697>), [EmulationSession.swift:807](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/EmulationSession.swift:807>).
+**Stellen:** [SaveStatesBrowser.swift:190](../Ursprung/UI/Library/SaveStatesBrowser.swift#L190), [EmulationSession.swift:251](../Ursprung/Emulation/EmulationSession.swift#L251), [EmulationSession.swift:697](../Ursprung/Emulation/EmulationSession.swift#L697), [EmulationSession.swift:807](../Ursprung/Emulation/EmulationSession.swift#L807).
 
 Die neue Restore-Sperre verwendet `session.isStandaloneGameActive`. Diese Property beschreibt während `.preparing` das Backend des angeforderten nächsten Spiels, nicht zuverlässig den noch laufenden Prozess.
 
@@ -64,7 +64,7 @@ Ein langsamer Save beziehungsweise das Herunterfahren hält dieses Zeitfenster �
 
 ### R3 — P2: Central-Directory-Angaben ersetzen keine Prüfung der lokalen Header
 
-**Stelle:** [ARMSX2States.swift:224](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2States.swift:224>).
+**Stelle:** [ARMSX2States.swift:224](../Ursprung/Emulation/ARMSX2States.swift#L224).
 
 `hasRequiredEntries` liest die lokalen ZIP-Header der Pflichtdateien nicht. Es schätzt deren Länge mit `30 + entry.path.utf8.count` und prüft lediglich die im Central Directory angegebene komprimierte Größe gegen dessen Anfang.
 
@@ -98,7 +98,7 @@ Der zweite Aufruf verwendet Ursprungs eigenen `ZipArchive.data(of:)`. Bereits di
 
 ## Ergänzende Hinweise
 
-- **F1: gemeinsame Log-Datei bleibt eine Nebenwirkung von `prepare`.** [ARMSX2Launch.swift:149](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2Launch.swift:149>) löscht weiterhin `request.logFile` vor der Generation-Prüfung des Aufrufers. Eine verspätete Vorbereitung A kann somit die bereits geöffnete Log-Datei von B entfernen. Bei einem anschließenden Fehler fehlt die Diagnose am erwarteten Pfad. Auch die Log-Ersetzung in den exklusiven Startabschnitt verschieben oder pro Session einen eigenen Log-Pfad verwenden.
+- **F1: gemeinsame Log-Datei bleibt eine Nebenwirkung von `prepare`.** [ARMSX2Launch.swift:149](../Ursprung/Emulation/ARMSX2Launch.swift#L149) löscht weiterhin `request.logFile` vor der Generation-Prüfung des Aufrufers. Eine verspätete Vorbereitung A kann somit die bereits geöffnete Log-Datei von B entfernen. Bei einem anschließenden Fehler fehlt die Diagnose am erwarteten Pfad. Auch die Log-Ersetzung in den exklusiven Startabschnitt verschieben oder pro Session einen eigenen Log-Pfad verwenden.
 - **F5: Scanner-Verhalten ist unverändert.** Bestehende PS2-M3U-Dateien unterdrücken weiterhin ihre referenzierten Images. Der neue Fehlertext bietet als Ausweg das Löschen der Playlist an. Besser diese Deskriptoren für das Backend beim Scan gesondert behandeln und startbare Images sichtbar halten; die User-Datei muss dafür nicht gelöscht werden. Auch mehrteilige CUE-Dateien sind durch die Auswahl nur des ersten passenden Images nicht vollständig unterstützt.
 - **Versionswechsel und Fehleranzeige:** `activate` und Rollback persistieren vor der Übernahme des neuen Zustands; der neue Fehlerfalltest für Rollback besteht. Restore-Fehler werden jetzt angezeigt. Diese Korrekturen sind nachvollziehbar.
 - **Beobachtung und temporäre Ressourcen:** Der State-Watcher sowie die Bereinigung des PINE-Ordners in den Fehlerpfaden sind vorhanden. Die Sperre neuer Save-/Load-Anfragen bei `shutdown != nil` ist ebenfalls umgesetzt. Diese Ergänzungen beheben aber nicht R2, weil Restore eine andere Sperrabfrage verwendet.

@@ -4,7 +4,7 @@
 
 **Datum:** 09.10.2026  
 **Stand:** `main`, Commit `8fb567e29ec0`, zu Beginn sauberes Arbeitsverzeichnis.  
-**Grundlage:** [Standalone-Implementierungsplan](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/docs/STANDALONE_PLAN.md>) und aktuelle Umsetzung einschließlich der Korrekturen zum [Review vom 07.10.2026](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/docs/STANDALONE_REVIEW_2026-10-07.md>).
+**Grundlage:** [Standalone-Implementierungsplan](STANDALONE_PLAN.md) und aktuelle Umsetzung einschließlich der Korrekturen zum [Review vom 07.10.2026](STANDALONE_REVIEW_2026-10-07.md).
 
 Die Umsetzung deckt die wesentlichen Bausteine des Plans ab. Die bestehenden Tests bestehen. Es bleiben jedoch Fehler bei konkurrierenden Dateioperationen, verzögerten Speicheraufträgen und der Vorbereitung von Starts. Drei Befunde betreffen mögliche Verluste oder Fehlzuordnungen von Spielständen und sollten zuerst behoben werden.
 
@@ -25,7 +25,7 @@ P1 bedeutet hier: vor einem Release beheben, weil gespeicherter Fortschritt betr
 
 ## F1 — P1: Überholte Startvorbereitung schreibt weiterhin in die gemeinsame INI
 
-**Stellen:** [EmulationSession.swift:539](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/EmulationSession.swift:539>), [ARMSX2Launch.swift:103](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2Launch.swift:103>), [PCSX2Config.swift:188](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/PCSX2Config.swift:188>).
+**Stellen:** [EmulationSession.swift:539](../Ursprung/Emulation/EmulationSession.swift#L539), [ARMSX2Launch.swift:103](../Ursprung/Emulation/ARMSX2Launch.swift#L103), [PCSX2Config.swift:188](../Ursprung/Emulation/PCSX2Config.swift#L188).
 
 **Auslöser:** Spiel A startet, während dessen Vorbereitung noch läuft wird Spiel B gestartet. Das ist über die Bibliothek möglich: Jeder Aufruf von `play` erzeugt einen eigenen Launch-Task. Besonders relevant ist eine verzögerte Dateiprüfung auf einem langsamen Datenträger.
 
@@ -48,7 +48,7 @@ Damit ist folgende Reihenfolge möglich:
 
 ## F2 — P1: Timeout entfernt eine Sicherung, obwohl der Save noch ankommen kann
 
-**Stellen:** [ARMSX2States.swift:235](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2States.swift:235>), [ARMSX2States.swift:325](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2States.swift:325>).
+**Stellen:** [ARMSX2States.swift:235](../Ursprung/Emulation/ARMSX2States.swift#L235), [ARMSX2States.swift:325](../Ursprung/Emulation/ARMSX2States.swift#L325).
 
 **Auslöser:** ARMSX2 bestätigt den Speicherbefehl, schreibt den neuen Slot aber erst nach Ursprungs Wartefrist. PINE bestätigt laut Plan lediglich das Einreihen des Auftrags; Ursprung kann den Auftrag anschließend nicht zurücknehmen.
 
@@ -69,7 +69,7 @@ Die verkürzten Zeiten machen denselben Ablauf deterministisch; produktiv beträ
 
 ## F3 — P1: Restore und Speichern sind nicht gegeneinander gesperrt
 
-**Stellen:** [SaveStatesBrowser.swift:155](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/UI/Library/SaveStatesBrowser.swift:155>), [SaveStatesBrowser.swift:218](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/UI/Library/SaveStatesBrowser.swift:218>), [ARMSX2States.swift:154](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2States.swift:154>).
+**Stellen:** [SaveStatesBrowser.swift:155](../Ursprung/UI/Library/SaveStatesBrowser.swift#L155), [SaveStatesBrowser.swift:218](../Ursprung/UI/Library/SaveStatesBrowser.swift#L218), [ARMSX2States.swift:154](../Ursprung/Emulation/ARMSX2States.swift#L154).
 
 **Auslöser:** In „Save States“ einen Save auslösen und vor dessen Fertigstellung einen historischen Stand in denselben Slot zurückholen. Der Save-Button berücksichtigt `canUseExternalStates`, Restore, Delete und Rename besitzen diese Sperre nicht. Restore ruft den Dateispeicher direkt auf.
 
@@ -89,7 +89,7 @@ Zusätzlich kann der Restore allein den Änderungszeitpunkt erhöhen und damit d
 
 ## F4 — P2: Versionsnummer wird mit vollständiger Ladbarkeit gleichgesetzt
 
-**Stellen:** [ARMSX2States.swift:188](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2States.swift:188>), [ARMSX2States.swift:203](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2States.swift:203>), [ARMSX2Launch.swift:127](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2Launch.swift:127>).
+**Stellen:** [ARMSX2States.swift:188](../Ursprung/Emulation/ARMSX2States.swift#L188), [ARMSX2States.swift:203](../Ursprung/Emulation/ARMSX2States.swift#L203), [ARMSX2Launch.swift:127](../Ursprung/Emulation/ARMSX2Launch.swift#L127).
 
 **Auslöser:** Ein beschädigter oder unvollständiger Spielstand hat noch einen lesbaren, kompatiblen Versionseintrag. `isLoadable` prüft ausschließlich diesen ZIP-Eintrag und die Versionsnummer.
 
@@ -105,7 +105,7 @@ Der gepinnte Emulator verlangt beim tatsächlichen Laden unter anderem `PCSX2 In
 
 ## F5 — P2: Erkannte Disc-Deskriptoren und Archive werden nicht für ARMSX2 aufgelöst
 
-**Stellen:** [LibraryScanner.swift:186](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Library/LibraryScanner.swift:186>), [LibraryScanner.swift:255](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Library/LibraryScanner.swift:255>), [ARMSX2Launch.swift:145](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2Launch.swift:145>), [LibraryView.swift:933](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/UI/Library/LibraryView.swift:933>).
+**Stellen:** [LibraryScanner.swift:186](../Ursprung/Library/LibraryScanner.swift#L186), [LibraryScanner.swift:255](../Ursprung/Library/LibraryScanner.swift#L255), [ARMSX2Launch.swift:145](../Ursprung/Emulation/ARMSX2Launch.swift#L145), [LibraryView.swift:933](../Ursprung/UI/Library/LibraryView.swift#L933).
 
 **Auslöser:** Ein PS2-Spiel liegt als CUE/BIN, M3U mit mehreren Images oder ZIP vor. Scanner und Disc-Menü behandeln PS2 wie die übrigen Disc-Systeme. Referenzierte BIN-/ISO-Dateien werden als eigene Bibliothekseinträge ausgeblendet.
 
@@ -121,7 +121,7 @@ Der Standalone-Launch übergibt jedoch `game.fileURL` unverändert. Die Content-
 
 ## F6 — P2: Nach dem Löschen des neuesten Resume-Stands wird ein älterer wieder aktiv
 
-**Stelle:** [ARMSX2States.swift:338](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Emulation/ARMSX2States.swift:338>).
+**Stelle:** [ARMSX2States.swift:338](../Ursprung/Emulation/ARMSX2States.swift#L338).
 
 **Auslöser:** Ein Spielordner enthält mehrere reguläre `.resume.p2s`, beispielsweise nach dem Zusammenführen von Bibliothekseinträgen unterschiedlicher Discs/Revisionen. Das Dateimodell sieht mehrere Resume-Dateien ausdrücklich vor. Anschließend endet eine Session sauber ohne neuen Resume-Stand, etwa über den Schließen-Button von ARMSX2.
 
@@ -137,11 +137,11 @@ Der Standalone-Launch übergibt jedoch `game.fileURL` unverändert. Die Content-
 
 ## Weitere Verbesserungsmöglichkeiten
 
-1. **Kompatibilität vor der Aktion zeigen.** [LibraryView.swift:855](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/UI/Library/LibraryView.swift:855>) berechnet „Resume“ nur aus der Existenz einer Datei. Der Browser erlaubt „Play from Here“ anhand der Core-ID. Nach einem Rollback können beide Aktionen einen inkompatiblen Stand anbieten; Resume startet dann still von vorn. Die Formatversion der tatsächlich aktiven Installation schon für diese Anzeige nutzen. Inkompatible Stände sichtbar, aber deaktiviert mit Grund darstellen. Das erhält die Daten und vermeidet die im Plan erwähnte irreführende Verfügbarkeit.
+1. **Kompatibilität vor der Aktion zeigen.** [LibraryView.swift:855](../Ursprung/UI/Library/LibraryView.swift#L855) berechnet „Resume“ nur aus der Existenz einer Datei. Der Browser erlaubt „Play from Here“ anhand der Core-ID. Nach einem Rollback können beide Aktionen einen inkompatiblen Stand anbieten; Resume startet dann still von vorn. Die Formatversion der tatsächlich aktiven Installation schon für diese Anzeige nutzen. Inkompatible Stände sichtbar, aber deaktiviert mit Grund darstellen. Das erhält die Daten und vermeidet die im Plan erwähnte irreführende Verfügbarkeit.
 
-2. **Externe State-Änderungen beobachten.** [SaveStatesBrowser.swift:86](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/UI/Library/SaveStatesBrowser.swift:86>) lädt beim Öffnen und bei Änderungen von `session.slots` neu. ARMSX2-Hotkeys aktualisieren diese Property nicht. Ein Beobachter für den State-Ordner oder eine Aktualisierung beim Aktivieren der Bibliothek würde extern erzeugte Saves und Thumbnails zeitnah anzeigen. `.part` weiterhin ignorieren und Ereignisse bündeln.
+2. **Externe State-Änderungen beobachten.** [SaveStatesBrowser.swift:86](../Ursprung/UI/Library/SaveStatesBrowser.swift#L86) lädt beim Öffnen und bei Änderungen von `session.slots` neu. ARMSX2-Hotkeys aktualisieren diese Property nicht. Ein Beobachter für den State-Ordner oder eine Aktualisierung beim Aktivieren der Bibliothek würde extern erzeugte Saves und Thumbnails zeitnah anzeigen. `.part` weiterhin ignorieren und Ereignisse bündeln.
 
-3. **Wiederherstellungs- und Persistenzfehler anzeigen.** Restore verschluckt Fehler mit `try?` im Browser; [EmulatorManager.swift:211](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Cores/EmulatorManager.swift:211>) tut dasselbe beim Speichern von `versions.json`. Ein fehlgeschlagener Restore sollte eine konkrete Meldung erhalten. Versionswechsel erst nach erfolgreicher Persistenz als abgeschlossen ausweisen; bei einem Fehler den vorherigen Zustand erhalten. Das verhindert, dass ein Rollback nur bis zum nächsten App-Start zu gelten scheint.
+3. **Wiederherstellungs- und Persistenzfehler anzeigen.** Restore verschluckt Fehler mit `try?` im Browser; [EmulatorManager.swift:211](../Ursprung/Cores/EmulatorManager.swift#L211) tut dasselbe beim Speichern von `versions.json`. Ein fehlgeschlagener Restore sollte eine konkrete Meldung erhalten. Versionswechsel erst nach erfolgreicher Persistenz als abgeschlossen ausweisen; bei einem Fehler den vorherigen Zustand erhalten. Das verhindert, dass ein Rollback nur bis zum nächsten App-Start zu gelten scheint.
 
 4. **Temporäre Ordner auch bei abgebrochenen Starts entfernen.** `ARMSX2Launch.prepare` legt den PINE-Ordner an, bevor sämtliche Prüfungen abgeschlossen sind. Die aktuelle Entfernung hängt am Prozessende. Ungültige gewählte States, ein fehlgeschlagener Prozessstart oder eine überholte Vorbereitung können daher Ordner zurücklassen. Die vorbereitete Ressource bis zur erfolgreichen Übergabe an `ExternalSession` über einen eindeutigen Besitzer mit Fehlerbereinigung verwalten.
 

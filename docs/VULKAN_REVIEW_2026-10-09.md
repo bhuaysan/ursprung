@@ -5,7 +5,7 @@
 **Datum:** 09.10.2026  
 **Branch / Stand:** `main`, `46c8e137ad1c48c7c159b6a78224b261d8564ba4`  
 **Vergleich:** `bf00425..46c8e13`, insbesondere `06f18e6` und `b9e58eb`  
-**Grundlage:** [VULKAN_PLAN.md](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/docs/VULKAN_PLAN.md>)
+**Grundlage:** [VULKAN_PLAN.md](VULKAN_PLAN.md)
 
 Geprüft wurden Vulkan-Kontext und libretro-Integration, Pixelkonvertierung, Renderer-Auswahl, Save-State-Metadaten, Dependency-/Build-Einbindung, Smoke-Tool und Tests. Anwendungscode und Repository-Tests wurden nicht geändert.
 
@@ -25,7 +25,7 @@ P1 bedeutet hier: kann die Emulation blockieren oder die sichere Lebensdauer von
 
 ## F1 · P1 – Nach einem GPU-Timeout werden noch verwendete Ressourcen wieder freigegeben
 
-**Stellen:** [URVulkanContext.m:701](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:701>), [beginFrame:519](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:519>), [wait_sync_index:834](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:834>).
+**Stellen:** [URVulkanContext.m:701](../Ursprung/Bridge/URVulkanContext.m#L701), [beginFrame:519](../Ursprung/Bridge/URVulkanContext.m#L519), [wait_sync_index:834](../Ursprung/Bridge/URVulkanContext.m#L834).
 
 `vkWaitForFences` wartet höchstens fünf Sekunden. Bei `VK_TIMEOUT` wird lediglich geloggt und `NO` zurückgegeben. Der Core läuft anschließend weiter: `beginFrame` schaltet den Sync-Index weiter, `wait_sync_index` kehrt ohne Prüfung zurück, der nächste Submit setzt dieselbe Fence zurück und ein weiterer Readback beginnt denselben Command Buffer erneut. Bei einer Vergrößerung kann sogar der noch verwendete Readback-Puffer zerstört werden.
 
@@ -41,9 +41,9 @@ Ein Timeout bedeutet nicht, dass die eingereichte GPU-Arbeit abgeschlossen oder 
 
 ## F2 · P1 – Im Command-Buffer-Modus werden verbotene Semaphore-Waits eingereicht
 
-**Stelle:** [URVulkanContext.m:672](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:672>), insbesondere die unveränderte Übernahme von `_waitSemaphoreCount` in `VkSubmitInfo` ab Zeile 684.
+**Stelle:** [URVulkanContext.m:672](../Ursprung/Bridge/URVulkanContext.m#L672), insbesondere die unveränderte Übernahme von `_waitSemaphoreCount` in `VkSubmitInfo` ab Zeile 684.
 
-Wenn ein Core `set_command_buffers` verwendet, muss das Frontend die Semaphoren aus `set_image` ignorieren. Das ist ausdrücklich im mitgelieferten [libretro-Vertrag:453](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/libretro_vulkan.h:453>) festgelegt. Der Code hängt zwar die Core-Command-Buffer vor den eigenen Readback, übernimmt aber gleichzeitig sämtliche Image-Semaphoren als Waits.
+Wenn ein Core `set_command_buffers` verwendet, muss das Frontend die Semaphoren aus `set_image` ignorieren. Das ist ausdrücklich im mitgelieferten [libretro-Vertrag:453](../Ursprung/Bridge/libretro_vulkan.h#L453) festgelegt. Der Code hängt zwar die Core-Command-Buffer vor den eigenen Readback, übernimmt aber gleichzeitig sämtliche Image-Semaphoren als Waits.
 
 **Auslöser / Folge:** Ein konformer Core übergibt Command Buffer und außerdem ein nicht signalisiertes Image-Semaphor, dessen Ignorieren er in diesem Modus voraussetzen darf. Ursprung wartet darauf und blockiert die Submission. Nach fünf Sekunden tritt zusätzlich F1 ein. Die Ownership-Entscheidung wird ebenfalls aus der falschen Wait-Annahme abgeleitet.
 
@@ -55,9 +55,9 @@ Wenn ein Core `set_command_buffers` verwendet, muss das Frontend die Semaphoren 
 
 ## F3 · P2 – Bei duplizierten Frames können Signal-Semaphoren verloren gehen
 
-**Stellen:** [URLibretroCore.m:1370](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URLibretroCore.m:1370>), [nachträglicher Submit:430](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URLibretroCore.m:430>).
+**Stellen:** [URLibretroCore.m:1370](../Ursprung/Bridge/URLibretroCore.m#L1370), [nachträglicher Submit:430](../Ursprung/Bridge/URLibretroCore.m#L430).
 
-`URCoreVideoRefresh` kehrt bei `data == NULL` sofort zurück. Ausstehende Vulkan-Arbeit wird erst nach der Rückkehr aus `retro_run` eingereicht. Der Vertrag von [set_signal_semaphore:493](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/libretro_vulkan.h:493>) bindet das Signal jedoch an den nächsten Video-Callback, ausdrücklich auch an ein dupliziertes Frame.
+`URCoreVideoRefresh` kehrt bei `data == NULL` sofort zurück. Ausstehende Vulkan-Arbeit wird erst nach der Rückkehr aus `retro_run` eingereicht. Der Vertrag von [set_signal_semaphore:493](../Ursprung/Bridge/libretro_vulkan.h#L493) bindet das Signal jedoch an den nächsten Video-Callback, ausdrücklich auch an ein dupliziertes Frame.
 
 **Auslöser / Folge:** Ein Core setzt Signal A, ruft `video_refresh(NULL, …)` auf und setzt anschließend Signal B vor einem weiteren Video-Callback innerhalb desselben `retro_run`. A wird überschrieben und niemals signalisiert. Wartet der Core bereits innerhalb von `retro_run` auf den Abschluss der von A abhängigen Arbeit, erreicht das Frontend seinen nachträglichen Submit gar nicht. Der entsprechende Duping-Vertrag verlangt außerdem, Image-Wait-Semaphoren nicht abzuwarten; der pauschale Submit nach `retro_run` unterscheidet diesen Fall nicht.
 
@@ -69,7 +69,7 @@ Wenn ein Core `set_command_buffers` verwendet, muss das Frontend die Semaphoren 
 
 ## F4 · P2 – Ownership-Transfer und Readback-Layoutwechsel passen nicht zusammen
 
-**Stellen:** [URVulkanContext.m:602](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:602>), [Release-Barriere:627](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:627>), [bedingte Aufzeichnung:675](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:675>).
+**Stellen:** [URVulkanContext.m:602](../Ursprung/Bridge/URVulkanContext.m#L602), [Release-Barriere:627](../Ursprung/Bridge/URVulkanContext.m#L627), [bedingte Aufzeichnung:675](../Ursprung/Bridge/URVulkanContext.m#L675).
 
 Bei einer Übergabe aus einer anderen Queue-Familie kombiniert die Acquire-Barriere den Ownership-Wechsel direkt mit `SHADER_READ_ONLY_OPTIMAL → TRANSFER_SRC_OPTIMAL`. Die Release-Barriere kombiniert die Rückgabe mit dem umgekehrten Layoutwechsel. Der Core kennt nur das im Interface vereinbarte Image-Layout, nicht das intern für Ursprung gewählte Transfer-Layout.
 
@@ -85,7 +85,7 @@ Ein zulässiger Core kann vor der Übergabe einen Ownership-Release mit `SHADER_
 
 ## F5 · P2 – Der Readback ignoriert die Kanalzuordnung des Image Views
 
-**Stellen:** [URVulkanContext.m:780](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:780>), [Pixelkonvertierung:713](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:713>).
+**Stellen:** [URVulkanContext.m:780](../Ursprung/Bridge/URVulkanContext.m#L780), [Pixelkonvertierung:713](../Ursprung/Bridge/URVulkanContext.m#L713).
 
 `set_image` übernimmt Image, Format und Subresource, aber nicht `create_info.components`. Anschließend kopiert `vkCmdCopyImageToBuffer` die rohen Bilddaten. Die CPU-Konvertierung kennt nur das Format und rekonstruiert deshalb die im Image View festgelegte Farbkanal-Zuordnung nicht. Diese Zuordnung bestimmt die ausgegebenen Komponenten; siehe [VkComponentMapping](https://docs.vulkan.org/refpages/latest/refpages/source/VkComponentMapping.html).
 
@@ -101,19 +101,19 @@ Ein zulässiger Core kann vor der Übergabe einen Ownership-Release mit `SHADER_
 
 ### V1 – Fallback-Anforderung und aktuelle Umsetzung vereinheitlichen
 
-Die ursprüngliche Entscheidungstabelle verspricht OpenGL-/Software-Fallback bei Device-Erstellungsfehlern. Tatsächlich prüft `isAvailable` nur Instanz und physisches Gerät. Scheitert der ausgehandelte Kontext später, bricht [loadGame:385](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URLibretroCore.m:385>) den Start ab. Der Abschnitt „As built“ dokumentiert diese Abweichung bereits; sie ist deshalb hier eine offene Produktentscheidung und kein neu entdeckter, versteckter Fehler.
+Die ursprüngliche Entscheidungstabelle verspricht OpenGL-/Software-Fallback bei Device-Erstellungsfehlern. Tatsächlich prüft `isAvailable` nur Instanz und physisches Gerät. Scheitert der ausgehandelte Kontext später, bricht [loadGame:385](../Ursprung/Bridge/URLibretroCore.m#L385) den Start ab. Der Abschnitt „As built“ dokumentiert diese Abweichung bereits; sie ist deshalb hier eine offene Produktentscheidung und kein neu entdeckter, versteckter Fehler.
 
 **Vorschlag:** Entweder einen einmaligen vollständigen Neustart des Core-Ladevorgangs mit OpenGL-/Software-Defaults umsetzen oder die ursprüngliche Fallback-Zusage überall auf den tatsächlich unterstützten Fall beschränken. Ein Retry muss Renderer-Optionen neu auflösen, einen frischen Core verwenden und vor erfolgreichem Start weiterhin kein vorhandenes Save-RAM überschreiben. Meldungen sollten die tatsächlich verwendete API nennen; der derzeitige Text behauptet auch beim N64-Software-Fallback „OpenGL“.
 
 ### V2 – Smoke-Tests müssen den tatsächlich getesteten Renderer absichern
 
-[Tools/ursprung-smoke/main.m:105](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Tools/ursprung-smoke/main.m:105>) setzt mit `URSMOKE_RENDERER` lediglich die bevorzugte API. Die nötigen Plugin-/Renderer-Optionen kommen separat über `URSMOKE_OPTIONS`. Das ist im Code dokumentiert, kann aber bei dem im Plan empfohlenen kurzen Aufruf `make smoke … RENDERER=vulkan` zu einem erfolgreichen Test des falschen Renderer-Pfads führen.
+[Tools/ursprung-smoke/main.m:105](../Tools/ursprung-smoke/main.m#L105) setzt mit `URSMOKE_RENDERER` lediglich die bevorzugte API. Die nötigen Plugin-/Renderer-Optionen kommen separat über `URSMOKE_OPTIONS`. Das ist im Code dokumentiert, kann aber bei dem im Plan empfohlenen kurzen Aufruf `make smoke … RENDERER=vulkan` zu einem erfolgreichen Test des falschen Renderer-Pfads führen.
 
 **Vorschlag:** Einen optionalen „erwartete tatsächliche API“-Parameter ergänzen, der bei abweichendem `core.graphicsAPI` mit Fehler endet. Für die Akzeptanz-Cores vollständige Smoke-Rezepte inklusive Optionen bereitstellen oder Defaults aus einer gemeinsam nutzbaren Datenquelle beziehen. Die separate Prüfung des Fallbacks darf eine API-Abweichung ausdrücklich erlauben.
 
 ### V3 – Speicherfehler dürfen Synchronisation nicht stillschweigend entfernen
 
-In [URVulkanContext.m:680](</Users/ben/Projekte/Ursprung - Retro Games Library for Mac/Ursprung/Bridge/URVulkanContext.m:680>) wird das Ergebnis der dynamischen Command-Buffer-Array-Allokation vor `memcpy` nicht geprüft. Fehler beim Vergrößern der Semaphore- oder Command-Buffer-Arrays setzen außerdem nur deren Anzahl auf null. Damit können erforderliche Waits oder Core-Arbeiten verschwinden, während das Frame weiterverarbeitet wird.
+In [URVulkanContext.m:680](../Ursprung/Bridge/URVulkanContext.m#L680) wird das Ergebnis der dynamischen Command-Buffer-Array-Allokation vor `memcpy` nicht geprüft. Fehler beim Vergrößern der Semaphore- oder Command-Buffer-Arrays setzen außerdem nur deren Anzahl auf null. Damit können erforderliche Waits oder Core-Arbeiten verschwinden, während das Frame weiterverarbeitet wird.
 
 **Vorschlag:** Allokationen vollständig prüfen und Änderungen erst nach erfolgreicher Vorbereitung übernehmen. Bei einem Fehler den gesamten Übergabevorgang kontrolliert abbrechen und den Fehler weiterreichen. Speicherfehler-Injektion kann diese seltenen Pfade ohne realen Speichermangel testen.
 
