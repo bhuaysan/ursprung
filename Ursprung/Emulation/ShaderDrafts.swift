@@ -133,37 +133,58 @@ nonisolated enum ShaderDrafts {
     /// Files copied before are kept (they may have changes). Returns the copy.
     static func ownCopy(of shader: URL, info: inout ShaderDraftInfo, in root: URL,
                         library: URL, user: URL) throws -> URL {
-        if isOwn(shader, id: info.id, in: root) { return shader.standardizedFileURL }
+        let copies = try ownCopies(of: shader, info: &info, in: root, library: library, user: user)
+        guard let copy = copies[shader.standardizedFileURL.path(percentEncoded: false)] else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        return copy
+    }
+
+    /// `ownCopy(of:)`, returning for every file `shader` reads (by its path)
+    /// the copy the copied shader reads instead. A file may have several
+    /// copies (drafts from before this layout kept others); only this tells
+    /// which one belongs to the shader.
+    static func ownCopies(of shader: URL, info: inout ShaderDraftInfo, in root: URL,
+                          library: URL, user: URL) throws -> [String: URL] {
+        let originals = SlangSource.closure(of: shader).map(\.standardizedFileURL)
         let files = filesURL(info.id, in: root)
-        var copy: URL?
-        for file in SlangSource.closure(of: shader) where !isOwn(file, id: info.id, in: root) {
-            let path = ownPath(for: file, library: library, user: user)
-            let target = files.appending(path: path, directoryHint: .notDirectory)
+        let (prefix, base) = layout(of: originals.filter { !isOwn($0, id: info.id, in: root) }, library: library, user: user)
+        var copies: [String: URL] = [:]
+        for file in originals {
+            let key = file.path(percentEncoded: false)
+            if isOwn(file, id: info.id, in: root) {
+                copies[key] = file
+                continue
+            }
+            let path = ([prefix] + file.pathComponents.dropFirst(base.count)).joined(separator: "/")
+            let target = files.appending(path: path, directoryHint: .notDirectory).standardizedFileURL
             if !FileManager.default.fileExists(atPath: target.path(percentEncoded: false)) {
                 try FileManager.default.createDirectory(at: target.deletingLastPathComponent(),
                                                         withIntermediateDirectories: true)
                 try FileManager.default.copyItem(at: file, to: target)
-                info.files.append(.init(path: path, origin: file.path(percentEncoded: false)))
+                info.files.append(.init(path: path, origin: key))
             }
-            if copy == nil { copy = target }
+            copies[key] = target
         }
-        guard let copy else { throw CocoaError(.fileNoSuchFile) }
-        return copy
+        guard copies[shader.standardizedFileURL.path(percentEncoded: false)] != nil else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        return copies
     }
 
-    /// Where the draft keeps its copy of `file`: by its place in the pack
-    /// or the user's folder, so shared include files are copied once.
-    private static func ownPath(for file: URL, library: URL, user: URL) -> String {
-        let components = file.standardizedFileURL.pathComponents
+    /// Where the draft keeps its copies of `files`, which include one
+    /// another: below `library/` or `user/` by their place in the pack or
+    /// the user's folder, so shared include files are copied once, or, when
+    /// they aren't all in one of them, below `other/` by their whole path.
+    /// One folder for all of them keeps includes like `../common/a.h` working.
+    private static func layout(of files: [URL], library: URL, user: URL) -> (prefix: String, base: [String]) {
         for (prefix, folder) in [("library", library), ("user", user)] {
             let base = folder.standardizedFileURL.pathComponents
-            if components.starts(with: base), components.count > base.count {
-                return ([prefix] + components.dropFirst(base.count)).joined(separator: "/")
+            if files.allSatisfy({ $0.pathComponents.starts(with: base) && $0.pathComponents.count > base.count }) {
+                return (prefix, base)
             }
         }
-        // Elsewhere: by the whole path, so includes like `../common/a.h`
-        // between folders keep working and names don't clash.
-        return (["other"] + components.dropFirst()).joined(separator: "/")
+        return ("other", ["/"])
     }
 
     /// A new shader from the template in `files/new/`.

@@ -567,6 +567,31 @@ struct SaveStateHistoryTests {
         #expect(SaveStateStore.history(in: states, gameID: gameID, coreID: "snes9x").isEmpty)
     }
 
+    /// A history state, the automatic one or one of an earlier version that
+    /// can't be removed stays, and the caller hears about it (B5 of the
+    /// 2026-10-07 re-review).
+    @Test func aStateThatCantBeDeletedReportsIt() throws {
+        let states = try makeTemporaryDirectory()
+        let directory = SaveStateStore.directory(in: states, gameID: gameID, coreID: "snes9x")
+        try SaveStateStore.write(Data([1]), manifest: context.manifest(), slot: 1, in: directory)
+        try SaveStateStore.discard(try #require(SaveStateStore.slots(in: states, gameID: gameID, coreID: "snes9x").first))
+        try SaveStateStore.writeAutosave(Data([2]), manifest: context.manifest(), in: directory)
+        let history = SaveStateStore.historyDirectory(directory)
+        let locked = [history, directory]
+        for folder in locked { try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path) }
+        defer {
+            for folder in locked { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path) }
+            try? FileManager.default.removeItem(at: states)
+        }
+
+        let entry = try #require(SaveStateStore.history(in: states, gameID: gameID, coreID: "snes9x").first)
+        #expect(throws: (any Error).self) { try SaveStateStore.discard(entry) }
+        #expect(FileManager.default.fileExists(atPath: entry.stateURL.path))
+        let autosave = try #require(SaveStateStore.autosave(in: states, gameID: gameID, coreID: "snes9x"))
+        #expect(throws: (any Error).self) { try SaveStateStore.discard(autosave) }
+        #expect(FileManager.default.fileExists(atPath: autosave.stateURL.path))
+    }
+
     @Test func theHistoryIsLimited() throws {
         let states = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: states) }

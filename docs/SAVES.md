@@ -184,7 +184,9 @@ disk. Rewind records a state every frame (every second or fourth frame for
 larger states) and keeps the differences between them, compressed, in a
 buffer of the size chosen in Settings › Emulation; when it is full, the
 oldest seconds go. Cores without save states, and states over 24 MB, can't
-rewind. Run-ahead saves and loads a state every frame and is skipped for
+rewind. If the core can't go back to a recorded state, rewinding stops: the
+game runs forwards again and Ursprung says the core can't rewind it.
+Run-ahead saves and loads a state every frame and is skipped for
 hardware-rendered cores and while fast forwarding.
 
 ## ROM patches

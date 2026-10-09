@@ -608,14 +608,11 @@ final class ShaderEditor {
         guard SlangSource.closure(of: shader).contains(where: { $0.standardizedFileURL == tab.url }) else {
             throw SourceError.notUsedByPass(tab.name)
         }
-        let copy = try ShaderDrafts.ownCopy(of: shader, info: &info, in: root, library: shaders.libraryDirectory,
-                                            user: shaders.userDirectory)
-        let files = ShaderDrafts.filesURL(info.id, in: root)
-        func ownURL(_ url: URL) -> URL? {
-            info.files.first { $0.origin == url.standardizedFileURL.path(percentEncoded: false) }
-                .map { files.appending(path: $0.path, directoryHint: .notDirectory).standardizedFileURL }
-        }
-        guard let own = ownURL(tab.url) else { throw SourceError.notUsedByPass(tab.name) }
+        // The copies this pass reads: a file may have others in the draft.
+        let copies = try ShaderDrafts.ownCopies(of: shader, info: &info, in: root, library: shaders.libraryDirectory,
+                                                user: shaders.userDirectory)
+        func ownURL(_ url: URL) -> URL? { copies[url.standardizedFileURL.path(percentEncoded: false)] }
+        guard let copy = ownURL(shader), let own = ownURL(tab.url) else { throw SourceError.notUsedByPass(tab.name) }
         if let passID = tab.passID {
             preset.passes = preset.passes.map { pass in
                 var pass = pass

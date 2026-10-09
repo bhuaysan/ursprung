@@ -283,10 +283,14 @@ nonisolated enum Preferences {
     /// which the caller adds to the current ones instead of replacing them.
     /// Keys a backup must not carry are ignored. A game's own settings move
     /// to the ID `gameIDs` restores it as; those of games the backup doesn't
-    /// restore are dropped.
+    /// restore are dropped. When several of the backup's games become one,
+    /// the setting of the first of them in `precedence` wins.
     @discardableResult
-    static func restore(fromBackup data: Data, gameIDs: [UUID: UUID], into store: UserDefaults = .standard) -> [URL] {
+    static func restore(fromBackup data: Data, gameIDs: [UUID: UUID], precedence: [UUID] = [],
+                        into store: UserDefaults = .standard) -> [URL] {
         guard let values = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else { return [] }
+        let rank = Dictionary(precedence.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        var gameFilters: [UUID: (order: (Int, String), value: Any)] = [:]
         var folders: [URL] = []
         for (key, value) in values where isBackedUp(key) {
             if key == PrefKey.libraryFolders {
@@ -298,11 +302,15 @@ nonisolated enum Preferences {
             } else if key.hasPrefix(PrefKey.gameVideoFilterPrefix) {
                 guard let id = UUID(uuidString: String(key.dropFirst(PrefKey.gameVideoFilterPrefix.count))),
                       let restored = gameIDs[id] else { continue }
-                store.set(value, forKey: PrefKey.gameVideoFilter(restored))
+                // Games without a rank go by ID, never by dictionary order.
+                let order = (rank[id] ?? Int.max, id.uuidString)
+                if let chosen = gameFilters[restored], chosen.order < order { continue }
+                gameFilters[restored] = (order, value)
             } else {
                 store.set(value, forKey: key)
             }
         }
+        for (id, filter) in gameFilters { store.set(filter.value, forKey: PrefKey.gameVideoFilter(id)) }
         return folders
     }
 }

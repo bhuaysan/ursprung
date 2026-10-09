@@ -482,6 +482,45 @@ struct ShaderDraftTests {
         #expect(FileManager.default.fileExists(atPath: user.appending(path: "Elsewhere/common/inc.h").path))
     }
 
+    /// A user shader including a file outside the user's folder is copied
+    /// with its include in one layout (B4 of the 2026-10-07 re-review).
+    @Test func keepsIncludesFromTheUsersFolderToElsewhere() throws {
+        let (root, pack, user, drafts) = try makeShaders()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(dimShader.replacing("#version 450", with: "#version 450\n#include \"../shared.h\""),
+                  to: user.appending(path: "cross.slang"))
+        try write("// shared\n", to: user.deletingLastPathComponent().appending(path: "shared.h"))
+        var (info, _) = try ShaderDrafts.create(from: nil, name: "Cross", origin: nil, target: nil, in: drafts)
+        #expect(SlangSource.closure(of: user.appending(path: "cross.slang")).count == 2)
+
+        let copy = try ShaderDrafts.ownCopy(of: user.appending(path: "cross.slang"), info: &info, in: drafts,
+                                            library: pack, user: user)
+        let closure = SlangSource.closure(of: copy)
+        #expect(closure.count == 2, "The copy's include finds the copied include file")
+        #expect(closure.allSatisfy { ShaderDrafts.isOwn($0, id: info.id, in: drafts) })
+    }
+
+    /// A draft from before the whole-path layout has its copy of a file
+    /// elsewhere in another place. Copying the file again for another pass
+    /// tells which copy that pass reads (B3 of the 2026-10-07 re-review).
+    @Test func copiesTellWhichCopyAPassReads() throws {
+        let (root, pack, user, drafts) = try makeShaders()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let original = root.appending(path: "Downloads/a.slang").standardizedFileURL
+        try write(dimShader, to: original)
+        var (info, _) = try ShaderDrafts.create(from: nil, name: "Old", origin: nil, target: nil, in: drafts)
+        let old = ShaderDrafts.filesURL(info.id, in: drafts).appending(path: "other/1x2y3z/a.slang")
+        try write(dimShader + "\n// old pass\n", to: old)
+        info.files.append(.init(path: "other/1x2y3z/a.slang", origin: original.path(percentEncoded: false)))
+
+        let copies = try ShaderDrafts.ownCopies(of: original, info: &info, in: drafts, library: pack, user: user)
+        let copy = try #require(copies[original.path(percentEncoded: false)])
+        #expect(copy != old.standardizedFileURL)
+        #expect(copy == (try ShaderDrafts.ownCopy(of: original, info: &info, in: drafts, library: pack, user: user)))
+        #expect(try String(contentsOf: copy, encoding: .utf8) == dimShader, "A fresh copy, the old one stays its pass's")
+        #expect(try String(contentsOf: old, encoding: .utf8).hasSuffix("// old pass\n"))
+    }
+
     @Test func exportsAPresetThatWorksOnItsOwn() throws {
         let (root, pack, _, drafts) = try makeShaders()
         defer { try? FileManager.default.removeItem(at: root) }

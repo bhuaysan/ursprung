@@ -308,6 +308,61 @@ struct ShaderWorkspaceTests {
         #expect(workspace.values["STRENGTH"] == 0.5)
     }
 
+    /// A picture whose core name can change, as when another game starts.
+    private final class NamedSource: FrameSource {
+        var libraryName: String
+        var rotation = 0
+        let frameSerial: UInt64 = 1
+        let aspectRatio: Float = 1
+        let framesPerSecond: Double = 60
+        init(_ name: String) { libraryName = name }
+        func accessLatestFrame(_ block: (UnsafeRawPointer, Int, Int, Int) -> Void) -> Bool {
+            var pixel: UInt32 = 0xFF80_8080
+            withUnsafeBytes(of: &pixel) { block($0.baseAddress!, 1, 1, 4) }
+            return true
+        }
+    }
+
+    /// `$CORE$` and `$CORE-REQ-ROT$` pick a preset's variant: a compile for
+    /// one core or rotation isn't used for another, and the showing preset
+    /// follows them (B7 of the 2026-10-07 re-review).
+    @Test func presetsFollowTheCoreAndRotationTheyAreCompiledFor() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try writeShaderFixtures(in: directory)
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 8, height: 8))
+        let renderer = try #require(MetalRenderer(view: view))
+        var started = 0
+        renderer.presetURL = { started += 1; return directory.appending(path: $0.path) }
+        let workspace = ShaderWorkspace()
+        renderer.workspace = workspace
+        let source = NamedSource("CoreA")
+        renderer.source = source
+        let preset = try #require(ShaderPresetRef(source: .user, path: "dim.slangp"))
+        func waitForCompiles(_ count: Int) async throws {
+            for _ in 0..<500 where started < count || workspace.status != .ready(preset) {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+        }
+
+        // The core changes while its compile runs: compiled again for the new one.
+        renderer.selection = .preset(preset)
+        source.libraryName = "CoreB"
+        try await waitForCompiles(2)
+        #expect(started == 2 && workspace.status == .ready(preset))
+
+        // The rotation changes while the preset shows.
+        source.rotation = 1
+        renderer.draw(in: view)
+        try await waitForCompiles(3)
+        #expect(started == 3 && workspace.status == .ready(preset))
+
+        // Nothing changed: no compile.
+        renderer.draw(in: view)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(started == 3)
+    }
+
     @Test func reloadsWhileCompilingWaitForItAndRunOnce() async throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

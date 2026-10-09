@@ -210,18 +210,28 @@ nonisolated enum SaveStateStore {
         try write(data, manifest: manifest, name: "autosave", in: directory)
     }
 
-    /// Removes a state for good.
-    static func delete(_ slot: SaveStateSlot) {
-        for url in [slot.stateURL, slot.thumbnailURL, slot.manifestURL] {
-            try? FileManager.default.removeItem(at: url)
+    /// Removes a state for good. Throws when a file stays: the state itself
+    /// first (then nothing is removed), its thumbnail and manifest after.
+    static func delete(_ slot: SaveStateSlot) throws {
+        let fileManager = FileManager.default
+        var failure: (any Error)?
+        for url in [slot.stateURL, slot.thumbnailURL, slot.manifestURL]
+        where fileManager.fileExists(atPath: url.path(percentEncoded: false)) {
+            do {
+                try fileManager.removeItem(at: url)
+            } catch {
+                if url == slot.stateURL { throw error }
+                failure = failure ?? error
+            }
         }
+        if let failure { throw failure }
     }
 
     /// Deletes a state the way the user does: a slot's state goes into the
     /// history, where it can be restored; a state in the history is removed.
     /// A slot's state that can't go into the history stays.
     static func discard(_ state: SaveStateSlot, date: Date = .now) throws {
-        guard !state.isHistory, !state.isLegacy, !state.isAutosave else { return delete(state) }
+        guard !state.isHistory, !state.isLegacy, !state.isAutosave else { return try delete(state) }
         if state.isARMSX2 { return try ARMSX2States.archive(state, date: date) }
         try archive(slot: state.slot, in: state.stateURL.deletingLastPathComponent(), date: date)
     }
@@ -299,12 +309,13 @@ nonisolated enum SaveStateStore {
             try? FileManager.default.removeItem(at: destination)
             try? FileManager.default.copyItem(at: source, to: destination)
         }
-        delete(entry)
+        // Restored: an entry that stays in the history is only one too many.
+        try? delete(entry)
         pruneHistory(in: directory)
     }
 
     static func pruneHistory(in directory: URL) {
-        for entry in history(inCoreDirectory: directory).dropFirst(historyLimit) { delete(entry) }
+        for entry in history(inCoreDirectory: directory).dropFirst(historyLimit) { try? delete(entry) }
     }
 
     static func historyStamp(_ date: Date) -> String {

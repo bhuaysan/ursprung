@@ -309,6 +309,14 @@ nonisolated enum Backup {
         return plan
     }
 
+    /// The order in which the records' own settings count when several join
+    /// one game: the game's own record (the same ID) first, then the backup's
+    /// order.
+    static func settingsPrecedence(records: [GameRecord], plan: [UUID: Target]) -> [UUID] {
+        let own = records.filter { plan[$0.id]?.id == $0.id }
+        return (own + records.filter { plan[$0.id]?.id != $0.id }).map(\.id)
+    }
+
     /// A battery save that has to take the name of the game it joins.
     struct Rename: Sendable {
         let systemID: String

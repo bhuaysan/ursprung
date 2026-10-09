@@ -392,6 +392,9 @@ final class EmulationSession {
             runner.terminationHandler = { [weak self] in
                 MainActor.assumeIsolated { self?.handleUnexpectedTermination() }
             }
+            runner.rewindStoppedHandler = { [weak self] in
+                MainActor.assumeIsolated { self?.rewindStopped() }
+            }
             // Register the runner before the (slow, blocking) game load starts,
             // so a launch or stop that arrives meanwhile waits for it to finish.
             self.runner = runner
@@ -962,6 +965,14 @@ final class EmulationSession {
         guard enabled != isRewinding else { return }
         isRewinding = enabled
         runner.isRewinding = enabled
+    }
+
+    /// The core could not go back to a recorded state: the runner stopped
+    /// rewinding and the game runs forwards.
+    private func rewindStopped() {
+        guard isRewinding else { return }
+        isRewinding = false
+        showToast(String(localized: "\(coreName) can't rewind this game."), kind: .warning)
     }
 
     /// Turbo buttons of the controls fire repeatedly, or not.

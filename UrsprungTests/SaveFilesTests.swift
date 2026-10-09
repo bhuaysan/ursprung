@@ -142,7 +142,7 @@ struct SaveStateStoreTests {
         #expect(!slots[1].isLegacy)
 
         // Deleting the core's state does not touch the legacy one.
-        SaveStateStore.delete(slots[1])
+        try SaveStateStore.delete(slots[1])
         #expect(SaveStateStore.slots(in: states, gameID: gameID, coreID: "snes9x").map(\.isLegacy) == [true, true])
     }
 

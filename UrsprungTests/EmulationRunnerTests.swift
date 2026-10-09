@@ -151,10 +151,31 @@ struct EmulationRunnerTests {
         #expect(test.frame() == 5, "Back to the state before the last frame, then that frame again")
 
         test.setUnserializeFails(true)
+        runner.isRewinding = true
         runner.stepBack()
         #expect(test.frame() == 5, "Not a frame forwards while rewinding")
         #expect(runner.rewindAvailability == .unsupported)
         #expect(runner.rewindSeconds == 0)
+        // The game runs forwards from here, so rewinding is over for the
+        // display and the shaders too (B6 of the 2026-10-07 re-review).
+        #expect(!runner.isRewinding)
+    }
+
+    @Test @MainActor func aFailedRewindTellsTheSession() async throws {
+        let test = try TestCore.load()
+        defer { test.core.unloadGame() }
+        let runner = EmulationRunner(core: test.core)
+        runner.rewindEnabled = true
+        runner.updateRewindBuffer()
+        for index in 0..<5 { runner.runVisibleFrame(UInt(index), fastForward: false) }
+        test.setUnserializeFails(true)
+        runner.isRewinding = true
+
+        await withCheckedContinuation { continuation in
+            runner.rewindStoppedHandler = { continuation.resume() }
+            runner.stepBack()
+        }
+        #expect(!runner.isRewinding)
     }
 }
 

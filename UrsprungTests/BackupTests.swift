@@ -148,6 +148,31 @@ struct BackupTests {
         #expect(defaults.stringArray(forKey: PrefKey.collections) == ["Mine", "RPGs"])
     }
 
+    /// Several of the backup's games join one game of the library: its own
+    /// record's setting wins, then the first in the backup, never the
+    /// dictionary's order (B8 of the 2026-10-07 re-review).
+    @Test func restoredSettingsOfJoinedGamesHaveAFixedPrecedence() throws {
+        let mac = existing("/Mac/A.sfc")
+        let own = record("/Mac/A.sfc", id: mac.id)
+        let first = record("/Mac/A.sfc")
+        let second = record("/Mac/A.sfc")
+        for records in [[first, second], [first, second, own]] {
+            let plan = Backup.plan(records: records, existing: [mac])
+            #expect(Set(plan.values.map(\.id)) == [mac.id], "All join the one game")
+            var backup: [String: Any] = [PrefKey.gameVideoFilter(first.id): "first", PrefKey.gameVideoFilter(second.id): "second"]
+            if records.contains(own) { backup[PrefKey.gameVideoFilter(own.id)] = "own" }
+            let data = try PropertyListSerialization.data(fromPropertyList: backup, format: .xml, options: 0)
+            for _ in 0..<5 {
+                let suite = "UrsprungTests.Backup.\(UUID().uuidString)"
+                let defaults = try #require(UserDefaults(suiteName: suite))
+                defer { defaults.removePersistentDomain(forName: suite) }
+                Preferences.restore(fromBackup: data, gameIDs: plan.mapValues(\.id),
+                                    precedence: Backup.settingsPrecedence(records: records, plan: plan), into: defaults)
+                #expect(defaults.string(forKey: PrefKey.gameVideoFilter(mac.id)) == (records.contains(own) ? "own" : "first"))
+            }
+        }
+    }
+
     @Test func otherZipIsNotABackup() throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

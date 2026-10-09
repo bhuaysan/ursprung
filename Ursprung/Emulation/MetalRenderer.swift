@@ -128,6 +128,17 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var chain: ShaderChain?
     /// The preset `chain` was compiled from.
     private var chainPreset: ShaderPresetRef?
+    /// What a preset is compiled for: `$CORE$` and `$CORE-REQ-ROT$` in its
+    /// paths choose between variants.
+    private struct CompileContext: Equatable {
+        var coreName: String?
+        var rotation: Int
+    }
+    private var compileContext: CompileContext {
+        CompileContext(coreName: source?.libraryName, rotation: source?.rotation ?? 0)
+    }
+    /// The context `chain` was compiled for.
+    private var chainContext: CompileContext?
     /// The preset compiling in the background; the current chain renders meanwhile.
     private var pendingPreset: ShaderPresetRef?
     /// Bumped by every compile, so only the latest one is used.
@@ -186,6 +197,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
     func draw(in view: MTKView) {
+        recompileForAnotherContext()
         uploadFrameIfNeeded()
         guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable else { return }
 
@@ -374,6 +386,14 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         if !isCompiling { startCompile() }
     }
 
+    /// Compiles the showing preset again when the core or the rotation it
+    /// was compiled for changed. A compile that runs checks that itself.
+    private func recompileForAnotherContext() {
+        guard pendingPreset == nil, chainPreset != nil, let chainContext, chainContext != compileContext else { return }
+        self.chainContext = nil
+        applySelection(reload: true)
+    }
+
     /// Compiles `pendingPreset` in the background.
     private func startCompile() {
         guard let preset = pendingPreset else { return }
@@ -382,7 +402,8 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         let generation = compileGeneration
         isCompiling = true
         let url = presetURL(preset)
-        let coreName = source?.libraryName, rotation = source?.rotation ?? 0
+        let context = compileContext
+        let coreName = context.coreName, rotation = context.rotation
         Task { [weak self, queue] in
             var compiled: ShaderChain?
             var failure: Error?
@@ -395,8 +416,9 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             }
             guard let self else { return }
             self.isCompiling = false
-            // A newer selection or change replaced this one meanwhile.
-            guard self.compileGeneration == generation else {
+            // A newer selection or change replaced this one meanwhile, or
+            // the core or rotation changed and another variant is due.
+            guard self.compileGeneration == generation, self.compileContext == context else {
                 self.startCompile()
                 return
             }
@@ -404,6 +426,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             if let compiled {
                 self.chain = compiled
                 self.chainPreset = preset
+                self.chainContext = context
                 self.needsShaderPass = true
                 let parameters = SlangSource.sorted(compiled.parameters, by: order, name: \.name)
                 self.workspace?.loaded(preset, parameters: parameters, values: Self.values(of: compiled),

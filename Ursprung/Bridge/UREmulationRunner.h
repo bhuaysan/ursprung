@@ -78,6 +78,11 @@ typedef NS_ENUM(NSInteger, URRewindAvailability) {
 /// when the core shuts itself down.
 @property (atomic, copy, nullable) void (^NS_SWIFT_SENDABLE willUnloadHandler)(URLibretroCore *core);
 
+/// Called on the main queue when rewinding stopped by itself: the core
+/// could not go back to a recorded state, so `rewinding` is off again and
+/// `rewindAvailability` is unsupported.
+@property (nonatomic, copy, nullable) void (^NS_SWIFT_SENDABLE rewindStoppedHandler)(void);
+
 /// Called on the main queue if the core asks to shut down or the thread ends
 /// unexpectedly.
 @property (nonatomic, copy, nullable) void (^NS_SWIFT_SENDABLE terminationHandler)(void);

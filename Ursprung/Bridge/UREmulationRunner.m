@@ -322,6 +322,10 @@ static const size_t URRewindMaxStateSize = 24 * 1024 * 1024;
         URRewindBufferFree(_rewind);
         _rewind = NULL;
         _rewindSeconds = 0;
+        // The game runs forwards again: so must the display and the shaders.
+        self.rewinding = NO;
+        void (^stopped)(void) = self.rewindStoppedHandler;
+        if (stopped) dispatch_async(dispatch_get_main_queue(), stopped);
         return;
     }
     core.audioEnabled = NO;
