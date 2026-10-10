@@ -18,6 +18,9 @@ All notable changes to this project are documented here. The format follows
   photo, and official logos on placeholder covers (downloaded from ScreenScraper
   on first use, never bundled).
 
+### Changed
+- New app icon: a graphite D-pad on coral.
+
 ### Fixed
 - Artwork with an empty placeholder (e.g. the game logo in the inspector) never
   loaded.
