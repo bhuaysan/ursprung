@@ -169,6 +169,7 @@ struct LibraryView: View {
         }
         .background {
             WindowSizeReader { size in columns.update { $0.resize(to: size.width) } }
+            ToolbarSearchAlignment()
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search Games")
         .toolbar { toolbar(shelf) }
