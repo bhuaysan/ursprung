@@ -105,6 +105,19 @@ private struct TestCore {
                         waitsReturned: try function("ur_test_core_waits_returned", as: (@convention(c) () -> UInt32).self))
     }
 
+    /// Loads the core once the GPU has finished the frame that keeps the
+    /// previous core alive; until then loading fails with code 7.
+    static func loadOnceTheGPUIsDone(within timeout: Duration = .seconds(10)) throws -> TestCore {
+        let deadline = ContinuousClock.now + timeout
+        while true {
+            do {
+                return try load()
+            } catch let error as NSError where error.code == 7 && ContinuousClock.now < deadline {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+        }
+    }
+
     /// The top-left pixel of the latest frame (BGRA8 as a little-endian word).
     var latestPixel: UInt32? {
         var pixel: UInt32?
@@ -355,8 +368,9 @@ extension EmulationRunnerTests {
             #expect((error as? NSError)?.code == 7)
             #expect(current() == teardown, "Still running: nothing torn down")
 
-            // Done now: the frame's real fence signalled long ago.
-            let next = try TestCore.load()
+            // Done once the frame's real fence has signalled. Loading only polls
+            // it, and a CI runner's virtual GPU may still be at the frame.
+            let next = try TestCore.loadOnceTheGPUIsDone()
             defer { next.core.unloadGame() }
             #expect(current() == teardown.plus(1))
             #expect(unfinished == nil, "The core went once torn down")
